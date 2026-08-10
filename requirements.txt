@@ -1,0 +1,32 @@
+# Core pipeline + training. Install torch FIRST with the CUDA build that matches
+# the box, then this file:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+#   pip install -r requirements.txt
+#
+# Versions are the ones the pipeline was developed and verified against.
+
+numpy>=1.26
+scipy>=1.11
+requests>=2.31
+
+# Hi-C access. cooler reads the 27 GB .mcool remotely through fsspec, so the
+# matrix is never downloaded.
+cooler==0.10.4
+bioframe==0.8.0
+h5py>=3.11
+fsspec>=2024.6
+aiohttp>=3.9
+
+# bigWig reading for validating our features against 4DN's own tracks.
+# pybigtools is used instead of pyBigWig because it ships wheels everywhere.
+pybigtools>=0.3
+
+matplotlib>=3.8
+
+# Custom selective-scan kernel. Linux + CUDA only; there is no Windows wheel,
+# which is why the kernel is unverified on the development machine.
+triton>=3.0 ; sys_platform == "linux"
+
+# Document builds only (not needed for training)
+pypdf>=5.0
+reportlab>=4.0

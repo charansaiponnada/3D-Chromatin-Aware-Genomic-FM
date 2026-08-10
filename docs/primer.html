@@ -1,0 +1,924 @@
+<title>3D-Chromatin-Aware Genomic FM — a primer from zero</title>
+
+<style>
+  :root {
+    --ground: #FAFAFB;
+    --surface: #FFFFFF;
+    --sunk: #F1F2F5;
+    --ink: #171B22;
+    --ink-soft: #59616E;
+    --ink-faint: #858D9A;
+    --rule: #E0E3E9;
+    --rule-soft: #EDEFF3;
+    --structure: #B23A2C;
+    --structure-wash: #FBF0EE;
+    --sequence: #245F9E;
+    --sequence-wash: #EDF3FA;
+    --confirm: #2E7D46;
+    --warn: #9A6212;
+    --warn-wash: #FBF4E7;
+
+    --serif: Constantia, "Iowan Old Style", Charter, Georgia, "Times New Roman", serif;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --mono: Consolas, "Cascadia Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --col: 67ch;
+    --wide: 58rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0F1217;
+      --surface: #151920;
+      --sunk: #1A1F27;
+      --ink: #E3E7EC;
+      --ink-soft: #9BA4B1;
+      --ink-faint: #6E7885;
+      --rule: #262C36;
+      --rule-soft: #1E242C;
+      --structure: #E4705F;
+      --structure-wash: #241A18;
+      --sequence: #74A9DD;
+      --sequence-wash: #151D27;
+      --confirm: #6FBF87;
+      --warn: #D6A44E;
+      --warn-wash: #221C11;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0F1217;
+    --surface: #151920;
+    --sunk: #1A1F27;
+    --ink: #E3E7EC;
+    --ink-soft: #9BA4B1;
+    --ink-faint: #6E7885;
+    --rule: #262C36;
+    --rule-soft: #1E242C;
+    --structure: #E4705F;
+    --structure-wash: #241A18;
+    --sequence: #74A9DD;
+    --sequence-wash: #151D27;
+    --confirm: #6FBF87;
+    --warn: #D6A44E;
+    --warn-wash: #221C11;
+  }
+
+  :root[data-theme="light"] {
+    --ground: #FAFAFB;
+    --surface: #FFFFFF;
+    --sunk: #F1F2F5;
+    --ink: #171B22;
+    --ink-soft: #59616E;
+    --ink-faint: #858D9A;
+    --rule: #E0E3E9;
+    --rule-soft: #EDEFF3;
+    --structure: #B23A2C;
+    --structure-wash: #FBF0EE;
+    --sequence: #245F9E;
+    --sequence-wash: #EDF3FA;
+    --confirm: #2E7D46;
+    --warn: #9A6212;
+    --warn-wash: #FBF4E7;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 18px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: var(--wide);
+    margin: 0 auto;
+    padding: 3.5rem 1.5rem 8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .col { max-width: var(--col); }
+
+  p, ul, ol, .note, .callout, table, .formula { margin: 0 0 1.15em; }
+  p:last-child { margin-bottom: 0; }
+
+  h1, h2, h3, h4 { text-wrap: balance; margin: 0; font-weight: 600; }
+
+  h1 {
+    font-size: clamp(2.1rem, 5vw, 3.1rem);
+    line-height: 1.08;
+    letter-spacing: -0.022em;
+    max-width: 20ch;
+  }
+
+  h2 {
+    font-size: clamp(1.5rem, 3.4vw, 2rem);
+    line-height: 1.18;
+    letter-spacing: -0.014em;
+    margin: 0 0 0.5em;
+  }
+
+  h3 {
+    font-size: 1.22rem;
+    line-height: 1.3;
+    letter-spacing: -0.008em;
+    margin: 2.2em 0 0.5em;
+  }
+
+  h4 {
+    font-family: var(--sans);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--ink-soft);
+    margin: 2em 0 0.6em;
+    font-weight: 600;
+  }
+
+  .eyebrow {
+    font-family: var(--sans);
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ink-faint);
+    font-weight: 600;
+  }
+
+  /* --- masthead --- */
+  .masthead { border-bottom: 2px solid var(--ink); padding-bottom: 2.2rem; margin-bottom: 2.5rem; }
+  .masthead .eyebrow { display: block; margin-bottom: 1rem; }
+  .masthead .standfirst {
+    font-size: 1.16rem;
+    color: var(--ink-soft);
+    max-width: 56ch;
+    margin-top: 1.2rem;
+  }
+  .byline {
+    font-family: var(--sans);
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+    margin-top: 1.6rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.6rem;
+  }
+
+  /* --- part structure: the sequence is real, so number it --- */
+  .part { padding-top: 3.4rem; margin-top: 3.4rem; border-top: 1px solid var(--rule); }
+  .part:first-of-type { border-top: 0; }
+  .part-head { display: flex; gap: 1.4rem; align-items: baseline; margin-bottom: 1.6rem; }
+  .part-num {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    color: var(--structure);
+    flex: none;
+    padding-top: 0.35em;
+  }
+
+  /* --- toc --- */
+  .toc {
+    background: var(--sunk);
+    border: 1px solid var(--rule);
+    padding: 1.5rem 1.7rem;
+    font-family: var(--sans);
+    font-size: 0.92rem;
+  }
+  .toc ol { list-style: none; padding: 0; margin: 0.9rem 0 0; display: grid; gap: 0.45rem; }
+  .toc li { display: flex; gap: 0.9rem; }
+  .toc .n { font-family: var(--mono); color: var(--structure); font-size: 0.82rem; flex: none; width: 1.4rem; }
+  .toc a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--rule); }
+  .toc a:hover { border-bottom-color: var(--structure); }
+
+  /* --- figures --- */
+  figure { margin: 2.2rem 0; }
+  figure svg { display: block; width: 100%; height: auto; max-width: 100%; }
+  figcaption {
+    font-family: var(--sans);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin-top: 0.85rem;
+    max-width: 62ch;
+    padding-left: 0.9rem;
+    border-left: 2px solid var(--rule);
+  }
+  .fig-frame {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 1.6rem 1.4rem;
+    overflow-x: auto;
+  }
+
+  /* diagram element roles, styled from here so themes carry */
+  .d-line { stroke: currentColor; fill: none; }
+  .d-fill { fill: currentColor; }
+  .d-box { fill: none; stroke: currentColor; stroke-width: 1.4; }
+  .d-struct { stroke: var(--structure); fill: none; }
+  .d-struct-f { fill: var(--structure); }
+  .d-seq { stroke: var(--sequence); fill: none; }
+  .d-seq-f { fill: var(--sequence); }
+  .d-ok-f { fill: var(--confirm); }
+  .d-ok { stroke: var(--confirm); fill: none; }
+  .d-faint { stroke: var(--ink-faint); fill: none; }
+  .d-faint-f { fill: var(--ink-faint); }
+  .d-wash { fill: var(--sunk); stroke: none; }
+  text { font-family: var(--sans); fill: currentColor; }
+  .t-lbl { font-size: 12px; }
+  .t-sm { font-size: 10.5px; fill: var(--ink-soft); }
+  .t-mono { font-family: var(--mono); font-size: 11px; }
+  .t-bold { font-weight: 650; }
+  .t-struct { fill: var(--structure); }
+  .t-seq { fill: var(--sequence); }
+  .t-ok { fill: var(--confirm); }
+
+  /* --- callouts --- */
+  .callout {
+    border-left: 3px solid var(--sequence);
+    background: var(--sequence-wash);
+    padding: 1rem 1.2rem;
+    font-size: 0.96rem;
+  }
+  .callout.warn { border-left-color: var(--warn); background: var(--warn-wash); }
+  .callout.struct { border-left-color: var(--structure); background: var(--structure-wash); }
+  .callout .lbl {
+    font-family: var(--sans);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.11em;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 0.4rem;
+    color: var(--sequence);
+  }
+  .callout.warn .lbl { color: var(--warn); }
+  .callout.struct .lbl { color: var(--structure); }
+
+  /* --- jargon --- */
+  .term { border-bottom: 1px dotted var(--structure); }
+  dfn { font-style: normal; font-weight: 650; }
+
+  /* --- tables --- */
+  .tw { overflow-x: auto; margin: 1.6rem 0; }
+  table { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 0.88rem; }
+  th, td { text-align: left; padding: 0.55rem 0.9rem 0.55rem 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); border-bottom: 1px solid var(--rule); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); padding-right: 0; }
+  tbody tr:last-child td { border-bottom: 0; }
+
+  /* --- formula --- */
+  .formula {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    background: var(--sunk);
+    border: 1px solid var(--rule);
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    line-height: 1.75;
+  }
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--sunk); padding: 0.1em 0.35em; border-radius: 2px; }
+
+  ul, ol { padding-left: 1.3rem; }
+  li { margin-bottom: 0.45em; }
+
+  a { color: var(--sequence); }
+
+  .kicker { color: var(--structure); font-weight: 650; }
+  .quiet { color: var(--ink-soft); }
+
+  hr.soft { border: 0; border-top: 1px solid var(--rule); margin: 2.6rem 0; }
+
+  .status-grid { display: grid; gap: 0.9rem; margin: 1.5rem 0; }
+  .status-row {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr;
+    gap: 1rem;
+    padding-bottom: 0.9rem;
+    border-bottom: 1px solid var(--rule-soft);
+    font-size: 0.95rem;
+  }
+  .status-row .st {
+    font-family: var(--sans);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    padding-top: 0.28em;
+  }
+  .st.done { color: var(--confirm); }
+  .st.now { color: var(--structure); }
+  .st.next { color: var(--ink-faint); }
+
+  @media (max-width: 640px) {
+    body { font-size: 17px; }
+    .part-head { flex-direction: column; gap: 0.3rem; }
+    .status-row { grid-template-columns: 1fr; gap: 0.2rem; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <span class="eyebrow">Project primer &middot; written for someone starting from zero</span>
+    <h1>Teaching a DNA model that the genome is folded</h1>
+    <p class="standfirst">Everything you need to understand this research: what DNA and chromatin are, what a foundation model is, what the project proposes to build, and exactly where it stands today.</p>
+    <div class="byline">
+      <span>Repository: 3D-Chromatin-Aware-Genomic-FM</span>
+      <span>Status: Phase 1 complete, Phase 3 next</span>
+      <span>7 August 2026</span>
+    </div>
+  </header>
+
+  <div class="col toc">
+    <span class="eyebrow">What's in here</span>
+    <ol>
+      <li><span class="n">1</span><a href="#p1">DNA, genes, and the problem that starts everything</a></li>
+      <li><span class="n">2</span><a href="#p2">The genome is folded, and the folding matters</a></li>
+      <li><span class="n">3</span><a href="#p3">How folding gets measured, and what the data looks like</a></li>
+      <li><span class="n">4</span><a href="#p4">Foundation models, and the two that matter here</a></li>
+      <li><span class="n">5</span><a href="#p5">The research: title, abstract, and the gap it fills</a></li>
+      <li><span class="n">6</span><a href="#p6">The mechanism, in equations you can read</a></li>
+      <li><span class="n">7</span><a href="#p7">Where the project actually stands</a></li>
+      <li><span class="n">8</span><a href="#p8">Glossary</a></li>
+    </ol>
+  </div>
+
+  <!-- ============ PART 1 ============ -->
+  <section class="part" id="p1">
+    <div class="part-head">
+      <span class="part-num">01</span>
+      <h2>DNA, genes, and the problem that starts everything</h2>
+    </div>
+
+    <div class="col">
+      <p>DNA is a long molecule spelled in four letters: A, T, G and C. The human genome is about 3.1 billion of those letters, split across 23 pairs of chromosomes. Chromosome 9, which this project uses as its test case, is 138,394,717 letters long.</p>
+
+      <p>A <dfn>gene</dfn> is a stretch of DNA that gets copied into RNA and usually then into protein. Genes are a small minority of the genome: only about 1&ndash;2% of human DNA codes for protein directly. The rest was called junk DNA for decades. It is not junk. Much of it is regulatory, and the regulatory part is where this project lives.</p>
+
+      <p>Two regulatory pieces matter for what follows. A <dfn>promoter</dfn> sits immediately in front of a gene and is where the copying machinery docks to start reading. An <dfn>enhancer</dfn> is a separate stretch of DNA that boosts how much a gene gets transcribed &mdash; and here is the strange part &mdash; an enhancer can sit hundreds of thousands of letters away from the gene it controls, sometimes over a million.</p>
+
+      <p>That distance is the seed of the whole research problem. If an enhancer has to physically influence a promoter, and the two are a million letters apart on the same strand, how does one reach the other?</p>
+    </div>
+
+    <figure class="fig-frame">
+      <svg viewBox="0 0 780 210" role="img" aria-label="A linear stretch of DNA showing an enhancer separated from a gene's promoter by up to a million base pairs, with the question of how one reaches the other.">
+        <line class="d-line" x1="30" y1="118" x2="750" y2="118" stroke-width="2"/>
+        <text class="t-sm" x="30" y="150">chromosome 9, drawn linearly</text>
+
+        <rect class="d-seq" x="60" y="103" width="72" height="30" stroke-width="1.6"/>
+        <text class="t-lbl t-seq t-bold" x="96" y="123" text-anchor="middle">enhancer</text>
+        <text class="t-sm" x="96" y="93" text-anchor="middle">boosts transcription</text>
+
+        <line class="d-faint" x1="140" y1="167" x2="520" y2="167" stroke-width="1" stroke-dasharray="3 3"/>
+        <line class="d-faint" x1="140" y1="161" x2="140" y2="173" stroke-width="1"/>
+        <line class="d-faint" x1="520" y1="161" x2="520" y2="173" stroke-width="1"/>
+        <text class="t-mono" x="330" y="188" text-anchor="middle" fill="currentColor">100,000 – 1,000,000 base pairs</text>
+
+        <rect class="d-struct-f" x="524" y="106" width="10" height="24"/>
+        <text class="t-lbl t-struct t-bold" x="529" y="95" text-anchor="middle">promoter</text>
+
+        <rect class="d-box" x="540" y="106" width="34" height="24"/>
+        <rect class="d-box" x="590" y="106" width="46" height="24"/>
+        <rect class="d-box" x="652" y="106" width="30" height="24"/>
+        <line class="d-line" x1="574" y1="118" x2="590" y2="118" stroke-width="1"/>
+        <line class="d-line" x1="636" y1="118" x2="652" y2="118" stroke-width="1"/>
+        <text class="t-lbl t-bold" x="611" y="123" text-anchor="middle">gene</text>
+        <text class="t-sm" x="611" y="153" text-anchor="middle">boxes = exons, kept in the message</text>
+        <text class="t-sm" x="611" y="167" text-anchor="middle">gaps = introns, spliced out</text>
+
+        <path class="d-struct" d="M 132 100 C 260 40, 400 40, 520 98" stroke-width="1.8" stroke-dasharray="6 4"/>
+        <text class="t-lbl t-struct" x="326" y="46" text-anchor="middle">must activate this — but how?</text>
+      </svg>
+      <figcaption>An enhancer and the gene it controls, drawn along the DNA strand as sequence models see it. Nothing in the linear arrangement explains how the enhancer reaches across 100 kb to 1 Mb of intervening DNA. Part 2 has the answer.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ PART 2 ============ -->
+  <section class="part" id="p2">
+    <div class="part-head">
+      <span class="part-num">02</span>
+      <h2>The genome is folded, and the folding matters</h2>
+    </div>
+
+    <div class="col">
+      <p>Two metres of DNA fit inside a nucleus about six micrometres across. It gets there by winding around protein spools called histones, coiling those into a fibre, and folding the fibre into large domains that pack into compartments. The folding is not random, and it answers the question from Part 1: the DNA loops, bringing the enhancer into physical contact with the promoter even though a million letters separate them along the strand.</p>
+
+      <p>The loop forms by a process called <dfn>loop extrusion</dfn>. A ring-shaped protein complex called <dfn>cohesin</dfn> grabs the DNA and pulls it through itself, growing a loop, until it hits a pair of binding sites for a protein called <dfn>CTCF</dfn>. The ring stalls there and the loop stabilises.</p>
+
+      <p>One detail of that mechanism drives a large part of this project. The cohesin ring only stalls when the two CTCF sites point <em>toward</em> each other. CTCF motifs have a direction, like an arrowhead in the sequence, and only convergent pairs anchor a loop. Presence of the motif is not enough; orientation decides. Almost no current sequence-only DNA model is trained in a way that makes orientation-at-a-distance matter.</p>
+    </div>
+
+    <figure class="fig-frame">
+      <svg viewBox="0 0 780 250" role="img" aria-label="Loop extrusion: a cohesin ring pulls DNA through itself until it stalls at two convergent CTCF motifs, forming a loop that brings the enhancer against the promoter.">
+        <text class="t-sm t-bold" x="30" y="26">1 — cohesin loads</text>
+        <line class="d-line" x1="30" y1="62" x2="235" y2="62" stroke-width="2"/>
+        <circle class="d-struct" cx="132" cy="62" r="13" stroke-width="2"/>
+        <polygon class="d-seq-f" points="62,55 76,62 62,69"/>
+        <polygon class="d-seq-f" points="203,55 189,62 203,69"/>
+        <text class="t-sm t-seq" x="62" y="86">CTCF ▶</text>
+        <text class="t-sm t-seq" x="203" y="86" text-anchor="end">◀ CTCF</text>
+
+        <text class="t-sm t-bold" x="285" y="26">2 — DNA is pulled through</text>
+        <path class="d-line" d="M 285 62 L 340 62 C 355 62, 358 34, 375 34 C 392 34, 395 62, 410 62 L 470 62" stroke-width="2"/>
+        <circle class="d-struct" cx="375" cy="62" r="13" stroke-width="2"/>
+        <polygon class="d-seq-f" points="300,55 314,62 300,69"/>
+        <polygon class="d-seq-f" points="455,55 441,62 455,69"/>
+        <text class="t-sm t-struct" x="375" y="90" text-anchor="middle">cohesin ring</text>
+
+        <text class="t-sm t-bold" x="530" y="26">3 — stalls at convergent CTCF</text>
+        <path class="d-line" d="M 530 62 L 560 62 C 590 62, 585 6, 640 6 C 695 6, 690 62, 720 62 L 750 62" stroke-width="2"/>
+        <circle class="d-struct" cx="640" cy="52" r="13" stroke-width="2"/>
+        <polygon class="d-seq-f" points="556,55 570,62 556,69"/>
+        <polygon class="d-seq-f" points="724,55 710,62 724,69"/>
+        <text class="t-sm t-seq" x="640" y="86" text-anchor="middle">only convergent pairs stall the ring</text>
+
+        <line class="d-faint" x1="30" y1="118" x2="750" y2="118" stroke-width="1" stroke-dasharray="2 4"/>
+
+        <text class="t-sm t-bold" x="30" y="150">the result, in space</text>
+        <path class="d-line" d="M 120 232 L 200 232 C 262 232, 250 160, 330 160 C 410 160, 398 232, 460 232 L 540 232" stroke-width="2.2"/>
+        <rect class="d-seq" x="176" y="219" width="46" height="26" stroke-width="1.6"/>
+        <text class="t-sm t-seq" x="199" y="212" text-anchor="middle">enhancer</text>
+        <rect class="d-struct-f" x="440" y="220" width="9" height="24"/>
+        <text class="t-sm t-struct" x="452" y="212" text-anchor="middle">promoter</text>
+        <path class="d-ok" d="M 226 232 C 300 250, 380 250, 438 234" stroke-width="1.6"/>
+        <text class="t-lbl t-ok t-bold" x="332" y="264" text-anchor="middle">now touching</text>
+        <circle class="d-struct" cx="330" cy="160" r="13" stroke-width="2"/>
+      </svg>
+      <figcaption>Loop extrusion. The ring pulls DNA through until convergent CTCF motifs stop it. The loop puts the enhancer physically against the promoter — the mechanism that closes the distance gap in Figure 1. Motif orientation, not just motif presence, determines where loops anchor.</figcaption>
+    </figure>
+
+    <div class="col">
+      <h3>The three structures you need to recognise</h3>
+
+      <p>A <dfn>TAD</dfn>, short for topologically associating domain, is a neighbourhood of DNA that contacts itself far more than it contacts anything outside. Enhancers almost always act only within their own TAD, so TAD boundaries decide which enhancers can reach which genes. TADs are largely the same across cell types, which is what makes it defensible to treat them as a general property of the genome rather than a quirk of one cell line.</p>
+
+      <p>A <dfn>loop</dfn> is the specific point-to-point contact from Figure 2 &mdash; two anchors touching, everything between them looped out. Rao and colleagues found roughly 10,000 of them across the human genome in 2014.</p>
+
+      <p>An <dfn>A/B compartment</dfn> is a much coarser split. A regions are open, gene-rich and active; B regions are closed and inactive. The genome alternates between them along each chromosome.</p>
+    </div>
+  </section>
+
+  <!-- ============ PART 3 ============ -->
+  <section class="part" id="p3">
+    <div class="part-head">
+      <span class="part-num">03</span>
+      <h2>How folding gets measured, and what the data looks like</h2>
+    </div>
+
+    <div class="col">
+      <p>The assay is called <dfn>Hi-C</dfn>. Chemically freeze the genome in its folded shape so anything touching stays stuck together, cut the DNA into fragments, glue together the pairs of fragments that were physically near each other, then sequence the glued pairs. Every read tells you two positions in the genome that were close in 3D.</p>
+
+      <p>Tallying millions of those reads gives a <dfn>contact matrix</dfn>: rows and columns are positions along a chromosome, and each cell counts how often those two positions were found together. This matrix is the central data structure of the entire field, and learning to read it is most of what you need.</p>
+    </div>
+
+    <figure class="fig-frame">
+      <svg viewBox="0 0 780 330" role="img" aria-label="How Hi-C produces a contact matrix, and how TADs, loops, and compartments appear as squares, dots, and a checkerboard within it.">
+        <text class="t-sm t-bold" x="20" y="24">the assay</text>
+        <path class="d-line" d="M 30 70 C 70 40, 60 110, 100 96 C 140 82, 120 46, 158 60 C 196 74, 170 118, 210 112" stroke-width="1.8"/>
+        <circle class="d-seq-f" cx="63" cy="72" r="5"/>
+        <circle class="d-struct-f" cx="152" cy="66" r="5"/>
+        <path class="d-faint" d="M 68 72 L 147 66" stroke-width="1.2" stroke-dasharray="3 3"/>
+        <text class="t-sm" x="120" y="140">two loci, close in space</text>
+        <text class="t-sm" x="30" y="176">1. crosslink — freeze contacts</text>
+        <text class="t-sm" x="30" y="196">2. cut the DNA</text>
+        <text class="t-sm" x="30" y="216">3. re-ligate touching pairs</text>
+        <text class="t-sm" x="30" y="236">4. sequence the joined pairs</text>
+        <path class="d-line" d="M 240 155 L 290 155" stroke-width="1.6" marker-end="url(#ah)"/>
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <text class="t-sm t-bold" x="330" y="24">the contact matrix</text>
+        <rect class="d-wash" x="330" y="40" width="250" height="250"/>
+        <rect class="d-box" x="330" y="40" width="250" height="250" stroke-width="1.2"/>
+        <line class="d-line" x1="330" y1="40" x2="580" y2="290" stroke-width="2.5"/>
+
+        <rect class="d-struct" x="366" y="76" width="62" height="62" stroke-width="2"/>
+        <rect class="d-struct" x="452" y="162" width="80" height="80" stroke-width="2"/>
+        <circle class="d-ok-f" cx="452" cy="242" r="5.5"/>
+        <circle class="d-ok-f" cx="242" cy="452" r="0"/>
+
+        <text class="t-sm" x="345" y="312">position along chromosome →</text>
+        <text class="t-sm" x="322" y="200" text-anchor="end" transform="rotate(-90 322 200)">← position</text>
+
+        <line class="d-faint" x1="432" y1="106" x2="600" y2="106" stroke-width="1"/>
+        <text class="t-lbl t-struct t-bold" x="606" y="103">TAD</text>
+        <text class="t-sm" x="606" y="119">bright square on the diagonal</text>
+        <text class="t-sm" x="606" y="133">= a self-contacting neighbourhood</text>
+
+        <line class="d-faint" x1="456" y1="246" x2="600" y2="246" stroke-width="1"/>
+        <text class="t-lbl t-ok t-bold" x="606" y="243">loop</text>
+        <text class="t-sm" x="606" y="259">focal dot off the diagonal</text>
+        <text class="t-sm" x="606" y="273">= two anchors touching</text>
+
+        <text class="t-lbl t-bold" x="606" y="60">diagonal</text>
+        <text class="t-sm" x="606" y="76">always bright: nearby DNA</text>
+        <text class="t-sm" x="606" y="90">contacts itself constantly</text>
+      </svg>
+      <figcaption>Hi-C, end to end. The diagonal is always bright because sequence neighbours are always in contact — which is why raw contact counts must be divided by their distance-matched expectation before any structure claim is made. TADs read as squares on the diagonal, loops as isolated dots off it.</figcaption>
+    </figure>
+
+    <div class="col">
+      <div class="callout warn">
+        <span class="lbl">The trap that catches everyone</span>
+        Contact frequency falls off smoothly with genomic distance. Two positions 10 kb apart touch far more than two positions 1 Mb apart, for reasons that have nothing to do with TADs or loops. Any structural signal must therefore be divided by its distance-matched expectation &mdash; the observed-over-expected correction &mdash; or the model learns nothing but a re-encoding of how far apart things are. This project has a dedicated control test, described in Part 7, whose entire purpose is to catch that failure.
+      </div>
+
+      <h3>Files and coordinates</h3>
+
+      <p>Sequence arrives as FASTA. Gene annotation arrives as GTF. Intervals arrive as BED. Contact matrices arrive as <code>.hic</code> or <code>.cool</code>, and this project reads a multi-resolution <code>.mcool</code> that stores the same chromosome at thirteen bin sizes from 1 kb to 10 Mb.</p>
+
+      <p>Every one of those files states positions relative to a <dfn>reference genome</dfn>, and human genomics currently has two in circulation: GRCh38, the current one, and hg19, its predecessor. The same gene sits at different numbers in each. Mixing them produces no error message, just silently wrong answers &mdash; a hazard this project has already hit twice, documented in Part 7.</p>
+    </div>
+  </section>
+
+  <!-- ============ PART 4 ============ -->
+  <section class="part" id="p4">
+    <div class="part-head">
+      <span class="part-num">04</span>
+      <h2>Foundation models, and the two that matter here</h2>
+    </div>
+
+    <div class="col">
+      <p>A <dfn>foundation model</dfn> is trained once on an enormous pile of unlabelled data, then reused for many specific tasks that each have very little labelled data. The training trick is to invent a task the data can grade itself on. For DNA, that means hiding some letters and asking the model to predict them, which is called <dfn>masked language modelling</dfn>, or asking it to predict the next letter, which is <dfn>autoregressive</dfn> training. Neither requires a human to label anything.</p>
+
+      <p>What the model keeps from that process is an <dfn>embedding</dfn>: a vector of numbers per position that encodes what the model has learned about that stretch of sequence. Downstream tasks &mdash; is this a promoter, is this mutation harmful &mdash; then train a small head on those embeddings instead of learning from scratch.</p>
+    </div>
+
+    <figure class="fig-frame">
+      <svg viewBox="0 0 780 250" role="img" aria-label="Foundation model workflow: self-supervised pretraining on unlabelled genome sequence produces reusable representations, which small labelled task heads then build on.">
+        <rect class="d-box" x="24" y="60" width="150" height="76" stroke-width="1.4"/>
+        <text class="t-lbl t-bold" x="99" y="88" text-anchor="middle">unlabelled DNA</text>
+        <text class="t-sm" x="99" y="106" text-anchor="middle">billions of letters</text>
+        <text class="t-sm" x="99" y="120" text-anchor="middle">no annotation needed</text>
+
+        <line class="d-line" x1="178" y1="98" x2="222" y2="98" stroke-width="1.5" marker-end="url(#ah2)"/>
+        <defs>
+          <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <rect class="d-seq" x="226" y="46" width="196" height="104" stroke-width="1.6"/>
+        <text class="t-lbl t-seq t-bold" x="324" y="72" text-anchor="middle">pretraining</text>
+        <text class="t-mono" x="324" y="98" text-anchor="middle" fill="currentColor">A T G ? C ? A T</text>
+        <text class="t-sm" x="324" y="118" text-anchor="middle">hide 15% of letters,</text>
+        <text class="t-sm" x="324" y="132" text-anchor="middle">predict what was hidden</text>
+
+        <line class="d-line" x1="426" y1="98" x2="470" y2="98" stroke-width="1.5" marker-end="url(#ah2)"/>
+
+        <rect class="d-box" x="474" y="60" width="140" height="76" stroke-width="1.4"/>
+        <text class="t-lbl t-bold" x="544" y="88" text-anchor="middle">representation</text>
+        <text class="t-sm" x="544" y="106" text-anchor="middle">a vector per position,</text>
+        <text class="t-sm" x="544" y="120" text-anchor="middle">reusable everywhere</text>
+
+        <line class="d-line" x1="544" y1="140" x2="544" y2="172" stroke-width="1.5" marker-end="url(#ah2)"/>
+        <line class="d-faint" x1="400" y1="172" x2="690" y2="172" stroke-width="1.2"/>
+        <line class="d-faint" x1="400" y1="172" x2="400" y2="192" stroke-width="1.2"/>
+        <line class="d-faint" x1="544" y1="172" x2="544" y2="192" stroke-width="1.2"/>
+        <line class="d-faint" x1="690" y1="172" x2="690" y2="192" stroke-width="1.2"/>
+
+        <rect class="d-struct" x="340" y="192" width="120" height="42" stroke-width="1.4"/>
+        <text class="t-sm t-struct t-bold" x="400" y="211" text-anchor="middle">is it a promoter?</text>
+        <text class="t-sm" x="400" y="226" text-anchor="middle">a few thousand labels</text>
+
+        <rect class="d-struct" x="484" y="192" width="120" height="42" stroke-width="1.4"/>
+        <text class="t-sm t-struct t-bold" x="544" y="211" text-anchor="middle">is this mutation harmful?</text>
+        <text class="t-sm" x="544" y="226" text-anchor="middle">ClinVar labels</text>
+
+        <rect class="d-struct" x="628" y="192" width="120" height="42" stroke-width="1.4"/>
+        <text class="t-sm t-struct t-bold" x="688" y="211" text-anchor="middle">enhancer → gene?</text>
+        <text class="t-sm" x="688" y="226" text-anchor="middle">few labelled pairs</text>
+      </svg>
+      <figcaption>Why foundation models are used in genomics: labelled genomic data is scarce and expensive, unlabelled sequence is free. Pretraining converts the free data into a representation that the scarce-label tasks can stand on.</figcaption>
+    </figure>
+
+    <div class="col">
+      <h3>Evo 2 and Caduceus</h3>
+
+      <p><dfn>Evo 2</dfn> is the largest DNA model published to date: 7 billion and 40 billion parameter versions trained autoregressively on 9.3 trillion nucleotides from over 128,000 species, able to read a million letters at once. It reads sequence only. No Hi-C, no chromatin, at any stage.</p>
+
+      <p><dfn>Caduceus</dfn> is much smaller and is this project's architectural parent. It uses a state-space model called Mamba rather than a transformer, and it handles a fact peculiar to DNA: the molecule is double-stranded, so a sequence and its reverse complement are the same physical object read from opposite ends. Caduceus builds that symmetry into the architecture. It is trained with masked language modelling on the human genome and, like Evo 2, sees no 3D structure.</p>
+
+      <p>Mamba matters for Part 6, so here is the one idea to carry forward. A state-space model walks along the sequence carrying a running summary called the state. At each position it decays what it already remembers by a factor written <code>Ā</code>, and mixes in the current letter. A separate learned quantity, <code>Δ</code>, controls how fast that decay happens &mdash; how long the model holds on to something before forgetting it. That knob is where this project intervenes.</p>
+    </div>
+  </section>
+
+  <!-- ============ PART 5 ============ -->
+  <section class="part" id="p5">
+    <div class="part-head">
+      <span class="part-num">05</span>
+      <h2>The research: title, abstract, and the gap it fills</h2>
+    </div>
+
+    <div class="col">
+      <div class="callout struct">
+        <span class="lbl">Read this before the abstract</span>
+        What follows is a proposal abstract. No model has been trained yet, so it contains no results and states none. The project's working rule is that no number reaches a draft unless it came from a logged experiment, and nothing in Parts 5 and 6 has been run.
+      </div>
+
+      <h3>Title</h3>
+      <p style="font-size:1.24rem; line-height:1.35;">Structure in the Recurrence: Conditioning Genomic Foundation Model Pretraining on 3D Chromatin Contacts</p>
+
+      <h4>Abstract (proposal)</h4>
+      <p>Genomic foundation models are pretrained on DNA sequence alone, yet much of the regulatory logic they are asked to predict is carried by the genome's three-dimensional folding, which determines which enhancers can reach which promoters. Existing work that combines sequence with chromatin contact data does so after the sequence representation is already fixed: CHROME trains an encoder on individual loci and only then adds a graph-attention layer over Hi-C contacts, and Evo2HiC distils a frozen Evo 2 into a compact encoder using Hi-C as a contrastive alignment target. In both, the contact data shapes which learned features are combined, never which features are learned. We propose instead to place chromatin structure inside the pretraining computation itself. Contact-derived features are used to modulate the state-transition dynamics of a bidirectional Mamba backbone, so that Hi-C signal changes how far information propagates along the sequence rather than only what each position encodes. The mechanism adds 0.43% to parameter count over a matched sequence-only baseline. We evaluate whether a structure-shaped representation transfers &mdash; a question no sequence-to-structure model has been asked, as a forward-citation sweep over 318 papers citing Akita and Orca confirms &mdash; using long-range regulatory and variant-effect tasks, together with a perturbation-sensitivity protocol on which Evo 2 has been reported to fail. Controls include structure shuffled at pretraining time and a distance-matched rewiring that tests whether any apparent structural signal is genomic distance in disguise.</p>
+
+      <h4>Keywords</h4>
+      <p class="quiet">genomic foundation models &middot; 3D genome organisation &middot; Hi-C &middot; topologically associating domains &middot; state-space models &middot; Mamba &middot; self-supervised pretraining &middot; CTCF &middot; variant effect prediction &middot; representation transfer</p>
+
+      <h3>The gap, stated concretely</h3>
+
+      <p>Four families of work surround this project, and none occupies the same square.</p>
+
+      <p>Models that read only Hi-C &mdash; HiCFoundation, Hi&#8209;Cformer &mdash; learn excellent representations of contact maps but never see a DNA letter, so they cannot score a mutation. A point mutation does not change their input at all.</p>
+
+      <p>Models that read only sequence &mdash; Evo 2, Caduceus &mdash; never see structure. Lee probed Evo 2 directly in April 2026 and found it penalised TAD boundary deletions <em>less</em> than size- and GC-matched random controls, with a paired Wilcoxon p of 0.405, and generated loops with a median enrichment of 0.054 against a reference of 0.388. The conclusion was that Evo 2 learned local CTCF grammar but missed higher-order organisation.</p>
+
+      <p>Models that predict structure from sequence &mdash; Akita, Orca &mdash; do train a sequence model against Hi-C targets, which is the closest existing thing to this proposal. But they are single-purpose folding predictors, evaluated on contact-map accuracy. Nobody has ever taken their internal representations and asked them to do anything else.</p>
+
+      <p>Models that combine both after the fact &mdash; CHROME, Evo2HiC &mdash; are the nearest competitors, and the difference is where the Hi-C arrow enters.</p>
+    </div>
+
+    <figure class="fig-frame">
+      <svg viewBox="0 0 780 330" role="img" aria-label="Three architectures compared by where Hi-C data enters: after the sequence encoder is trained in CHROME, as a contrastive alignment target in Evo2HiC, and inside the pretraining recurrence in this project.">
+        <text class="t-sm t-bold" x="20" y="22">CHROME (2026)</text>
+        <rect class="d-box" x="20" y="36" width="150" height="40" stroke-width="1.4"/>
+        <text class="t-sm" x="95" y="54" text-anchor="middle">train CNN encoder</text>
+        <text class="t-sm" x="95" y="68" text-anchor="middle">on single loci</text>
+        <line class="d-line" x1="174" y1="56" x2="212" y2="56" stroke-width="1.4" marker-end="url(#ah3)"/>
+        <defs>
+          <marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <rect class="d-box" x="216" y="36" width="130" height="40" stroke-width="1.4"/>
+        <text class="t-sm" x="281" y="54" text-anchor="middle">freeze early layers</text>
+        <text class="t-sm" x="281" y="68" text-anchor="middle">add graph attention</text>
+        <line class="d-struct" x1="281" y1="6" x2="281" y2="32" stroke-width="2" marker-end="url(#ahs)"/>
+        <defs>
+          <marker id="ahs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--structure)"/>
+          </marker>
+        </defs>
+        <text class="t-lbl t-struct t-bold" x="292" y="16">Hi-C enters here</text>
+        <text class="t-sm" x="400" y="50">representation already fixed;</text>
+        <text class="t-sm" x="400" y="66">structure only re-weights it</text>
+        <text class="t-sm t-struct" x="400" y="82">also needed at inference</text>
+
+        <line class="d-faint" x1="20" y1="104" x2="760" y2="104" stroke-width="1"/>
+
+        <text class="t-sm t-bold" x="20" y="132">Evo2HiC (2025)</text>
+        <rect class="d-box" x="20" y="146" width="150" height="40" stroke-width="1.4"/>
+        <text class="t-sm" x="95" y="164" text-anchor="middle">Evo 2 (7B), frozen</text>
+        <text class="t-sm" x="95" y="178" text-anchor="middle">teacher embeddings</text>
+        <line class="d-line" x1="174" y1="166" x2="212" y2="166" stroke-width="1.4" marker-end="url(#ah3)"/>
+        <rect class="d-box" x="216" y="146" width="130" height="40" stroke-width="1.4"/>
+        <text class="t-sm" x="281" y="164" text-anchor="middle">3.6M CNN student</text>
+        <text class="t-sm" x="281" y="178" text-anchor="middle">contrastive alignment</text>
+        <line class="d-struct" x1="281" y1="116" x2="281" y2="142" stroke-width="2" marker-end="url(#ahs)"/>
+        <text class="t-lbl t-struct t-bold" x="292" y="126">Hi-C enters here</text>
+        <text class="t-sm" x="400" y="160">shapes the embedding space,</text>
+        <text class="t-sm" x="400" y="176">but no objective over nucleotides;</text>
+        <text class="t-sm" x="400" y="192">ceiling is the frozen teacher</text>
+
+        <line class="d-faint" x1="20" y1="214" x2="760" y2="214" stroke-width="1"/>
+
+        <text class="t-sm t-bold t-struct" x="20" y="242">this project</text>
+        <rect class="d-struct" x="20" y="256" width="326" height="56" stroke-width="1.8"/>
+        <text class="t-sm" x="183" y="278" text-anchor="middle">masked-token pretraining over nucleotides,</text>
+        <text class="t-sm" x="183" y="296" text-anchor="middle">from scratch, no teacher</text>
+        <line class="d-struct" x1="183" y1="226" x2="183" y2="252" stroke-width="2" marker-end="url(#ahs)"/>
+        <text class="t-lbl t-struct t-bold" x="194" y="236">Hi-C enters here</text>
+        <text class="t-sm" x="400" y="270">structure modulates the recurrence</text>
+        <text class="t-sm" x="400" y="286">while sequence features are being learned;</text>
+        <text class="t-sm t-ok" x="400" y="302">sequence-only at inference</text>
+      </svg>
+      <figcaption>The whole contribution is the position of one arrow. CHROME's encoder finishes training before any contact data exists. Evo2HiC's Hi-C shapes an embedding space but never enters an objective over nucleotides. This project puts contacts inside the pretraining computation, where they can change which sequence features get learned at all.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ PART 6 ============ -->
+  <section class="part" id="p6">
+    <div class="part-head">
+      <span class="part-num">06</span>
+      <h2>The mechanism, in equations you can read</h2>
+    </div>
+
+    <div class="col">
+      <p>Recall the state-space model from Part 4. Walking along the sequence, the model carries a state <code>h</code>. At each position it does this:</p>
+
+      <div class="formula">h<sub>t</sub> = <span style="color:var(--structure)">Ā<sub>t</sub></span> · h<sub>t−1</sub>  +  B̄<sub>t</sub> · x<sub>t</sub>
+&nbsp;
+<span class="quiet">        ↑ how much of the past       ↑ how much of the
+          survives this step            current letter enters</span></div>
+
+      <p><code>Ā</code> is set by an exponential, <code>Ā = exp(Δ · A)</code>, where <code>A</code> is negative so the state always decays. The learned quantity <code>Δ</code> controls the speed. Small <code>Δ</code> means slow decay and a long memory; large <code>Δ</code> means fast forgetting.</p>
+
+      <p>The proposal adds two terms, both fed by an eight-number structural summary <code>s<sub>t</sub></code> computed from the Hi-C matrix at position <code>t</code>:</p>
+
+      <div class="formula">Δ<sub>t</sub> = softplus( <span class="quiet">…usual sequence-driven part…</span> + <span style="color:var(--structure)">W<sub>Δs</sub> · s<sub>t</sub></span> )
+
+p<sub>t</sub> = softplus( <span style="color:var(--structure)">w<sub>g</sub><sup>T</sup> · s<sub>t</sub> + b<sub>g</sub></span> )        ≥ 0
+
+Ā<sub>t</sub> = exp( Δ<sub>t</sub> · A  <span style="color:var(--structure)">− p<sub>t</sub></span> )</div>
+
+      <p>The first term lets structure retune the memory length of each channel. The second, <code>p</code>, is an extra damping that only ever shortens memory &mdash; at a TAD boundary the model can push it up and cut the state off, which is what a boundary does biologically.</p>
+
+      <div class="callout">
+        <span class="lbl">Why this is not just adding a feature</span>
+        If you appended the structural numbers to the input instead, they would only reach <code>B̄·x</code>, the term controlling how much of the current letter enters. They could never touch <code>Ā</code>, which controls what survives. Because <code>Δ</code> sits inside an exponential in <code>Ā</code>, structure here sets how <em>far</em> information travels, not just what gets encoded. That distinction is the entire novelty claim, and it is why a competitor using contrastive alignment on output embeddings cannot reach the same place.
+      </div>
+    </div>
+
+    <figure class="fig-frame">
+      <svg viewBox="0 0 780 300" role="img" aria-label="The structural signal entering the state-space recurrence at the decay term, contrasted with a plain input feature which can only reach the input term.">
+        <defs>
+          <marker id="ah4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="ahq" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--sequence)"/>
+          </marker>
+          <marker id="ahs2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--structure)"/>
+          </marker>
+        </defs>
+
+        <rect class="d-struct" x="30" y="26" width="586" height="32" stroke-width="1.6"/>
+        <text class="t-sm t-struct t-bold" x="42" y="46">Hi-C structural signal s — insulation, directionality, compartment, density</text>
+
+        <line class="d-struct" x1="110" y1="62" x2="110" y2="136" stroke-width="2" marker-end="url(#ahs2)"/>
+        <line class="d-struct" x1="330" y1="62" x2="330" y2="136" stroke-width="2" marker-end="url(#ahs2)"/>
+        <line class="d-struct" x1="550" y1="62" x2="550" y2="136" stroke-width="2" marker-end="url(#ahs2)"/>
+        <text class="t-sm t-struct t-bold" x="118" y="104">→ Ā</text>
+        <text class="t-sm t-struct t-bold" x="338" y="104">→ Ā</text>
+        <text class="t-sm t-struct t-bold" x="558" y="104">→ Ā</text>
+
+        <text class="t-sm t-bold" x="30" y="142">state h</text>
+        <line class="d-line" x1="30" y1="152" x2="616" y2="152" stroke-width="2.5" marker-end="url(#ah4)"/>
+
+        <line class="d-seq" x1="70" y1="238" x2="70" y2="164" stroke-width="1.4" marker-end="url(#ahq)"/>
+        <line class="d-seq" x1="160" y1="238" x2="160" y2="164" stroke-width="1.4" marker-end="url(#ahq)"/>
+        <line class="d-seq" x1="250" y1="238" x2="250" y2="164" stroke-width="1.4" marker-end="url(#ahq)"/>
+        <line class="d-seq" x1="340" y1="238" x2="340" y2="164" stroke-width="1.4" marker-end="url(#ahq)"/>
+        <line class="d-seq" x1="430" y1="238" x2="430" y2="164" stroke-width="1.4" marker-end="url(#ahq)"/>
+        <line class="d-seq" x1="520" y1="238" x2="520" y2="164" stroke-width="1.4" marker-end="url(#ahq)"/>
+
+        <text class="t-mono" x="70" y="256" text-anchor="middle" fill="currentColor">A</text>
+        <text class="t-mono" x="160" y="256" text-anchor="middle" fill="currentColor">T</text>
+        <text class="t-mono" x="250" y="256" text-anchor="middle" fill="currentColor">G</text>
+        <text class="t-mono" x="340" y="256" text-anchor="middle" fill="currentColor">C</text>
+        <text class="t-mono" x="430" y="256" text-anchor="middle" fill="currentColor">A</text>
+        <text class="t-mono" x="520" y="256" text-anchor="middle" fill="currentColor">T</text>
+        <text class="t-sm" x="588" y="256" text-anchor="middle">…</text>
+        <text class="t-sm" x="30" y="282">nucleotide positions →</text>
+
+        <line class="d-struct" x1="330" y1="146" x2="330" y2="158" stroke-width="4"/>
+        <text class="t-sm t-struct" x="330" y="200" text-anchor="middle">TAD boundary:</text>
+        <text class="t-sm t-struct" x="330" y="214" text-anchor="middle">p rises, memory is cut</text>
+
+        <line class="d-faint" x1="632" y1="26" x2="632" y2="282" stroke-width="1"/>
+        <text class="t-sm t-struct t-bold" x="646" y="92">Ā — the decay term</text>
+        <text class="t-sm t-struct" x="646" y="108">how much survives</text>
+        <text class="t-sm t-struct" x="646" y="124">only Δ and p reach it</text>
+
+        <text class="t-sm t-seq t-bold" x="646" y="196">B̄·x — the input term</text>
+        <text class="t-sm t-seq" x="646" y="212">any plain feature</text>
+        <text class="t-sm t-seq" x="646" y="228">stops here</text>
+      </svg>
+      <figcaption>Where the structural signal lands. Blue arrows are the ordinary input path, which any added feature could take. Red arrows reach the decay term, which governs how long the state remembers — reachable only by modulating Δ and p. Pushing p up at a boundary is a soft, learned version of resetting the state entirely.</figcaption>
+    </figure>
+
+    <div class="col">
+      <p>The parameter cost was measured rather than estimated, by building both models and counting tensors: 7,725,312 parameters for the sequence-only baseline against 7,758,354 with the structural terms. That is 0.4277% more, comfortably inside the 5% budget that keeps the comparison fair.</p>
+
+      <h3>How the project plans to catch itself cheating</h3>
+
+      <p>A mechanism that looks different on paper can do nothing in practice. Eight ways that could happen are written down in the architecture spec; three of them produce identical symptoms &mdash; the model trains to exactly baseline performance and raises no error &mdash; so diagnostics run continuously rather than at the end.</p>
+
+      <p>The main test shuffles the structural signal. Four controls of increasing subtlety: zero it out; permute it genome-wide; shift it by 10 Mb so it keeps its smoothness but loses its alignment; and, hardest, rewire the contacts while preserving the distance-decay curve. That last one is the important one. If a model does as well with distance-matched fake structure as with real structure, then what it learned was genomic distance wearing a costume, and the central claim is false regardless of how good the headline number looks.</p>
+    </div>
+  </section>
+
+  <!-- ============ PART 7 ============ -->
+  <section class="part" id="p7">
+    <div class="part-head">
+      <span class="part-num">07</span>
+      <h2>Where the project actually stands</h2>
+    </div>
+
+    <div class="col">
+      <div class="status-grid">
+        <div class="status-row"><span class="st done">done</span><div><strong>Phase 0 &mdash; literature.</strong> Eleven papers mapped, plus a forward-citation sweep over 318 papers citing Akita and Orca. Two nearest competitors identified, one of which was not on the original reading list.</div></div>
+        <div class="status-row"><span class="st done">done</span><div><strong>Phase 2 &mdash; mechanism design.</strong> Three candidates specified, one selected, parameter cost measured, failure modes enumerated.</div></div>
+        <div class="status-row"><span class="st done">done</span><div><strong>Phase 1 &mdash; pilot data.</strong> Chromosome 9 of GM12878 acquired, structural features built and validated against independent tracks.</div></div>
+        <div class="status-row"><span class="st now">next</span><div><strong>Phase 3 &mdash; baselines.</strong> Train the sequence-only model on two L40S GPUs. Nothing has been trained yet.</div></div>
+        <div class="status-row"><span class="st next">then</span><div><strong>Phases 4&ndash;6</strong> &mdash; the structural model, the evaluation, the paper.</div></div>
+      </div>
+
+      <h3>What the pilot data looks like</h3>
+
+      <p>The source is the densest human Hi-C map published: GM12878 cells from Rao and colleagues, 2014, distributed through the 4D Nucleome consortium. The full multi-resolution matrix is 27.4 GB, so it is never downloaded &mdash; the pipeline reads a strip either side of the diagonal directly over HTTP, which takes six and a half minutes instead of hours.</p>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>Measured on chromosome 9</th><th class="num">value</th></tr></thead>
+          <tbody>
+            <tr><td>Length, from the contact matrix</td><td class="num">138,394,717 bp</td></tr>
+            <tr><td>Length, from the Ensembl sequence file</td><td class="num">138,394,717 bp</td></tr>
+            <tr><td>Bins at 5 kb resolution</td><td class="num">27,679</td></tr>
+            <tr><td>Contact entries kept</td><td class="num">7,108,483</td></tr>
+            <tr><td>Bins with no usable signal</td><td class="num">19.31%</td></tr>
+            <tr><td>Sequence that is unresolved (N)</td><td class="num">12.00%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Those two identical lengths are the first check that the sequence file and the contact matrix describe the same coordinate system. A second, stronger check fell out by accident: the pipeline returned nothing at all for chromosome 9 between 48 and 58 Mb. That turned out to be the centromere and the large heterochromatic block beside it, which GRCh38 represents as a gap. The sequence file is 100% unresolved from about 46 to 60 Mb, and the contact matrix has no usable bins from 43.27 to 60.52 Mb. Two files from different institutions putting the same feature at the same coordinates is much better evidence of alignment than a matching chromosome length.</p>
+
+      <h3>Does the pipeline produce real biology?</h3>
+
+      <p>Eight structural features per bin were computed from scratch, then compared against tracks that 4D Nucleome had derived independently from the same experiment.</p>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>Our feature</th><th>against 4DN's own track</th><th class="num">correlation</th></tr></thead>
+          <tbody>
+            <tr><td>Insulation, 100 kb window</td><td>their insulation score</td><td class="num">+0.9969</td></tr>
+            <tr><td>A/B compartment eigenvector</td><td>their compartment track</td><td class="num">+0.9759</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>A TAD and a loop are both visible in the processed data. The loop sits at chr9:136,485,000 paired with 136,625,000, 140 kb apart, seven and a half times above its distance-matched expectation. A completely different assay &mdash; CTCF ChIA-PET &mdash; independently places six read pairs at those same two anchors, and the upstream anchor lands on <em>NOTCH1</em>, a gene at chr9:136,494,433.</p>
+
+      <h3>Three things that went wrong, and were caught</h3>
+
+      <p>The first version of the validation figure circled a bright pixel 1,425 kb from the diagonal and called it a loop. It was noise in a sparse corner. The detector had no upper bound on separation and no requirement that a candidate be a local maximum.</p>
+
+      <p>A region was chosen because it was thought to contain the <em>ABL1</em> gene at chr9:133.7 Mb. That coordinate is hg19. In GRCh38 <em>ABL1</em> sits at 130.71 Mb, outside the region entirely.</p>
+
+      <p>The standard published loop list for this dataset, from Rao and colleagues via GEO, was nearly used to annotate the figure. It is hg19. The mismatch surfaced because its largest chromosome 9 coordinate is 140,570,000 &mdash; past the end of chromosome 9 in GRCh38, which is 138,394,717. A file cannot describe a genome it runs off the end of. Nothing would have thrown an error; every loop would simply have been drawn in the wrong place.</p>
+
+      <div class="callout warn">
+        <span class="lbl">One open result that could reshape the project</span>
+        At the standard initialisation for the planned model size, the longest-memory channel holds information for about 994 nucleotides. A 5 kb Hi-C bin is 5,000 nucleotides. Not one channel spans a single bin. Stacking sixteen layers extends the reach to roughly 16,000 nucleotides, still far short of a 385 kb TAD. Δ is learned and can grow, so this is not proof of failure &mdash; but it applies to the sequence-only baseline exactly as much as to the structural model, and it raises a question worth settling before spending GPU time: can a model this size represent TAD-scale dependencies at all? Phase 3 now has to measure the trained memory length, and that measurement gates Phase 4.
+      </div>
+
+      <h3>The most useful thing Phase 0 turned up</h3>
+
+      <p>Lee's April 2026 probe of Evo 2 was found while sweeping citations, and it argues for this project from the outside. Evo 2 &mdash; 7 billion parameters, a million-token context, 9.3 trillion training nucleotides &mdash; failed to notice when TAD boundaries were deleted and failed to generate convergent CTCF loops. The paper's own recommendation is that 3D-aware DNA models will need bidirectional architectures, cell-type conditioning, and explicit contact inputs rather than longer context windows. It cites Caduceus by name as the bidirectional answer. This project is a Caduceus-class bidirectional backbone with explicit contact input, arrived at independently.</p>
+
+      <p>That result also weakens the most worrying objection to the whole idea, which was that structure might be inferable from sequence anyway, making the Hi-C input redundant. If a 7-billion-parameter model cannot infer it, a 7.7-million-parameter one will not either.</p>
+    </div>
+  </section>
+
+  <!-- ============ PART 8 ============ -->
+  <section class="part" id="p8">
+    <div class="part-head">
+      <span class="part-num">08</span>
+      <h2>Glossary</h2>
+    </div>
+
+    <div class="col">
+      <div class="tw">
+        <table>
+          <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>A/B compartment</td><td>Coarse split of the genome into open, active (A) and closed, inactive (B) regions.</td></tr>
+            <tr><td>Balancing</td><td>Correcting a contact matrix so every bin has comparable total signal, removing technical bias.</td></tr>
+            <tr><td>Base pair (bp)</td><td>One letter of DNA. 1 kb = 1,000; 1 Mb = 1,000,000.</td></tr>
+            <tr><td>ChIA-PET</td><td>An assay that finds contacts anchored by one specific protein. Used here as independent evidence for a loop.</td></tr>
+            <tr><td>ClinVar</td><td>Public database labelling human genetic variants as benign or disease-causing.</td></tr>
+            <tr><td>Cohesin</td><td>Ring-shaped protein complex that extrudes DNA loops.</td></tr>
+            <tr><td>Contact matrix</td><td>Table counting how often each pair of genome positions was found physically close.</td></tr>
+            <tr><td>CTCF</td><td>Protein that binds DNA at a directional motif and stops cohesin, anchoring loops and TAD boundaries.</td></tr>
+            <tr><td>Embedding</td><td>Vector of numbers a model produces to represent a position or sequence.</td></tr>
+            <tr><td>Enhancer</td><td>DNA sequence that increases transcription of a gene, often from far away.</td></tr>
+            <tr><td>eQTL</td><td>A genetic variant statistically associated with changed expression of some gene.</td></tr>
+            <tr><td>GRCh38 / hg19</td><td>The current and previous human reference coordinate systems. Not interchangeable.</td></tr>
+            <tr><td>Hi-C</td><td>Assay measuring which genome positions are physically close in 3D.</td></tr>
+            <tr><td>Insulation score</td><td>Per-position measure of how much contact crosses that point. Local minima mark TAD boundaries.</td></tr>
+            <tr><td>Loop</td><td>Point-to-point contact between two anchors, seen as a focal dot off the matrix diagonal.</td></tr>
+            <tr><td>Mamba / SSM</td><td>State-space model: reads a sequence carrying a running state, with a learned decay rate.</td></tr>
+            <tr><td>Masked language modelling</td><td>Self-supervised training that hides part of the input and predicts it.</td></tr>
+            <tr><td>Observed / expected</td><td>Dividing contact counts by their distance-matched average, so distance decay doesn't dominate.</td></tr>
+            <tr><td>Promoter</td><td>Region at the start of a gene where transcription begins.</td></tr>
+            <tr><td>Reverse complement</td><td>The opposite DNA strand read backwards. Physically the same molecule.</td></tr>
+            <tr><td>TAD</td><td>Topologically associating domain: a stretch of DNA that contacts itself much more than its surroundings.</td></tr>
+            <tr><td>Transfer</td><td>Reusing a pretrained representation for a task it was not trained on.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <hr class="soft"/>
+
+      <p class="quiet" style="font-size:0.9rem;">Written 7 August 2026. Every measured number here comes from a script in this repository: <code>scripts/phase1_acquire.py</code>, <code>scripts/phase1_features.py</code>, <code>scripts/phase1_validate_visual.py</code>, <code>scripts/param_accounting.py</code>, <code>scripts/f4_memory_horizon.py</code>. Literature claims are sourced in <code>docs/related_work.md</code>; the mechanism is specified in <code>docs/architecture_spec.md</code>; data provenance is in <code>docs/data_card.md</code>. No model has been trained, and this document contains no experimental results because there are none yet.</p>
+    </div>
+  </section>
+
+</div>

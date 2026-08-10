@@ -373,3 +373,70 @@ They deliberately avoid aligning Evo 2 directly to the Hi-C encoder, for compute
 - ~~Search for 2026 preprints combining SSM/Mamba genomic LMs with Hi-C~~ — partially done and it immediately produced §H3. **The `Mamba`=0 count in Evo2HiC means the SSM+Hi-C combination is still unoccupied.** Re-run this sweep before the draft regardless.
 
 *Appendix compiled 2026-08-07. Hi-Cformer, Akita, and Evo2HiC read from primary full text via browser; Orca `[V-PARTIAL]` (paywalled). Keyword counts in §H3 computed over the retrieved full text of the preprint, not the abstract.*
+
+---
+
+# Appendix II — Forward-citation sweep, 2026-08-07
+
+Closes the outstanding sweep from §H1. Ran forward citations via Semantic Scholar: **118** papers citing Orca, **200** citing Akita.
+
+## I1. Akita/Orca transfer — negative result confirmed `[V-ABS]`
+
+No citing paper probes Akita's or Orca's **learned representations** on a non-folding task. Citing work falls into three buckets, none of which is representation transfer:
+
+1. **Other models citing them as prior art** (AlphaGenome, HiCFoundation, Evo2HiC, EpiGePT).
+2. **Reviews** of non-coding variant effect prediction that discuss their *predictions*.
+3. **Benchmarks that include Akita as a task baseline** — not as an encoder whose embeddings get transferred.
+
+This upgrades §H1's claim from "6 searches found nothing" to "a forward-citation sweep over 318 citing papers found nothing." The transfer gap in §E stands.
+
+## I2. `[IMPORTANT]` DNALongBench — a ready-made Phase 5 evaluation suite `[V-ABS]`
+
+**"DNALONGBENCH: a benchmark suite for long-range DNA prediction tasks."** Cheng, Song, Zhang, Wang, Wang, Yang, Ma. *Nature Communications* 16(1):10108, 2025. Preprint bioRxiv 10.1101/2025.01.06.631595. PMC12627797.
+
+Five long-range tasks, dependencies up to 1 Mb: **enhancer–target gene interaction**, **eQTL**, **3D genome organization (contact map)**, regulatory sequence activity, transcription initiation. Baselines include **HyenaDNA, Caduceus-Ph, and Akita** (as the "expert model").
+
+**Why this matters a lot for us.** Three of its five tasks are our task list, it already benchmarks **Caduceus-Ph** — our chosen baseline architecture — and it includes contact-map prediction as a task. Phase 5 should adopt DNALongBench rather than assembling an evaluation from scratch: it gives published comparison numbers, a standard split, and removes the "you picked flattering tasks" objection entirely.
+
+**Calibration to note:** contact-map prediction is by far the hardest task in the suite — best reported stratum-adjusted correlation is **0.233**, by Akita. Sequence-only models do worse. Set expectations accordingly if mechanism (b)'s auxiliary head is ever evaluated on it.
+
+## I3. `[MAJOR — SUPPORTS THE PROJECT]` Evo2 fails at higher-order 3D structure `[V-FULL]`
+
+**"Probing 3D Chromatin Structure Awareness in Evo2 DNA Language Model."** UkJin Lee (Weill Cornell Graduate School of Medical Sciences). arXiv:2604.07196v1, 8 April 2026. Code: github.com/ukjinlee101/evo2-3d-chromatin
+
+> **Correction to an earlier reading in this project.** An automated summary of this paper reported that Evo2 "captures substantial information about 3D chromatin structure." **That is the opposite of what the paper finds.** The full text was read directly; the summary was wrong. Everything below comes from the paper itself.
+
+**What they did.** Probed **Evo2-7B** on 1 Mb hg38 windows centred on features from H1-ESC Micro-C (4DN 4DNES21D8SP8), CTCF ChIP-seq (ENCODE), and FIMO motif scans. Two complementary tests:
+- *Perturbation sensitivity* — does Evo2's likelihood penalise functional disruptions (5 kb TAD boundary deletions; 19 bp CTCF motif inversions and deletions) more than GC- and size-matched random controls?
+- *Sequence generation* — do Evo2-generated segments produce plausible 3D structure when evaluated through **Orca**?
+
+Cohorts: 231 TAD boundary regions (strong w/ CTCF, strong w/o CTCF, weak, and matched boundary controls) and 120 convergent CTCF loop regions with Micro-C validation.
+
+**What they found — Evo2 fails on both tests.**
+
+| Test | Result |
+|---|---|
+| TAD boundary deletion | **Weaker** likelihood penalty than matched random controls (mean paired difference +1.42×10⁻⁴); deletions exceeded controls in only 15/36 regions; paired Wilcoxon **p = 0.405**, no category significant |
+| CTCF motif inversion | **Less** penalised than matched controls (+9.5×10⁻⁶, p = 0.021) |
+| CTCF motif deletion | **Less** penalised than matched controls (+1.6×10⁻⁵, p = 0.006) |
+| TAD boundary generation | median generated insulation **0.407** vs reference **0.587** (median delta −0.134); CTCF motifs recovered in 4/10 |
+| Convergent loop generation | only **5/10** produced convergent motif pairs; median loop enrichment **0.054** vs reference **0.388** (median delta −0.280) |
+
+Their conclusion, verbatim: *"Evo2 has learned local CTCF grammar but misses higher-order 3D organization."* And: *"revealing fundamental limitations of current DNA language models for encoding higher-order genome organization."*
+
+**Why this is the most favourable finding in the whole literature review — three ways.**
+
+1. **It substantially defuses failure mode F3.** F3 in `architecture_spec.md` §4.1.4 is "structure is predictable from sequence, so structural input is redundant." This is direct evidence that a **7B model with 1 M context trained on 9.3T tokens** does *not* infer higher-order 3D organisation from sequence. If Evo2 cannot, a 7.7 M-parameter model certainly cannot, and the structural input is carrying information the sequence pathway does not already have. F3 remains possible for *local* structure — they explicitly find local CTCF grammar **is** learned — but not for the TAD/loop scale our mechanism targets.
+2. **It independently prescribes our architecture.** From the Discussion, verbatim: *"3D-aware DNA language models will require bidirectional architectures, cell type conditioning, and explicit 3D contact inputs rather than longer contexts alone."* They name **Caduceus** by citation as the bidirectional, RC-equivariant answer to Evo2's autoregressive asymmetry. Our stack is a Caduceus-class bidirectional backbone with explicit 3D contact input. This is an independent group arriving at our design from the opposite direction.
+3. **It explains *why* Evo2 fails, in a way that favours the SSM route.** They attribute the failure partly to Evo2's **autoregressive left-to-right scoring**, which "breaks the symmetry of double-stranded DNA, so penalties propagate only downstream and orientation-dependent features are intrinsically hard to score." Per-position rescoring showed penalties concentrated ~100–200 bp 3′ of the edit. **Orientation-dependent features are exactly CTCF convergence** — the Rao et al. mechanism (§A3), and the thing §D1 differentiator #5 argued a 5 kb-binned graph cannot represent.
+
+**Their stated limitations, recorded honestly.** Compute restricted them to subsampled regions and precluded testing **Evo2-40B**; they evaluated only CTCF/cohesin-mediated structures, leaving Polycomb domains, promoter–enhancer hubs and tissue-specific super-enhancer contacts to future work. So this is a 7B result on one structural class, not a universal claim. It is also a **preprint, not peer reviewed**.
+
+**Actions.**
+- [ ] Cite in the Method section as the motivation for explicit structural conditioning, and in Limitations as the reason F3 is considered unlikely at TAD scale.
+- [ ] Adopt their perturbation-sensitivity protocol as a **Phase 5 evaluation**: does *our* structurally-conditioned model penalise TAD boundary deletions and CTCF inversions more than matched controls, where Evo2 does not? That is a direct, quantitative, head-to-head claim against a published negative result — and it is a far stronger contribution than another benchmark table.
+- [ ] Their cohorts are hg38/GRCh38 and derived from public 4DN and ENCODE data, so they are directly reusable with our pilot.
+
+---
+
+*Appendix II compiled 2026-08-07. §I3 read from the primary PDF in full after an automated summary was found to have inverted the paper's conclusion.*

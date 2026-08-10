@@ -216,3 +216,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Phase 1 pilot data -------------------------------------------------
+# Raw and intermediate genomics data are large and fully reproducible from
+# data/pilot_manifest.json (accessions + URLs + md5s), which IS tracked.
+data/raw/
+data/interim/
+data/processed/
+*.mcool
+*.hic
+*.part
+!data/pilot_manifest.json
