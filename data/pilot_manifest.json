@@ -1,5 +1,5 @@
 {
-  "created": "2026-08-07T15:50:54",
+  "created": "2026-08-10T03:32:26",
   "config": {
     "experiment_set": "4DNES3JX38V5",
     "chrom": "chr9",
@@ -13,7 +13,7 @@
   },
   "artifacts": [
     {
-      "path": "data\\raw\\4DNFIVK5JOFU_boundaries_bed.bed.gz",
+      "path": "data/raw/4DNFIVK5JOFU_boundaries_bed.bed.gz",
       "source": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/15b1a7db-6d72-4134-a90f-fcfeb644b92f/4DNFIVK5JOFU.bed.gz",
       "accession": "4DNFIVK5JOFU",
       "role": "TAD boundary calls",
@@ -21,7 +21,7 @@
       "md5": "ebdf5462f5d150b6818c2bf2ab570ea7"
     },
     {
-      "path": "data\\raw\\4DNFIBMOGOZC_insulation_bw.bw",
+      "path": "data/raw/4DNFIBMOGOZC_insulation_bw.bw",
       "source": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/a4d9ce75-8e06-4151-9804-c651b50525aa/4DNFIBMOGOZC.bw",
       "accession": "4DNFIBMOGOZC",
       "role": "insulation score, diamond method",
@@ -29,7 +29,7 @@
       "md5": "06a391048266b9c53a89588748b7e1ae"
     },
     {
-      "path": "data\\raw\\4DNFILYQ1PAY_compartments_bw.bw",
+      "path": "data/raw/4DNFILYQ1PAY_compartments_bw.bw",
       "source": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/7635b7f8-4bfd-4ebc-9cd2-1d64fe8c84ee/4DNFILYQ1PAY.bw",
       "accession": "4DNFILYQ1PAY",
       "role": "A/B compartment eigenvector",
@@ -37,17 +37,17 @@
       "md5": "ba73062524e460539390cd6513a068d1"
     },
     {
-      "path": "data\\interim\\hic_band_chr9_5000bp.npz",
+      "path": "data/interim/hic_band_chr9_5000bp.npz",
       "source": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/d6abea45-b0bb-4154-9854-1d3075b98097/4DNFIXP4QG5B.mcool",
       "accession": "4DNFIXP4QG5B",
       "role": "near-diagonal band, +/-2000000 bp, balanced, upper triangle",
       "entries": 7108483,
       "n_bins": 27679,
       "bytes": 27857424,
-      "md5": "c19a5fb0238212abf4e61409c57264ec"
+      "md5": "6e080d75b3174b851e74250d3b6556c9"
     },
     {
-      "path": "data\\interim\\hic_coarse_chr9_250000bp.npz",
+      "path": "data/interim/hic_coarse_chr9_250000bp.npz",
       "source": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/d6abea45-b0bb-4154-9854-1d3075b98097/4DNFIXP4QG5B.mcool",
       "accession": "4DNFIXP4QG5B",
       "role": "coarse balanced matrix for compartment calling",
@@ -56,23 +56,23 @@
         554
       ],
       "bytes": 723895,
-      "md5": "0b6893b06cffdcb5ca517c8ed0ef7687"
+      "md5": "ae01c27e74d72e8b68a74eb91f8deb9a"
     },
     {
-      "path": "data\\interim\\chr9.fa",
+      "path": "data/interim/chr9.fa",
       "source": "https://ftp.ensembl.org/pub/release-113/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.9.fa.gz",
       "role": "GRCh38 chr9 sequence, header normalised",
       "bases": 138394717,
-      "bytes": 143007882,
-      "md5": "e0fea9aefa4e18291676db523835d10d"
+      "bytes": 140701302,
+      "md5": "8fa205129e3924bfc22f20f182675584"
     },
     {
-      "path": "data\\interim\\gencode.v47.chr9.gtf",
+      "path": "data/interim/gencode.v47.chr9.gtf",
       "source": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_47/gencode.v47.annotation.gtf.gz",
       "role": "GENCODE v47 annotation filtered to chr9",
       "rows": 169668,
-      "bytes": 71966828,
-      "md5": "057bf3e1e00f1c8b16132b1746734e80"
+      "bytes": 71797155,
+      "md5": "2128b4f1170a10bfe65ac1b9cef273d9"
     }
   ]
 }

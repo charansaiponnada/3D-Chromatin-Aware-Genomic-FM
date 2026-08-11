@@ -13,16 +13,23 @@ depends on the state index n; a single per-channel delta cannot produce a decay
 term uniform across n. So the term needs its own kernel.
 
     !!  VERIFICATION STATUS  !!
-    This kernel has NEVER been executed. It was written on a CPU-only machine
-    with no CUDA device and no Triton install. It is syntactically complete and
-    the recurrence and its adjoint were derived by hand, but nothing here is
-    numerically confirmed.
+    VALIDATED 2026-08-10 on 2x NVIDIA L40S, torch 2.6.0+cu124, triton 3.2.0:
+    scripts/validate_kernel.py reports 34/34 checks passed. The hand-derived
+    adjoint was correct as written; the three defects found were all in the
+    Triton lowering, not the mathematics (see the loop comment in _bwd_kernel
+    and the CHUNK constexpr parameter).
 
-    Before any training run, execute scripts/validate_kernel.py on the GPU box.
-    It checks forward values and every input gradient against the reference
-    implementation in model.py. Do not trust a loss curve produced by an
-    unvalidated scan -- a subtly wrong gradient trains to a plausible-looking
-    number and quietly invalidates the experiment.
+    Re-run scripts/validate_kernel.py after any edit below this line. Do not
+    trust a loss curve produced by an unvalidated scan -- a subtly wrong
+    gradient trains to a plausible-looking number and quietly invalidates the
+    experiment.
+
+    NOT bitwise reproducible. dBmat, dCmat and dp are accumulated with
+    tl.atomic_add across the d_inner programs, so their summation order varies
+    between runs. Measured relative spread over 5 repeats at B=2, D=512, L=512:
+    ~1e-6, i.e. fp32 rounding noise. du, ddelta, dA and dDskip were bitwise
+    identical. Seed-identical training runs will therefore not reproduce to the
+    last bit; they will reproduce to fp32 tolerance.
 
 DESIGN
 ------
@@ -70,6 +77,17 @@ except Exception:                                     # CPU box, no GPU
 
 CHUNK = 64
 
+# The state vector is d_state (16) elements wide, so a program does 16 lanes of
+# useful work. Triton's default num_warps=4 gives it 128, leaving 112 idle and
+# cutting how many programs an SM can host. The scan is a dependent chain over
+# L, so it is latency-bound and wants many resident programs, not wide ones.
+# Measured at the real config (d_model=256, n_layer=16, L=32768, batch 2 per GPU):
+# 7.55 s/step with the default num_warps=4, 5.30 s/step with num_warps=1, a 1.42x
+# speedup. It changes the thread mapping only -- the per-step losses were
+# identical to the default across the whole benchmark -- and
+# scripts/validate_kernel.py was re-run after the change (34/34).
+NUM_WARPS = 1
+
 
 if HAVE_TRITON:
 
@@ -83,7 +101,7 @@ if HAVE_TRITON:
         sm_b, sm_n, sm_l,
         sp_b, sp_l,
         ss_b, ss_d, ss_c, ss_n,
-        N: tl.constexpr, HAS_P: tl.constexpr,
+        N: tl.constexpr, HAS_P: tl.constexpr, CHUNK: tl.constexpr,
     ):
         pid = tl.program_id(0)
         b = pid // D
@@ -129,7 +147,7 @@ if HAVE_TRITON:
         sp_b, sp_l,
         ss_b, ss_d, ss_c, ss_n,
         sh_b, sh_d, sh_t, sh_n,
-        N: tl.constexpr, HAS_P: tl.constexpr,
+        N: tl.constexpr, HAS_P: tl.constexpr, CHUNK: tl.constexpr,
     ):
         pid = tl.program_id(0)
         b = pid // D
@@ -151,57 +169,65 @@ if HAVE_TRITON:
         dDskip_acc = tl.zeros([1], dtype=tl.float32)
         dA_acc = tl.zeros([N], dtype=tl.float32)
 
-        for c in range(NCHUNK - 1, -1, -1):
+        # Triton lowers `range` to scf.for, which needs a non-negative step and
+        # (for the inner loops) a trip count it can reason about, so both the
+        # chunk walk and the adjoint walk count *up* and invert the index by
+        # hand. The inner loops always run CHUNK times and predicate on t < L
+        # instead of using a ragged bound.
+        for cc in range(NCHUNK):
+            c = NCHUNK - 1 - cc
             t0 = c * CHUNK
-            tmax = tl.minimum(CHUNK, L - t0)
 
             # replay the forward inside this chunk from its checkpoint
             h = tl.load(sb + c * ss_c + n * ss_n)
             tl.store(hb + 0 * sh_t + n * sh_n, h)
-            for i in range(tmax):
+            for i in range(CHUNK):
                 t = t0 + i
-                dt = tl.load(db + t * su_l)
-                ut = tl.load(ub + t * su_l)
-                Bt = tl.load(Bb + n * sm_n + t * sm_l)
-                logdec = dt * A
-                if HAS_P:
-                    logdec = logdec - tl.load(p_ptr + b * sp_b + t * sp_l)
-                h = tl.exp(logdec) * h + dt * Bt * ut
-                tl.store(hb + (i + 1) * sh_t + n * sh_n, h)
+                if t < L:
+                    dt = tl.load(db + t * su_l)
+                    ut = tl.load(ub + t * su_l)
+                    Bt = tl.load(Bb + n * sm_n + t * sm_l)
+                    logdec = dt * A
+                    if HAS_P:
+                        logdec = logdec - tl.load(p_ptr + b * sp_b + t * sp_l)
+                    h = tl.exp(logdec) * h + dt * Bt * ut
+                    tl.store(hb + (i + 1) * sh_t + n * sh_n, h)
 
             # adjoint pass, backwards through the same chunk
-            for i in range(tmax - 1, -1, -1):
+            for ii in range(CHUNK):
+                i = CHUNK - 1 - ii
                 t = t0 + i
-                dt = tl.load(db + t * su_l)
-                ut = tl.load(ub + t * su_l)
-                Bt = tl.load(Bb + n * sm_n + t * sm_l)
-                Ct = tl.load(Cb + n * sm_n + t * sm_l)
-                dyt = tl.load(gb + t * su_l)
+                if t < L:
+                    dt = tl.load(db + t * su_l)
+                    ut = tl.load(ub + t * su_l)
+                    Bt = tl.load(Bb + n * sm_n + t * sm_l)
+                    Ct = tl.load(Cb + n * sm_n + t * sm_l)
+                    dyt = tl.load(gb + t * su_l)
 
-                h_t = tl.load(hb + (i + 1) * sh_t + n * sh_n)
-                h_prev = tl.load(hb + i * sh_t + n * sh_n)
+                    h_t = tl.load(hb + (i + 1) * sh_t + n * sh_n)
+                    h_prev = tl.load(hb + i * sh_t + n * sh_n)
 
-                logdec = dt * A
-                if HAS_P:
-                    logdec = logdec - tl.load(p_ptr + b * sp_b + t * sp_l)
-                Abar = tl.exp(logdec)
+                    logdec = dt * A
+                    if HAS_P:
+                        logdec = logdec - tl.load(p_ptr + b * sp_b + t * sp_l)
+                    Abar = tl.exp(logdec)
 
-                tl.atomic_add(dCm_ptr + b * sm_b + n * sm_n + t * sm_l, dyt * h_t)
-                dh = dh + dyt * Ct
+                    tl.atomic_add(dCm_ptr + b * sm_b + n * sm_n + t * sm_l, dyt * h_t)
+                    dh = dh + dyt * Ct
 
-                common = dh * h_prev * Abar
-                ddelta_t = tl.sum(common * A, axis=0) + tl.sum(dh * ut * Bt, axis=0)
-                dA_acc += common * dt
-                if HAS_P:
-                    tl.atomic_add(dp_ptr + b * sp_b + t * sp_l, -tl.sum(common, axis=0))
-                tl.atomic_add(dBm_ptr + b * sm_b + n * sm_n + t * sm_l, dh * ut * dt)
+                    common = dh * h_prev * Abar
+                    ddelta_t = tl.sum(common * A, axis=0) + tl.sum(dh * ut * Bt, axis=0)
+                    dA_acc += common * dt
+                    if HAS_P:
+                        tl.atomic_add(dp_ptr + b * sp_b + t * sp_l, -tl.sum(common, axis=0))
+                    tl.atomic_add(dBm_ptr + b * sm_b + n * sm_n + t * sm_l, dh * ut * dt)
 
-                du_t = dyt * Dskip + tl.sum(dh * dt * Bt, axis=0)
-                tl.store(du_ptr + b * su_b + d * su_d + t * su_l, du_t)
-                tl.store(ddelta_ptr + b * su_b + d * su_d + t * su_l, ddelta_t)
-                dDskip_acc += dyt * ut
+                    du_t = dyt * Dskip + tl.sum(dh * dt * Bt, axis=0)
+                    tl.store(du_ptr + b * su_b + d * su_d + t * su_l, du_t)
+                    tl.store(ddelta_ptr + b * su_b + d * su_d + t * su_l, ddelta_t)
+                    dDskip_acc += dyt * ut
 
-                dh = dh * Abar
+                    dh = dh * Abar
 
         tl.atomic_add(dA_ptr + d * sA_d + n * sA_n, dA_acc)
         tl.atomic_add(dDskip_ptr + d, tl.sum(dDskip_acc, axis=0))
@@ -229,7 +255,8 @@ class _SelectiveScanTriton(torch.autograd.Function):
             *u.stride(), *A.stride(), *Bm.stride(),
             *(p.stride() if has_p else (0, 0)),
             *states.stride(),
-            N=N, HAS_P=has_p,
+            N=N, HAS_P=has_p, CHUNK=CHUNK,
+            num_warps=NUM_WARPS,
         )
         ctx.save_for_backward(u, delta, A, Bm, Cm, Dskip, p if has_p else None, states)
         ctx.has_p = has_p
@@ -261,7 +288,8 @@ class _SelectiveScanTriton(torch.autograd.Function):
             *u.stride(), *A.stride(), *Bm.stride(),
             *(p.stride() if has_p else (0, 0)),
             *states.stride(), *hbuf.stride(),
-            N=N, HAS_P=has_p,
+            N=N, HAS_P=has_p, CHUNK=CHUNK,
+            num_warps=NUM_WARPS,
         )
         return du, ddelta, dA, dBm, dCm, dDskip, (dp if has_p else None)
 

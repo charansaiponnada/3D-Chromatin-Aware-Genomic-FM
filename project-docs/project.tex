@@ -510,6 +510,146 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-10}
+
+First session on the L40S box. Environment built, pipeline reproduced from a
+clean tree, custom kernel executed for the first time. No model trained.
+
+\begin{itemize}
+\item \textbf{Environment.} \code{torch 2.6.0+cu124}, \code{triton 3.2.0},
+Python 3.10, venv \code{3d-gen/} (added to \code{.gitignore}).
+\code{torch.cuda.device\_count() = 2}; both devices report NVIDIA L40S,
+compute capability 8.9, 44.4\,GiB.
+\item \warn{NVML is broken on this box and \code{nvidia-smi} does not run.}
+The loaded kernel module is 580.126.09 while the userspace libraries are
+580.173.02. CUDA is unaffected---\code{cuInit} returns 0, both devices
+enumerate and compute---but NVML-based utilisation and temperature logging is
+unavailable until the modules are reloaded, which needs root. Recorded because
+the run config is supposed to carry the driver version, and the number
+\code{nvidia-smi} would have reported cannot be obtained here.
+\item \textbf{Pipeline reproduced exactly from a clean tree.}
+\code{phase1\_acquire.py} assembled \textbf{7{,}108{,}483} unique
+upper-triangle band entries with all three auxiliary md5s verified;
+\code{phase1\_features.py} reproduced insulation $r=+0.9969$ ($n=21{,}740$) and
+compartments $r=+0.9759$ ($n=22{,}250$) against 4DN's own tracks, with
+21{,}519/27{,}679 bins carrying a complete $\phi$; \code{phase1\_dataset.py}
+built \textbf{5{,}422 / 273 / 242} train/val/test windows with drop counts
+1{,}054 (N fraction), 799 (structural coverage), 126 (buffer), 2 (short).
+Every one of these matches \code{docs/data\_card.md} exactly, so the data
+layer is confirmed reproducible on a second machine rather than only on the
+machine that built it.
+\item \warn{\code{data/pilot\_manifest.json} now differs from the committed
+copy, and none of the differences are content.} The committed manifest was
+written on Windows. Rebuilding on Linux changed (i) path separators,
+\code{data\textbackslash raw\textbackslash} to \code{data/raw/}; (ii) the byte
+size of the two text files, because the Windows copies had CRLF line endings
+---\code{chr9.fa} shrank by exactly 2{,}306{,}580 bytes against 2{,}306{,}580
+lines, and the GTF by exactly 169{,}673 bytes against 169{,}673 lines, one
+byte per line in each case; and (iii) the md5 of the two \code{.npz} files,
+whose byte sizes are nevertheless \emph{identical}, because a zip central
+directory records the creating platform---\code{create\_system} is 3 (Unix)
+here and 0 (Windows) there. The md5s of the three files downloaded from 4DN,
+which are the ones checked against the 4DN API, are unchanged. Band contents
+re-verified directly: 7{,}108{,}483 entries, 0 non-finite, min
+$4.25\times10^{-6}$ / median $3.10\times10^{-4}$ / max 0.942, 27{,}679 bins,
+5{,}345 (19.31\%) without a balancing weight---every figure matching
+\code{docs/data\_card.md} §4. Whether to commit the Linux manifest is a
+judgement call left to the PI; a manifest whose md5s are platform-dependent
+cannot serve as a cross-platform integrity check for the derived files, only
+for the downloaded ones.
+\item \textbf{\code{test\_model.py}: 16/16 passed} on this box, unchanged.
+\item \textbf{Triton kernel executed for the first time and validated:
+34/34 checks passed} (\code{validate\_kernel.py}, exit 0) across no-$p$,
+with-$p$, multi-chunk and ragged-final-chunk configurations, including the
+assertion that $\partial L/\partial p \neq 0$.
+\item \textbf{Three kernel defects fixed, all in the Triton lowering rather
+than the mathematics.} The hand-derived adjoint was correct as written.
+(i) \code{CHUNK} was a module-level global, which Triton refuses to read from
+a \code{@jit} function; it is now a \code{tl.constexpr} kernel parameter.
+(ii) The chunk walk used \code{range(NCHUNK-1,-1,-1)}; Triton lowers
+\code{range} to \code{scf.for}, which requires a non-negative step, so both
+reversed loops now count up and invert the index by hand.
+(iii) The inner loops used \code{tl.minimum(CHUNK, L-t0)} as a trip count;
+they now always run \code{CHUNK} times and predicate on $t<L$.
+\item \warn{The backward is not bitwise reproducible.} \code{dBmat},
+\code{dCmat} and \code{dp} are accumulated with \code{tl.atomic\_add} across
+the $d_{\text{inner}}$ programs, so their summation order varies between runs.
+Measured relative spread over five repeats at $B=2$, $D=512$, $L=512$:
+$1.0\times10^{-6}$, $9.6\times10^{-7}$ and $8.9\times10^{-7}$ respectively;
+\code{du}, \code{ddelta}, \code{dA} and \code{dDskip} were bitwise identical.
+This is fp32 rounding noise, not a defect, but it means seed-identical runs
+reproduce to fp32 tolerance and not to the bit. The paper must not claim
+bit-exact reproducibility.
+\item \textbf{Kernel checked beyond the supplied harness}, which runs at
+$D=64$. Added checks at the real width $d_{\text{inner}}=512$, at 64 chunks,
+and at $L=1$ and $L=65$; all agree with the reference. Width matters because
+the cross-channel atomics only contend at width.
+\item \textbf{Scan checkpoint memory measured}, since it bounds the Phase 3
+batch size: 16.0\,MiB per sample per scan at $d_{\text{inner}}=512$,
+$d_{\text{state}}=16$, $L=32{,}768$, which is 0.50\,GiB per sample across 16
+layers and 2 directions, or 4.0\,GiB at batch 8 before any other activation.
+\item \textbf{TeX Live installed user-local} (TinyTeX). The box had no LaTeX
+engine and no root, so \code{build\_project\_doc.py} could not run at all.
+\end{itemize}
+
+\subsection*{2026-08-10 (second entry) --- Phase 3 training harness}
+
+\code{scripts/train.py} written. Results are recorded in a later entry; this one
+covers the harness and the platform findings only.
+
+\begin{itemize}
+\item \warn{NCCL cannot be used on this box.} It calls \code{nvmlInit\_v2()}
+during topology discovery, which fails for the same driver mismatch that breaks
+\code{nvidia-smi}. \code{init\_process\_group("nccl")} is lazy and succeeds
+anyway, so the failure surfaces at the first collective inside DDP's
+constructor. The script therefore probes NVML directly and falls back to
+\textbf{gloo}. Measured cost of the fallback: none detectable---two GPUs give
+$2.00\times$ the single-GPU throughput (0.756 windows/s on one L40S,
+1.51 windows/s on two).
+\item \warn{PyTorch's CUDA caching allocator also calls NVML} when it reports
+memory pressure, so an out-of-memory condition surfaces as
+\code{INTERNAL ASSERT FAILED ... nvmlInit\_v2\_} rather than as
+\code{CUDA out of memory}. Anyone reading that traceback later should read it
+as OOM.
+\item \textbf{Kernel made 1.42$\times$ faster, and re-validated.} The scan's
+state vector is $d_{\text{state}}=16$ elements wide, so Triton's default
+\code{num\_warps=4} gave each program 128 lanes for 16 lanes of work. Setting
+\code{num\_warps=1} took the real config from 7.55 to 5.30\,s/step. Per-step
+losses were identical to the default across the benchmark, and
+\code{validate\_kernel.py} was re-run afterwards: 34/34.
+\item \textbf{Gradient checkpointing implemented and then measured not to
+help.} The hypothesis was that the scan is latency-bound and a bigger batch
+bought with recompute would be nearly free. Batch scaling turned out to be
+linear---the GPU is already saturated at batch 2---so checkpointing costs its
+recompute undiluted: 1.32\,s/window at batch 2 without it against
+1.49\,s/window at batch 8 with it. The code is retained behind
+\code{--grad-checkpoint}, off by default, as the lever to reach for if
+$d_{\text{model}}$ or the window grows.
+\item \textbf{fp32 throughout, no autocast}, because the scan was validated in
+fp32 only. Training the experiment in bf16 would put it back on an unvalidated
+numeric path through a hand-written recurrence.
+\item \textbf{The baseline runs the custom Triton scan} even though it never
+supplies $p$, so the matched-compute claim against the structural arm is real
+rather than nominal.
+\item \textbf{N is excluded from masking and from the loss.} 12.00\% of chr9 is
+N and a window may carry up to 10\%. Including N would deflate
+bits/nucleotide by an amount that varies with each window's N content. The
+reported metric is therefore bits per \emph{resolved} nucleotide, and its
+uniform-random floor is exactly 2.000 bits.
+\item \warn{$\tau$ is measured two ways and they are not interchangeable.}
+\code{BiMambaLM.tau\_stats()} derives $\tau$ from \code{dt\_proj.bias} alone.
+That is a fair proxy at initialisation, where \code{dt\_proj.weight} is small,
+but after training $\Delta$ is dominated by the input-dependent term
+$W_{dt}\delta'_t$, and a bias-only $\tau$ can be badly wrong. The script logs
+\code{tau\_stats()} because the runbook asks for it, and separately measures
+\emph{empirical} $\tau$ from the $\Delta$ actually produced on validation
+batches. \textbf{The F4 gate must be read off the empirical numbers.}
+\item \textbf{\code{num\_workers} defaults to 0.} \code{WindowDataset} owns an
+\code{np.random.default\_rng} for reverse-complement augmentation; under
+multiple loader workers each worker copies it, so the augmentation stream would
+depend on how the sampler sharded and seeds would stop being reproducible.
+\end{itemize}
+
 \subsection*{2026-08-07}
 
 \begin{itemize}
@@ -558,7 +698,14 @@ validation harness. Unverified until executed.
 \section{Open items}
 
 \begin{itemize}
-\item \textbf{Validate the Triton kernel on GPU} before any training run.
+\item \textbf{Decide whether bit-exact reproducibility is required.} If it is,
+the atomics in the backward must be replaced with a deterministic reduction,
+at a performance cost. If it is not---the reasonable reading, given that the
+Phase 5 gate is across-seed variance rather than a single number---say so
+explicitly, because the spread is measured and small.
+\item \textbf{Restore \code{nvidia-smi}} by reloading the NVIDIA kernel
+modules, or accept that no driver-level utilisation figure can be logged
+alongside the runs.
 \item \textbf{Confirm the encoder removal} ($d_s=8$, no encoder), which changes
 parameter figures recorded in three documents.
 \item \textbf{Read CHROME line by line.} The summary here came from automated

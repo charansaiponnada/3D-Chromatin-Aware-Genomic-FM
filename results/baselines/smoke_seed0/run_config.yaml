@@ -1,0 +1,126 @@
+run_name: smoke_seed0
+phase: 3 -- sequence-only baseline
+written_at_utc: '2026-08-10T04:23:57.911137+00:00'
+status: COMPLETED
+hypothesis_arm: baseline (structural=False)
+seed: 0
+hyperparameters:
+  steps: 300
+  batch_size: 2
+  grad_accum: 1
+  eval_batch_size: 2
+  lr: 0.0006
+  lr_final_frac: 0.1
+  warmup_steps: 30
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.95
+  eps: 1.0e-08
+  grad_clip: 1.0
+  mask_prob: 0.15
+  p_mask: 0.8
+  p_random: 0.1
+  rc_augment: true
+  num_workers: 0
+  eval_every: 100
+  tau_every: 100
+  ckpt_every: 100
+  eval_seed: 1234
+effective_batch:
+  windows_per_optimizer_step: 4
+  tokens_per_optimizer_step: 131072
+  world_size: 2
+  ddp_backend: gloo
+model:
+  class: BiMambaLM
+  structural: false
+  n_parameters: 82624
+  d_model: 64
+  n_layer: 2
+  d_state: 16
+  d_conv: 4
+  expand: 2
+  vocab_size: 16
+  d_inner: 128
+  dt_rank: 4
+scan_backend:
+  backend: triton (forced)
+  why: the structural arm cannot use mamba_ssm's fused scan, so the baseline uses
+    the custom kernel too; otherwise matched-compute is a fiction
+  validated_by: scripts/validate_kernel.py, 34/34 checks passed
+  bitwise_reproducible: false
+  bitwise_note: dBmat, dCmat and dp accumulate through tl.atomic_add across d_inner
+    programs; measured relative spread ~1e-6 (fp32 rounding)
+grad_checkpointing: false
+precision:
+  dtype: float32
+  autocast: false
+  why: the Triton scan was validated in fp32 only
+masking:
+  mask_prob: 0.15
+  p_mask: 0.8
+  p_random: 0.1
+  p_keep: 0.1
+  mask_token_id: 1
+  maskable_tokens: ACGT only (ids 2-5)
+  excluded: N (id 6) and PAD (id 0) are never masked and never contribute loss; bits/nucleotide
+    is therefore per resolved nucleotide and the uniform floor is 2.000
+data:
+  source: scripts/phase1_dataset.py WindowDataset
+  window: 32768
+  structural_features_supplied: false
+  n_train_windows: 5422
+  n_val_windows: 273
+git:
+  commit: 4b7f86c265f8f3562804055d89232391a3028295
+  branch: main
+  dirty: true
+  dirty_files:
+  - gitignore
+  - data/pilot_manifest.json
+  - project-docs/project.pdf
+  - project-docs/project.tex
+  - src/chromfm/scan_triton.py
+  - scripts/train.py
+environment:
+  python: 3.10.10
+  platform: Linux-6.8.0-107-generic-x86_64-with-glibc2.39
+  torch: 2.6.0+cu124
+  torch_cuda_build: '12.4'
+  triton: 3.2.0
+  numpy: 2.2.6
+  nvidia_kernel_module: 580.126.09
+  nvidia_smi: UNAVAILABLE -- NVML/kernel-module version mismatch
+  gpus:
+  - index: 0
+    name: NVIDIA L40S
+    capability: '8.9'
+    total_memory_GiB: 44.39
+  - index: 1
+    name: NVIDIA L40S
+    capability: '8.9'
+    total_memory_GiB: 44.39
+  cudnn_deterministic: false
+  tf32_matmul: false
+tau_at_init_bias_only:
+  layer0.fwd:
+    tau_median: 14.220365524291992
+    tau_p99: 511.75054931640625
+    tau_max: 972.5991821289062
+  layer0.rev:
+    tau_median: 15.358016014099121
+    tau_p99: 545.1276245117188
+    tau_max: 884.469970703125
+  layer1.fwd:
+    tau_median: 13.68300724029541
+    tau_p99: 411.1342468261719
+    tau_max: 992.5580444335938
+  layer1.rev:
+    tau_median: 11.703640937805176
+    tau_p99: 479.0797119140625
+    tau_max: 985.71875
+tau_measurement_note: tau_stats() uses dt_proj.bias only, which is a proxy that is
+  good at init and unreliable after training; empirical tau from Delta on real batches
+  is logged in metrics.json and is the number the F4 gate should be read from
+completed_at_utc: '2026-08-10T04:25:12.259355+00:00'
+wall_clock_s: 74.31882524490356
