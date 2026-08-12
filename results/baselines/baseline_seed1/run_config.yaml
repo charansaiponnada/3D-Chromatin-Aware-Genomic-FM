@@ -1,0 +1,246 @@
+run_name: baseline_seed1
+phase: 3 -- sequence-only baseline
+written_at_utc: '2026-08-12T06:06:03.926837+00:00'
+status: COMPLETED
+hypothesis_arm: baseline (structural=False)
+seed: 1
+hyperparameters:
+  steps: 2000
+  batch_size: 2
+  grad_accum: 2
+  eval_batch_size: 2
+  lr: 0.0006
+  lr_final_frac: 0.1
+  warmup_steps: 150
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.95
+  eps: 1.0e-08
+  grad_clip: 1.0
+  mask_prob: 0.15
+  p_mask: 0.8
+  p_random: 0.1
+  rc_augment: true
+  num_workers: 0
+  eval_every: 200
+  tau_every: 200
+  ckpt_every: 200
+  eval_seed: 1234
+effective_batch:
+  windows_per_optimizer_step: 8
+  tokens_per_optimizer_step: 262144
+  world_size: 2
+  ddp_backend: gloo
+model:
+  class: BiMambaLM
+  structural: false
+  n_parameters: 7725312
+  d_model: 256
+  n_layer: 16
+  d_state: 16
+  d_conv: 4
+  expand: 2
+  vocab_size: 16
+  d_inner: 512
+  dt_rank: 16
+scan_backend:
+  backend: triton (forced)
+  why: the structural arm cannot use mamba_ssm's fused scan, so the baseline uses
+    the custom kernel too; otherwise matched-compute is a fiction
+  validated_by: scripts/validate_kernel.py, 34/34 checks passed
+  bitwise_reproducible: false
+  bitwise_note: dBmat, dCmat and dp accumulate through tl.atomic_add across d_inner
+    programs; measured relative spread ~1e-6 (fp32 rounding)
+grad_checkpointing: false
+precision:
+  dtype: float32
+  autocast: false
+  why: the Triton scan was validated in fp32 only
+masking:
+  mask_prob: 0.15
+  p_mask: 0.8
+  p_random: 0.1
+  p_keep: 0.1
+  mask_token_id: 1
+  maskable_tokens: ACGT only (ids 2-5)
+  excluded: N (id 6) and PAD (id 0) are never masked and never contribute loss; bits/nucleotide
+    is therefore per resolved nucleotide and the uniform floor is 2.000
+data:
+  source: scripts/phase1_dataset.py WindowDataset
+  window: 32768
+  structural_features_supplied: false
+  n_train_windows: 5422
+  n_val_windows: 273
+git:
+  commit: 0bbd0a5c15631438ece52bbe970babc9231f1fe4
+  branch: main
+  dirty: true
+  dirty_files:
+  - ocs/architecture_spec.md
+  - project-docs/project.pdf
+  - project-docs/project.tex
+  - scripts/build_project_doc.py
+  - scripts/phase3_guard.sh
+  - scripts/phase3_report.py
+  - scripts/run_phase3.sh
+  - results/baselines/baseline_seed0/
+  - results/baselines/baseline_seed1/
+  - results/baselines/supervisor.lock
+  - scripts/jupyter_server_config.py
+  - scripts/phase3_autostart.sh
+  - scripts/phase3_progress.py
+  - scripts/phase3_status.sh
+environment:
+  python: 3.10.10
+  platform: Linux-6.8.0-107-generic-x86_64-with-glibc2.39
+  torch: 2.6.0+cu124
+  torch_cuda_build: '12.4'
+  triton: 3.2.0
+  numpy: 2.2.6
+  nvidia_kernel_module: 580.126.09
+  nvidia_smi: UNAVAILABLE -- NVML/kernel-module version mismatch
+  gpus:
+  - index: 0
+    name: NVIDIA L40S
+    capability: '8.9'
+    total_memory_GiB: 44.39
+  - index: 1
+    name: NVIDIA L40S
+    capability: '8.9'
+    total_memory_GiB: 44.39
+  cudnn_deterministic: false
+  tf32_matmul: false
+tau_at_init_bias_only:
+  layer0.fwd:
+    tau_median: 14.429840087890625
+    tau_p99: 483.75689697265625
+    tau_max: 978.7348022460938
+  layer0.rev:
+    tau_median: 16.884078979492188
+    tau_p99: 486.7088623046875
+    tau_max: 973.3523559570312
+  layer1.fwd:
+    tau_median: 16.00429916381836
+    tau_p99: 494.03045654296875
+    tau_max: 996.6299438476562
+  layer1.rev:
+    tau_median: 13.873770713806152
+    tau_p99: 471.2994689941406
+    tau_max: 986.6694946289062
+  layer2.fwd:
+    tau_median: 14.266664505004883
+    tau_p99: 538.7666625976562
+    tau_max: 999.6787719726562
+  layer2.rev:
+    tau_median: 14.161123275756836
+    tau_p99: 478.9214782714844
+    tau_max: 988.6753540039062
+  layer3.fwd:
+    tau_median: 14.971236228942871
+    tau_p99: 475.66680908203125
+    tau_max: 997.2227783203125
+  layer3.rev:
+    tau_median: 14.904154777526855
+    tau_p99: 491.71697998046875
+    tau_max: 995.4489135742188
+  layer4.fwd:
+    tau_median: 14.130561828613281
+    tau_p99: 472.7310485839844
+    tau_max: 981.7200317382812
+  layer4.rev:
+    tau_median: 14.349908828735352
+    tau_p99: 485.1566467285156
+    tau_max: 987.805908203125
+  layer5.fwd:
+    tau_median: 14.436629295349121
+    tau_p99: 483.42694091796875
+    tau_max: 999.435791015625
+  layer5.rev:
+    tau_median: 14.606534957885742
+    tau_p99: 497.87860107421875
+    tau_max: 996.5538940429688
+  layer6.fwd:
+    tau_median: 16.298831939697266
+    tau_p99: 490.9118347167969
+    tau_max: 999.2338256835938
+  layer6.rev:
+    tau_median: 14.305985450744629
+    tau_p99: 483.24639892578125
+    tau_max: 998.031982421875
+  layer7.fwd:
+    tau_median: 13.313053131103516
+    tau_p99: 479.0281982421875
+    tau_max: 984.5407104492188
+  layer7.rev:
+    tau_median: 13.159897804260254
+    tau_p99: 454.3312072753906
+    tau_max: 994.8555297851562
+  layer8.fwd:
+    tau_median: 13.206089973449707
+    tau_p99: 480.4168395996094
+    tau_max: 996.9111328125
+  layer8.rev:
+    tau_median: 15.689582824707031
+    tau_p99: 508.17425537109375
+    tau_max: 994.4843139648438
+  layer9.fwd:
+    tau_median: 15.722960472106934
+    tau_p99: 477.57391357421875
+    tau_max: 985.6336669921875
+  layer9.rev:
+    tau_median: 13.189356803894043
+    tau_p99: 485.92755126953125
+    tau_max: 999.1695556640625
+  layer10.fwd:
+    tau_median: 14.5650634765625
+    tau_p99: 467.39776611328125
+    tau_max: 998.2286987304688
+  layer10.rev:
+    tau_median: 13.99906063079834
+    tau_p99: 488.8275451660156
+    tau_max: 982.7672119140625
+  layer11.fwd:
+    tau_median: 14.80958366394043
+    tau_p99: 497.9966735839844
+    tau_max: 996.8231811523438
+  layer11.rev:
+    tau_median: 14.126380920410156
+    tau_p99: 500.99822998046875
+    tau_max: 999.86083984375
+  layer12.fwd:
+    tau_median: 16.667490005493164
+    tau_p99: 497.4056701660156
+    tau_max: 992.532470703125
+  layer12.rev:
+    tau_median: 11.786821365356445
+    tau_p99: 450.2400817871094
+    tau_max: 985.2523803710938
+  layer13.fwd:
+    tau_median: 15.535411834716797
+    tau_p99: 462.5767517089844
+    tau_max: 999.0115356445312
+  layer13.rev:
+    tau_median: 13.569684982299805
+    tau_p99: 524.0797119140625
+    tau_max: 987.5521240234375
+  layer14.fwd:
+    tau_median: 14.952629089355469
+    tau_p99: 490.15081787109375
+    tau_max: 999.271484375
+  layer14.rev:
+    tau_median: 12.736308097839355
+    tau_p99: 467.91009521484375
+    tau_max: 998.4930419921875
+  layer15.fwd:
+    tau_median: 14.485770225524902
+    tau_p99: 446.71923828125
+    tau_max: 962.7496948242188
+  layer15.rev:
+    tau_median: 16.21087074279785
+    tau_p99: 493.7424011230469
+    tau_max: 986.6530151367188
+tau_measurement_note: tau_stats() uses dt_proj.bias only, which is a proxy that is
+  good at init and unreliable after training; empirical tau from Delta on real batches
+  is logged in metrics.json and is the number the F4 gate should be read from
+completed_at_utc: '2026-08-12T06:42:17.358516+00:00'
+wall_clock_s: 2173.1116273403168

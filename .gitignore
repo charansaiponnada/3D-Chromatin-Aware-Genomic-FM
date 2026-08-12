@@ -218,6 +218,17 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# --- Phase 3 training artefacts -----------------------------------------
+# Model weights are 89 MB per seed. GitHub warns above 50 MB and history is
+# permanent, so they stay out; every claim traces to metrics.json,
+# run_config.yaml and phase3_report.txt instead, which are tracked and total
+# under 300 KB. The weights are reproducible from the logged seed and config.
+results/**/checkpoint.pt
+results/**/*.tmp
+# runtime scratch, not results
+results/baselines/*.pid
+results/baselines/*.lock
+
 # --- Phase 1 pilot data -------------------------------------------------
 # Raw and intermediate genomics data are large and fully reproducible from
 # data/pilot_manifest.json (accessions + URLs + md5s), which IS tracked.

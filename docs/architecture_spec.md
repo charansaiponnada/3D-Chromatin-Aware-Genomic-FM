@@ -305,6 +305,18 @@ At Mamba's standard initialization for our config (d_model=256, d_inner=512, d_s
 | τ reaches ≳100 kb in upper layers | architecture can express TAD scale | proceed to Phase 4 as specified |
 | τ saturates ≪ TAD scale | structure-at-TAD-scale is not expressible at this size | re-scope to sub-TAD structural signal, or raise d_model/d_state, **before** spending Phase 4 compute |
 
+**Operational criterion, fixed 2026-08-12 (PI decision).** "τ reaches ≳100 kb" above was qualitative; Phase 3's data made the ambiguity load-bearing, so it is now pinned. The gate passes iff, on the final eval, averaged over seeds:
+
+- mean τ_max ≥ 100,000 tokens, **or**
+- mean relay heuristic ≥ 100,000 tokens **and** exact `frac_ge_100k` **≥ 1e-04**
+
+The mass floor of 1e-04 (one triple in ten thousand) is the part added on 2026-08-12. Two reasons, both from observed Phase 3 data rather than from taste:
+
+1. The prior condition was "any nonzero mass," which seed 1 satisfied at 1.19e-07 — roughly four triples per million, in 1 of 32 layer-directions, while median τ sat at 14.4 tokens and the other 31 layer-directions had nothing at TAD scale. A gate that passes on that is not measuring what it claims to.
+2. The relay heuristic is the fastest-moving term (23,844 → 151,021 across seed 1) and is disclaimed as "not a bound" three paragraphs above. Pairing it with an unbounded-below mass test let the weakest evidence in the gate decide the strongest conclusion.
+
+**The threshold was fixed before seeds 1 and 2 completed and before any verdict was computed**, so it is not a post-hoc adjustment to the observed answer. `scripts/phase3_report.py` implements exactly this and reads the mass from the exact per-layer fractions, not from the subsampled summary field, whose 5e-05 detection floor is coarser than the effect being tested.
+
 **Do not skip this.** It is a cheap measurement on a run that Phase 3 requires anyway, and it can invalidate the mechanism's premise before the expensive phase begins.
 
 **Other mitigations if needed:** the pilot `.mcool` already carries 1 kb and 2 kb resolution levels (τ_max/bin = 0.994 and 0.497 respectively), so changing resolution needs no new download — but it costs comparability with CHROME's 5 kb and buys noisier contacts. Treat resolution as an ablation axis, not a default change.

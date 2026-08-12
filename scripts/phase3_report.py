@@ -19,6 +19,7 @@ import json
 import math
 import statistics as stats
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -28,8 +29,33 @@ RESULTS = REPO / "results" / "baselines"
 OUT = RESULTS / "phase3_report.txt"
 
 TAD_TOKENS = 100_000        # 100 kb, the low end of TAD scale
+# Minimum fraction of (position, channel, state) triples that must reach TAD
+# scale for the relay branch of the gate to count. Fixed by the PI on
+# 2026-08-12, before seeds 1 and 2 finished and before any verdict was computed
+# -- see architecture_spec.md 4.1.4. Replaces "any nonzero mass", which seed 1
+# satisfied at 1.19e-07 (about four triples per million, in 1 of 32
+# layer-directions) while its median tau was 14.4 tokens.
+MIN_TAD_MASS = 1e-04
 BIN_TOKENS = 5_000          # one Hi-C bin at the pilot's 5 kb resolution
 VALIDATED_TAD = 385_000     # the TAD confirmed in data_card.md 4B.2
+
+
+IST = timezone(timedelta(hours=5, minutes=30))  # Asia/Kolkata, no DST
+
+
+def to_ist(iso_utc):
+    """Render a stored UTC timestamp in IST for reading.
+
+    Timestamps are stored in UTC (train.py writes completed_at_utc) because a
+    recorded time should not depend on who reads it. Only the display converts.
+    """
+    if not iso_utc:
+        return "n/a"
+    try:
+        return (datetime.fromisoformat(iso_utc).astimezone(IST)
+                .strftime("%Y-%m-%d %H:%M:%S IST"))
+    except (TypeError, ValueError):
+        return str(iso_utc)
 
 
 def fmt(x, nd=4):
@@ -158,6 +184,18 @@ def main() -> int:
           f"{last['val_accuracy']:>8.4f}  "
           f"{last['train_bits_per_nucleotide']:>13.4f}  "
           f"{r['cfg'].get('wall_clock_s', 0)/3600:>10.2f}h")
+    w("")
+    w("  finished (IST, the PI's zone; files store UTC):")
+    for r in done:
+        w(f"    seed {r['cfg']['seed']}  {to_ist(r['cfg'].get('completed_at_utc'))}")
+    w("")
+    w("  NOTE ON wall clock: train.py measures it from the start of the attempt")
+    w("  that reached step 2000, not across attempts. A seed interrupted and")
+    w("  resumed therefore reports LESS than it actually cost, and its figure is")
+    w("  not comparable with an uninterrupted seed's. Seed 0 was interrupted")
+    w("  twice (a SIGKILL, then the JupyterHub idle culler). Wall clock is")
+    w("  reported here for the record only; no result depends on it.")
+    w("")
     vb = [f["val_bits_per_nucleotide"] for f in finals]
     va = [f["val_accuracy"] for f in finals]
     mb, sb_ = mean_sd(vb)
@@ -201,6 +239,7 @@ def main() -> int:
     trained = {k: [] for k in keys}
     relayed = []
     trained_bias_max = []
+    exact100, exact5, exact_hits = [], [], []
     for r in done:
         ev = [x for x in r["metrics"] if "tau_empirical" in x]
         if not ev:
@@ -212,6 +251,20 @@ def main() -> int:
         if "tau_bias_only" in ev[-1]:
             trained_bias_max.append(
                 max(v["tau_max"] for v in ev[-1]["tau_bias_only"].values()))
+        # The summary's frac_* are computed on a 20,000-per-layer-direction
+        # random SUBSAMPLE (train.py:352), while its tau_max is an exact maximum
+        # over the full tensors (train.py:362). Different populations, so the two
+        # can disagree: seed 1 at step 1000 reported tau_max 103,025 alongside
+        # frac_ge_100k exactly 0.0. That is not a contradiction, it is a
+        # detection floor -- the subsample cannot resolve anything rarer than
+        # 1/20,000 = 5.0e-05, and the true value there was 5.96e-08, some 840x
+        # finer. The per-layer entries compute their fractions on the FULL
+        # tensor, so the exact figure is already logged and needs no re-run.
+        # The gate is read from these.
+        pl = ev[-1]["tau_empirical"]["per_layer"]
+        exact100.append(sum(v["frac_ge_100k"] for v in pl.values()) / len(pl))
+        exact5.append(sum(v["frac_ge_5k"] for v in pl.values()) / len(pl))
+        exact_hits.append(sum(1 for v in pl.values() if v["frac_ge_100k"] > 0))
 
     w(f"  AFTER TRAINING (empirical, mean +/- sd over {len(trained['tau_max'])} seeds):")
     for k, label in (("tau_median", "median"), ("tau_p90", "p90"),
@@ -225,6 +278,17 @@ def main() -> int:
       f"{mu5:.6f} +/- {sd5:.6f}")
     w(f"      tau >= {TAD_TOKENS:,} tokens (100 kb, TAD scale)  "
       f"{mu100:.6f} +/- {sd100:.6f}")
+    w("")
+    ex100, exsd = mean_sd(exact100)
+    ex5, _ = mean_sd(exact5)
+    hits, _ = mean_sd([float(h) for h in exact_hits])
+    w("    The two lines above are SUBSAMPLED (20,000 per layer-direction) and")
+    w("    cannot resolve anything rarer than 1/20,000 = 5.0e-05. The exact")
+    w("    fractions, over the full tensors, are:")
+    w(f"      tau >= {BIN_TOKENS:,}   exact {ex5:.3e}")
+    w(f"      tau >= {TAD_TOKENS:,}  exact {ex100:.3e} +/- {exsd:.3e}")
+    w(f"      layer-directions (of 32) containing ANY triple at TAD scale: "
+      f"{hits:.1f}")
     mur, sdr = mean_sd(relayed)
     w(f"    relayed across 16 layers (sum of per-layer fwd tau_max, a HEURISTIC")
     w(f"    and not a bound): {mur:,.1f} +/- {sdr:,.1f} tokens")
@@ -258,11 +322,23 @@ def main() -> int:
     w(f"  single-layer tau_max reaches one Hi-C bin (5 kb)?   {reaches_bin}")
     w(f"  single-layer tau_max reaches TAD scale (100 kb)?    {reaches_tad}")
     w(f"  relayed heuristic reaches TAD scale (100 kb)?       {relay_reaches_tad}")
-    w(f"  any (channel,state) mass at TAD scale?              "
-      f"{mu100 > 0} (fraction {mu100:.6f})")
+    enough_mass = ex100 >= MIN_TAD_MASS
+    w(f"  mass at TAD scale >= {MIN_TAD_MASS:.0e}?                    "
+      f"{enough_mass} (exact fraction {ex100:.3e})")
+    w("")
+    w("  The mass test uses the EXACT per-layer fractions, not the subsampled")
+    w("  summary field. The subsample reports 0.0 whenever the true value is")
+    w("  below 5.0e-05, which is the regime this model is in, so reading the")
+    w("  gate from it would answer 'no mass at TAD scale' by construction")
+    w("  rather than by measurement.")
+    w("")
+    w(f"  The {MIN_TAD_MASS:.0e} floor was fixed by the PI on 2026-08-12, BEFORE seeds 1")
+    w("  and 2 completed and before any verdict was computed, replacing an")
+    w("  'any nonzero mass' test that seed 1 satisfied at 1.19e-07. See")
+    w("  architecture_spec.md 4.1.4. It is not a post-hoc adjustment.")
     w("")
     w("  VERDICT:")
-    if reaches_tad or (relay_reaches_tad and mu100 > 0):
+    if reaches_tad or (relay_reaches_tad and enough_mass):
         w("    Trained tau DOES approach TAD scale. The architecture can express")
         w("    dependencies at the scale mechanism (a) conditions on. Proceed to")
         w("    Phase 4 as specified in architecture_spec.md 4.1.")

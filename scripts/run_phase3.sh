@@ -35,6 +35,19 @@ RETRY_SLEEP=60
 cd "$REPO" || exit 1
 mkdir -p "$OUT"
 
+# Single-instance lock. Two supervisors running at once would have two training
+# processes writing the same checkpoint.pt and fighting over the GPUs, so take an
+# exclusive lock and exit quietly rather than start a second copy. The lock is
+# held on fd 9 for the life of the process and released by the kernel when the
+# process dies, however it dies -- a stale lock file cannot block a restart.
+exec 9> "$OUT/supervisor.lock"
+if ! flock -n 9; then
+    echo "supervisor: another instance holds the lock, exiting $(date -u +%F_%H:%M:%S)"
+    exit 0
+fi
+echo $$ > "$OUT/supervisor.pid"
+trap 'rm -f "$OUT/supervisor.pid"' EXIT
+
 completed() {  # $1 = run directory
     grep -q '^status: COMPLETED' "$1/run_config.yaml" 2>/dev/null
 }
@@ -58,10 +71,24 @@ for S in $SEEDS; do
         fi
 
         echo "########## SEED $S attempt $attempt start $(date -u +%F_%H:%M:%S) ##########"
+        # --ckpt-every 120, not 200 (PI's choice). The JupyterHub idle culler
+        # (--timeout=600) kills the whole user cgroup, and by 2026-08-12 it was
+        # firing every 15-20 minutes -- shorter than the 17.7 minutes a 200-step
+        # checkpoint interval takes at 5.30 s/step. Every restart was therefore
+        # recomputing work it never got to save, and seed 2 sat at step 1200
+        # across three restarts making no net progress. At 120 steps a checkpoint
+        # lands every ~10.6 minutes, inside the observed cull window. Checkpoint
+        # frequency does not affect the training computation, only how much of it
+        # survives. --eval-every and --tau-every stay at 200 so the logged metric
+        # series remains directly comparable with seeds 0 and 1.
+        #
+        # grep needs --line-buffered: with stdout redirected to a file it block
+        # buffers, which is why the console log used to lag tens of lines behind
+        # the run.
         "$PY" -u scripts/train.py --seed "$S" --resume \
             --steps 2000 --batch-size 2 --grad-accum 2 \
-            --warmup-steps 150 --eval-every 200 --tau-every 200 --ckpt-every 200 \
-            --log-every 50 2>&1 | grep -v "Can't initialize NVML"
+            --warmup-steps 150 --eval-every 200 --tau-every 200 --ckpt-every 120 \
+            --log-every 50 2>&1 | grep --line-buffered -v "Can't initialize NVML"
         rc=${PIPESTATUS[0]}
         echo "########## SEED $S attempt $attempt exit=$rc $(date -u +%F_%H:%M:%S) ##########"
 

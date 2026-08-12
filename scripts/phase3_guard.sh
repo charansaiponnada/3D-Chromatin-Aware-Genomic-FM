@@ -20,9 +20,22 @@ set -u
 
 REPO=/home/jupyter-238w1a5447/3d-gen
 LOG="$REPO/results/baselines/train_console.log"
+PIDFILE="$REPO/results/baselines/supervisor.pid"
 POLL=120
 
 cd "$REPO" || exit 1
+
+# Liveness is checked through the supervisor's own pidfile, confirmed against
+# that pid's command line. Matching on `pgrep -f run_phase3.sh` instead is wrong:
+# it also matches any unrelated shell whose command line merely mentions the
+# script -- an editor, a grep, the command that launched this guard -- and a
+# false "already running" would leave training stopped indefinitely.
+supervisor_alive() {
+    local pid
+    pid=$(cat "$PIDFILE" 2>/dev/null) || return 1
+    [ -n "$pid" ] || return 1
+    tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q 'run_phase3\.sh'
+}
 
 echo "===== guard start $(date -u +%F_%H:%M:%S) pid=$$ ====="
 
@@ -32,9 +45,7 @@ while : ; do
         exit 0
     fi
 
-    # pgrep -f matches on the full command line. The guard's own command line is
-    # "bash scripts/phase3_guard.sh", so it cannot match itself here.
-    if ! pgrep -u "$USER" -f "run_phase3.sh" > /dev/null 2>&1; then
+    if ! supervisor_alive; then
         echo "guard: no supervisor running, starting one $(date -u +%F_%H:%M:%S)"
         setsid nohup bash "$REPO/scripts/run_phase3.sh" >> "$LOG" 2>&1 < /dev/null &
         disown

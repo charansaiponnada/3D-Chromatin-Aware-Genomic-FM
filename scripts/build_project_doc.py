@@ -70,6 +70,16 @@ def main() -> int:
         if f.suffix in AUX_SUFFIXES or f.name.endswith(".synctex.gz"):
             f.unlink()
             removed.append(f.name)
+        elif f.name == ".ipynb_checkpoints" and f.is_dir():
+            # JupyterLab recreates this whenever project.tex or project.pdf is
+            # open in it, so deleting it by hand does not stay deleted -- it
+            # reappeared within two minutes of the previous build. It holds only
+            # Jupyter's autosave copies of files this script has just rebuilt,
+            # so nothing unique is lost. Removing it here is what keeps the
+            # "project-docs/ contains only project.tex and project.pdf" rule
+            # true after a build rather than only until Jupyter next notices.
+            shutil.rmtree(f)
+            removed.append(f.name + "/")
 
     kept = sorted(p.name for p in DOCDIR.iterdir())
     print(f"  removed: {removed if removed else 'nothing'}")

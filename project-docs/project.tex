@@ -510,6 +510,280 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-12 --- PHASE 3 COMPLETE: the F4 gate fails, Phase 4 must be
+re-scoped}
+
+Three seeds $\times$ 2000 steps of \code{BiMambaLM(structural=False)} on the
+chr9 pilot, all \code{COMPLETED}. Every number below is read by
+\code{scripts/phase3\_report.py} out of
+\code{results/baselines/*/metrics.json} and \code{run\_config.yaml}; the report
+is committed at \code{results/baselines/phase3\_report.txt}.
+
+\begin{itemize}
+\item \textbf{The baseline trains, and the three seeds agree.} Final validation
+1.5210 bits/nucleotide, sd 0.0040 across seeds (1.5164 / 1.5239 / 1.5227),
+accuracy 0.5240 $\pm$ 0.0014 --- 0.4790 bits below the 2.000-bit uniform floor.
+\textbf{That sd 0.0040 is $\sigma_{\text{real}}$}, the quantity \S4.1.3 needs
+for Phase 4's $2\sigma$ effect-size gate; it is now measured rather than
+assumed.
+\item \warn{The F4 gate FAILS. Trained $\tau$ does not approach TAD scale.}
+Median $\tau$ 14.2 $\pm$ 0.2 tokens, p99 574.8 $\pm$ 55.3 --- essentially
+unmoved from the 14.6 median measured at initialisation on 2026-08-07. The
+distribution's bulk never left the degenerate regime.
+\item \textbf{The tail is wildly seed-dependent and that is itself the finding.}
+$\tau_{\max}$ is 46{,}319 $\pm$ 61{,}333 tokens: a standard deviation larger
+than the mean. Per seed it is 10{,}584 / 117{,}139 / 11{,}235 --- seed~1 alone
+crossed 100\,kb, and only in \code{layer15.rev}, one of 32 layer-directions.
+Averaged over seeds, 0.3 of 32 layer-directions contain any triple at TAD
+scale. A single-seed run would have given either ``comfortably short'' or
+``crosses TAD scale'' with equal ease. This is exactly the case the three-seed
+requirement exists for.
+\item \textbf{Gate arithmetic, against the criterion fixed earlier today:} mean
+$\tau_{\max}$ 46{,}319 (needs 100{,}000) --- fail; mean relay heuristic 77{,}655
+$\pm$ 51{,}512 (needs 100{,}000) --- fail; exact mass at TAD scale
+$6.954\times10^{-8} \pm 1.204\times10^{-7}$ (needs $10^{-4}$) --- fail by
+$\sim$1400$\times$. All three arms fail independently, so the verdict does not
+rest on the threshold decision alone.
+\item \textbf{Action, per the \S4.1.4 decision table: re-scope to sub-TAD
+structural signal, or raise \code{d\_model}/\code{d\_state}, before spending
+Phase~4 compute.} \warn{This is a statement about the backbone, not about the
+structural mechanism}, and it constrains the baseline and the structural arm
+identically: a model that cannot carry information 100\,kb cannot be helped by
+being told where the 100\,kb boundaries are. It does not say structure is
+useless---$\varphi$ carries sub-TAD signal too, and the interpolated $s_t$
+varies at every position---it says the TAD-scale framing of the claim is not
+supportable at this model size.
+\item \textbf{Why \code{tau\_stats()} alone would have misled.} Bias-only
+$\tau_{\max}$ after training is 1{,}050.7 $\pm$ 21.0 tokens, against an
+empirical 46{,}319. The runbook asked for \code{tau\_stats()}; had the gate been
+read from it, the answer would have been off by a factor of 44, because once
+trained, $\Delta$ is dominated by the input-dependent term
+$W_\Delta\delta'_t$ rather than by the bias.
+\item \textbf{Cost.} Six idle-culler kills across two days. No computation was
+ever lost---every resume came off a checkpoint---but the last of them stalled
+progress entirely once the cull interval fell below the 200-step checkpoint
+interval, and \code{--ckpt-every} was cut to 120 (PI's choice) to fit inside it.
+Seed wall-clock figures in the report are per final attempt and understate the
+interrupted seeds.
+\end{itemize}
+
+\subsection*{2026-08-12 --- The F4 gate was unmeasurable as written, and is now
+pinned}
+
+\begin{itemize}
+\item \warn{The gate's mass test could not see the effect it tested for.}
+\code{empirical\_tau} computes the summary's \code{tau\_max} as an exact maximum
+over the full $\tau$ tensors (\code{train.py:362}) but its \code{frac\_ge\_*}
+from a random subsample of 20{,}000 per layer-direction
+(\code{train.py:352}). Different populations, so the two can disagree, and did:
+seed~1 at step~1000 logged \code{tau\_max}~103{,}025 beside
+\code{frac\_ge\_100k} of exactly \code{0.0}. That is a detection floor, not a
+contradiction---the subsample cannot resolve anything rarer than
+$1/20{,}000 = 5\times10^{-5}$, and the true value was $5.96\times10^{-8}$, some
+840$\times$ finer. Read from that field, the gate would have answered ``no mass
+at TAD scale'' by construction rather than by measurement, for any model in this
+regime. \code{phase3\_report.py} now reads the exact per-layer fractions, which
+are computed on the full tensors and were already logged; no re-run was needed.
+\code{train.py} was deliberately \emph{not} edited---it was mid-sweep, and
+changing it would have measured seed~2 with different code than seeds~0 and~1.
+\item \textbf{The gate's threshold was qualitative and is now operational (PI
+decision).} \S4.1.4 said ``$\tau$ reaches $\gtrsim$100\,kb''; the data made the
+ambiguity load-bearing. The gate now passes iff mean $\tau_{\max} \ge 100{,}000$
+tokens, or mean relay heuristic $\ge 100{,}000$ \emph{and} exact
+\code{frac\_ge\_100k} $\ge 10^{-4}$. The mass floor is the new part. The prior
+condition was ``any nonzero mass'', which seed~1 met at $1.19\times10^{-7}$---about
+four triples per million, in 1 of 32 layer-directions, while median $\tau$ was
+14.4 tokens and the other 31 layer-directions held nothing at TAD scale.
+\item \warn{This mattered numerically, not just in principle.} On the data
+logged at the time of the decision, the mean relay heuristic stood at 98{,}636
+tokens, 1.4\% under its threshold, and it is the fastest-moving term in the gate
+(23{,}844 $\rightarrow$ 151{,}021 across seed~1). Under the old rule seed~2
+could have carried it over the line and flipped the verdict to ``proceed to
+Phase~4'' on the strength of a quantity \S4.1.4 itself calls ``a HEURISTIC and
+not a bound''. Under the new rule the mass floor binds and misses by roughly
+1{,}700$\times$.
+\item \textbf{Fixed before the evidence was in.} The threshold was set while
+seed~1 was at step~1200 of 2000 and seed~2 had not started, and before any
+verdict was computed. Recorded explicitly because a gate loosened or tightened
+after seeing its own answer is not a gate; the ordering is the whole point.
+\end{itemize}
+
+\subsection*{2026-08-11 --- Phase 3 run supervision}
+
+The Phase 3 baseline is three seeds $\times$ 2000 steps at a measured
+5.30\,s/step, i.e.\ roughly 2.9\,h per seed and 8.8\,h in total. That exceeds
+the lifetime of an interactive session on this cluster, so the runs were made
+independent of one. Training results are recorded in a later entry.
+
+\begin{itemize}
+\item \warn{The first launch was killed by session teardown} at step 200 of
+seed 0. Background processes started from an agent session die with it. Runs
+are now started with \code{setsid nohup}, giving them their own session, no
+controlling terminal and \code{init} as parent. Confirmed independently that
+this box has \code{KillUserProcesses=no} and no batch scheduler, so nothing
+reaps user processes at logout. \warn{This was necessary but not sufficient, and
+the conclusion drawn from it at the time was wrong}---see the second entry for
+2026-08-11, where the run was killed anyway by a mechanism none of these checks
+covered.
+\item \textbf{\code{scripts/run\_phase3.sh} added} as the supervisor. It lives
+in the repository rather than a temporary directory---bash reads a script
+incrementally as it executes, so a driver under a path that is cleaned up mid-run
+can fail partway through the seed loop. It retries a failed seed up to 20 times
+with \code{--resume}, and decides completion from \code{status: COMPLETED} in
+the run's own \code{run\_config.yaml}, which rank~0 writes only after the
+training loop exits normally. Deciding from an exit code instead would let a
+half-finished run be recorded as finished. A \code{flock} on fd~9 makes a second
+instance impossible: two supervisors would have two training processes writing
+the same \code{checkpoint.pt}.
+\item \textbf{\code{scripts/phase3\_guard.sh} added} to restart the supervisor
+if it is killed outright. There is no writable user crontab and no
+\code{systemd --user} on this box, so it is a plain detached poller and does
+\emph{not} survive a machine reboot; the entry point after a reboot is a single
+command, documented in the script's header.
+\item \warn{Liveness must not be probed with \code{pgrep -f}.} The guard's first
+version used \code{pgrep -u \$USER -f run\_phase3.sh}, which matches any command
+line that merely mentions the script---an editor, a grep, the very command that
+launched the guard. It returned a false positive on its first poll and left
+training stopped. Liveness is now read from a pidfile and confirmed against that
+pid's \code{/proc/<pid>/cmdline}.
+\item \warn{\code{build\_project\_doc.py} was silently failing its own rule
+check.} The script already returns exit~1 when \code{project-docs/} holds
+anything besides \code{project.tex} and \code{project.pdf}, but JupyterLab
+recreates a \code{.ipynb\_checkpoints/} directory there within minutes of any
+build, because it holds the \code{.tex} open. The exit code had been read
+through a pipe to \code{tail}, which reports the exit status of \code{tail}
+rather than of the script, so the violation went unnoticed across two builds.
+The cleanup loop now removes that directory, and the exit code is read directly.
+It contained only Jupyter's autosave copies of files the script rebuilds, so
+nothing unique was discarded---verified before the first deletion by diffing the
+checkpoint against the live \code{.tex}: zero lines present only in the
+checkpoint.
+\item \warn{The console log lags.} \code{train.py}'s output is piped through
+\code{grep -v "Can't initialize NVML"} inside the supervisor, and grep
+block-buffers when its stdout is a file, so training lines can appear tens of
+lines late. The supervisor's own markers bypass the pipe and are prompt.
+\code{scripts/phase3\_progress.py} was added to read progress from
+\code{metrics.json}, which \code{train.py} writes atomically at every eval and
+which never lags. Adding \code{--line-buffered} to the supervisor's grep is
+deferred until the runs finish, because editing a script that bash is currently
+executing can corrupt its parse.
+\item \textbf{Checkpoint durability confirmed by reading the code:}
+\code{save\_ckpt} writes to \code{.tmp} and then \code{Path.replace}, which is
+\code{os.replace} and atomic within a filesystem, so a kill during a write
+cannot leave a corrupt checkpoint. \code{metrics.json} is written the same way.
+At \code{--ckpt-every 200} the worst case is under 18 minutes of lost work.
+\item \textbf{Recovery verified under a real \code{SIGKILL}, not by inspection.}
+The trainer was killed outright at step 247 of seed 0 (accidentally, by a
+\code{pgrep -f} that matched the killing shell's own command line---the same
+false-match class as the guard bug above, and the reason the guard no longer
+uses \code{pgrep}). The chain behaved as designed: the step-200 checkpoint
+survived, the supervisor recorded
+\code{ProcessExitedException ... signal SIGKILL} and \code{attempt 1 exit=1},
+declined to mark the run complete, and started attempt~2 sixty seconds later.
+Resume was then confirmed two ways: the step-200 record was still present in
+\code{metrics.json} with step~400 \emph{appended} to it, where a restart from
+scratch would have reset the file to a single fresh row; and attempt~2 reached
+the step-400 eval 18.2 minutes after starting, which is 200 steps at
+5.30\,s/step, not the 400 steps a from-scratch run would have needed. Worst-case
+loss from an interruption is therefore one checkpoint interval, under 18
+minutes, with no manual intervention.
+\item \warn{Resume is not identical to an uninterrupted run.} Model, optimizer,
+scheduler, step count and RNG state are restored; the dataloader's position
+within the epoch is not. An interrupted seed therefore sees a different window
+order than an uninterrupted one. Recorded here so that a seed-to-seed
+discrepancy is not later mistaken for a real effect.
+\item \textbf{The 8.8\,h was not shortened, deliberately.} Cutting 2000 steps to
+1000 would halve the wall clock at no engineering cost, but the phase exists to
+measure \emph{trained} $\tau$ for the F4 gate, and $\tau$ grows during training.
+Undertraining biases $\tau$ downward and would manufacture a false
+``TAD scale is not expressible, re-scope Phase 4'' verdict. Confirmed with the
+PI that there is no deadline requiring the trade.
+\item \textbf{No further speedup is available cheaply.} The measured levers are
+exhausted: \code{num\_warps=1} (1.42$\times$, previous entry), two GPUs at
+$2.00\times$ scaling, and a batch size already at saturation (batch 4 OOMs, and
+batch 8 with recompute is 13\% worse per window than batch 2 without).
+Running the three seeds concurrently on one GPU each gains nothing, since DDP
+already scales at exactly $2\times$ and the total work is fixed. The remaining
+real lever is a chunked parallel-prefix rewrite of the scan, which is currently
+a strictly sequential 32{,}768-iteration chain; it is deferred until after the
+F4 gate, since the gate may re-scope Phase 4 altogether.
+\end{itemize}
+
+\subsection*{2026-08-11 (second entry) --- The idle culler, and why unattended
+runs are impossible on this box}
+
+The supervision built in the previous entry was tested against process death and
+survived it. It was never tested against the thing that actually kills runs
+here, and the run was lost a second time as a result.
+
+\begin{itemize}
+\item \warn{What happened.} Seed~0 was killed at step~1000 while unattended. The
+console log ends in bash's \code{Terminated}, i.e.\ \code{SIGTERM}; the machine
+had not rebooted (uptime 126 days); the last checkpoint was written at
+04:53:15\,UTC, about ten minutes after the browser was closed. Both GPUs were
+free at 07:16 and the guard, supervisor and trainer were all gone---the entire
+chain, not one link of it.
+\item \warn{Cause, confirmed by direct observation.} The hub runs
+\code{jupyterhub\_idle\_culler --timeout=600 --cull-every=60 --concurrency=5
+--max-age=0}, and the whole user environment is a single systemd cgroup:
+\code{/proc/self/cgroup} reads
+\code{0::/system.slice/jupyter-238w1a5447.service}. Ten minutes after the last
+browser activity the hub stops that service, and systemd kills every process in
+the cgroup. \textbf{\code{setsid}, \code{nohup} and \code{PPID=1} give no
+protection against this.} They defend against \code{SIGHUP} and against a dying
+parent; a cgroup-wide kill is neither. The previous entry verified session
+independence and concluded the run was safe, which did not follow---cgroup
+membership was never checked.
+\item \textbf{Cost of the incident: wall clock only.} Restarted 07:17:00 from
+the step-1000 checkpoint. The step-1200 eval appended to the existing records
+at \code{val 1.5388} bits, continuing down from step~1000's \code{1.5671}
+rather than restarting near the untrained \code{4.1004}. Resume works; roughly
+2.4\,h of idle wall clock was lost and no computed result was.
+\item \textbf{Consequence for planning: a 9-hour job cannot run unattended
+here.} No amount of process supervision fixes a 10-minute idle timeout, because
+the supervisor is inside the cgroup being killed. The options are to ask the
+administrators to raise the timeout or provide a batch queue, to keep a browser
+tab connected, or to accept periodic culling. A heartbeat that pokes the Jupyter
+API would defeat a resource policy the administrators set deliberately and is
+not being used.
+\item \textbf{\code{scripts/phase3\_status.sh} added}---one read-only command
+reporting whether the chain is alive, every eval logged so far, per-seed
+completion, and GPU memory through the CUDA API (\code{nvidia-smi} is broken on
+this box). When nothing is running it prints the command to restart.
+\item \textbf{\code{scripts/phase3\_autostart.sh} added}---idempotent restart.
+It exits immediately if a guard is already running or if all seeds are done, and
+otherwise starts the chain, which resumes the current seed from its last
+checkpoint. Liveness is read from a pidfile confirmed against
+\code{/proc/<pid>/cmdline}, not \code{pgrep -f}, for the reason in the previous
+entry.
+\item \textbf{\code{scripts/jupyter\_server\_config.py} added as an inert
+template, \emph{not} installed.} Copied to
+\code{\textasciitilde/.jupyter/jupyter\_server\_config.py} it would run the
+autostart script at every single-user server start, so that reconnecting is
+itself the restart: \code{jupyterhub-singleuser} is launched with no
+\code{--config}, and \code{\textasciitilde/.jupyter} is first on the config
+search path (\code{jupyter\_server} 2.14.1). It does not touch the culler and
+does not keep the server alive; it only removes the manual restart on return.
+It is left uninstalled pending the PI's decision, and is untested---the hook can
+only be exercised by a real server restart, and a parse error in that file would
+prevent the server from starting at all.
+\item \textbf{Times are displayed in IST} (\code{Asia/Kolkata}, +05:30, no DST)
+in \code{phase3\_status.sh}, \code{phase3\_autostart.sh} and
+\code{phase3\_report.py}, at the PI's request. \textbf{Stored timestamps remain
+UTC}---\code{train.py} writes \code{completed\_at\_utc}, and a recorded time
+should not change meaning with the reader; only the display converts. Verified
+on the real record rather than a synthetic one:
+\code{2026-08-11T09:13:03+00:00} renders as \code{2026-08-11 14:43:03 IST}.
+\code{run\_phase3.sh} and \code{phase3\_guard.sh} still log UTC and were left
+alone deliberately: both were executing, and bash reads a script incrementally
+as it runs, so editing one can corrupt its parse mid-run.
+\item \textbf{Wall clock is measured per attempt, not per seed.} \code{train.py}
+times from the start of the attempt that reached the final step, so an
+interrupted seed under-reports its true cost. Seed~0 was interrupted twice and
+records 6957\,s, which is its final attempt only. \code{phase3\_report.py} now
+prints this caveat beside the figure. No result depends on wall clock.
+\end{itemize}
+
 \subsection*{2026-08-10}
 
 First session on the L40S box. Environment built, pipeline reproduced from a
