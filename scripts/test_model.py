@@ -184,10 +184,17 @@ def test_tau_stats():
     tau_max = max(v["tau_max"] for v in st.values())
     med = sorted(v["tau_median"] for v in st.values())[len(st) // 2]
     check("tau_stats returns per-layer entries", len(st) == 32, f"{len(st)} entries")
-    check("tau_max near the F4 measurement (~994 tokens)",
-          500 < tau_max < 1500, f"{tau_max:.0f} tokens")
+    # tau_max at init is 1/dt_min by construction, since |A| >= 1. With
+    # dt_min = 1e-6 that is 1e6 tokens, against ~994 under Mamba's reference
+    # 1e-3, which capped tau 100x below TAD scale and failed the F4 gate in
+    # Phase 3. This assertion is what would catch dt_floor being raised back
+    # above dt_min, which silently caps tau at 1/dt_floor.
+    check("tau_max reaches TAD scale (>= 100,000 tokens)",
+          1e5 <= tau_max < 2e6, f"{tau_max:,.0f} tokens")
+    check("a 385 kb TAD fits inside tau_max",
+          tau_max >= 385_000, f"{tau_max:,.0f} vs 385,000 tokens")
     print(f"       median tau across layers: {med:.1f} tokens "
-          f"(a 5 kb bin is 5,000 -- see F4)")
+          f"(a 5 kb bin is 5,000; 100 kb is TAD scale -- see F4)")
 
 
 def main():

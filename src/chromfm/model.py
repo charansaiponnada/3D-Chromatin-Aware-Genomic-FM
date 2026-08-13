@@ -54,6 +54,20 @@ class ModelConfig:
     structural: bool = False
     use_permeability: bool = True     # the p_t term; see KERNEL NOTE
 
+    # Delta initialisation, log-uniform over [dt_min, dt_max], clamped at
+    # dt_floor. These set the memory horizon tau = 1/(Delta*|A|): since
+    # |A| >= 1, the largest tau any channel can have at init is exactly
+    # 1/dt_min. Mamba's reference values (1e-3, 1e-1, 1e-4) therefore cap tau
+    # at 1,000 tokens -- and Phase 3 measured 999.5 at init and a median of
+    # 14.2 after 2000 steps of training, failing the F4 TAD-scale gate on all
+    # three arms. They are config fields rather than _init_dt defaults so that
+    # train.py records them in run_config.yaml; a run whose memory horizon is
+    # not in its own provenance cannot be compared against another.
+    # See architecture_spec.md 4.1.4.
+    dt_min: float = 1e-6
+    dt_max: float = 1e-1
+    dt_floor: float = 1e-7
+
     @property
     def d_inner(self) -> int:
         return self.expand * self.d_model
@@ -146,8 +160,21 @@ class MambaDirection(nn.Module):
                 # scripts/test_model.py; failure mode F2.
                 nn.init.constant_(self.w_gate.bias, -4.0)
 
-    def _init_dt(self, dt_min=1e-3, dt_max=1e-1, floor=1e-4):
+    def _init_dt(self, dt_min=None, dt_max=None, floor=None):
         c = self.c
+        dt_min = c.dt_min if dt_min is None else dt_min
+        dt_max = c.dt_max if dt_max is None else dt_max
+        floor = c.dt_floor if floor is None else floor
+        # The clamp is a trap worth stating: it silently caps tau at 1/floor.
+        # Lowering dt_min while leaving floor at Mamba's 1e-4 produces a tau_max
+        # of exactly 10,000 tokens no matter how small dt_min gets, which looks
+        # like the change did not work. floor must move with dt_min.
+        if floor > dt_min:
+            raise ValueError(
+                f"dt_floor ({floor:g}) > dt_min ({dt_min:g}): the clamp would "
+                f"cap tau at {1/floor:,.0f} tokens and silently discard the "
+                f"slow channels dt_min was lowered to create."
+            )
         nn.init.uniform_(self.dt_proj.weight, -c.dt_rank ** -0.5, c.dt_rank ** -0.5)
         dt = torch.exp(
             torch.rand(c.d_inner) * (math.log(dt_max) - math.log(dt_min))

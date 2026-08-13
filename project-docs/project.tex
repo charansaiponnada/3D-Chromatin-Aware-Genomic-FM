@@ -510,6 +510,61 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-12 --- F4 resolved: the cap was \code{dt\_min}, and it was
+exact}
+
+\begin{itemize}
+\item \textbf{Cause, in one line of code.} \code{model.py::\_init\_dt} draws
+$\Delta$ log-uniform over $[\code{dt\_min}, \code{dt\_max}] = [10^{-3},
+10^{-1}]$, and \code{model.py} line~128 sets $A = -\mathrm{arange}(1,
+\code{d\_state}+1)$ so $|A| \ge 1$. Since $\tau = 1/(\Delta|A|)$,
+\textbf{$\tau_{\max}$ at initialisation is exactly $1/\code{dt\_min} = 1{,}000$
+tokens}. Phase~3 measured 999.5. Mamba's reference \code{dt\_min} was a hard
+ceiling on the memory horizon 100$\times$ below TAD scale, and training never
+moved the bulk: median $\tau$ 14.6 at init, 14.2 after 2000 steps. The
+architecture could not express what the mechanism conditions on.
+\item \textbf{Change:} \code{dt\_min} $10^{-3} \rightarrow 10^{-6}$,
+\code{dt\_floor} $10^{-4} \rightarrow 10^{-7}$, \code{dt\_max} unchanged.
+Promoted from \code{\_init\_dt} defaults to \code{ModelConfig} fields so
+\code{train.py} records them in \code{run\_config.yaml}: a run whose memory
+horizon is missing from its own provenance cannot be compared with another.
+\item \textbf{Measured at init, not asserted} (\code{f4\_memory\_horizon.py},
+corroborated by \code{tau\_stats()} on the instantiated model): median $\tau$
+14.9 $\rightarrow$ 472.5; p90 108.8 $\rightarrow$ 47{,}940; p99 497.4
+$\rightarrow$ 290{,}487; $\tau_{\max}$ 994 $\rightarrow$ 985{,}872. Fraction at
+TAD scale 0.0000 $\rightarrow$ 0.0433, which is 433$\times$ the $10^{-4}$ gate
+floor. The 385\,kb validated TAD now fits inside $\tau_{\max}$ with 2.5$\times$
+headroom.
+\item \textbf{Parameters unchanged at 7{,}725{,}312.} This is an initialisation
+change, not a capacity change, so the matched-compute comparison with the
+structural arm survives intact, as does structural/baseline init equivalence
+(\code{test\_model.py}, max gap still exactly 0.0). 17/17 checks pass.
+\item \textbf{Why this lever and not the obvious ones.} Raising
+\code{d\_state} adds states but $|A|$ still starts at 1, so the ceiling does not
+move. Raising \code{d\_model} draws more channels from the same $\Delta$ range
+and breaks the parameter match. Widening the $\Delta$ range is the only lever
+that moves the ceiling at fixed capacity. Re-initialising $A$ log-spaced over
+$[0.01, 16]$ is an independent lever that also works (measured $\tau_{\max}$
+99{,}432 on its own) and was deliberately \emph{not} applied --- one variable at
+a time, so a Phase~4 result can be attributed to something.
+\item \warn{The \code{dt\_floor} clamp is a trap, and it was nearly walked
+into.} \code{\_init\_dt} clamps $\Delta$ at \code{dt\_floor}, capping $\tau$ at
+$1/\code{dt\_floor}$ whatever \code{dt\_min} says. Lowering \code{dt\_min} to
+$10^{-6}$ while leaving \code{dt\_floor} at $10^{-4}$ gives $\tau_{\max}$ of
+exactly 10{,}000 tokens and reads as ``the change did nothing''. \code{\_init\_dt}
+now raises \code{ValueError} instead of capping silently, and
+\code{test\_model.py} asserts $\tau_{\max} \ge 385{,}000$.
+\item \warn{This invalidates the Phase 3 baseline for comparison purposes.} The
+three completed seeds were trained at \code{dt\_min}$=10^{-3}$ and are a
+different architecture. They stand as the record of \emph{why} this change was
+made, but they are not the Phase~4 baseline and their
+$\sigma_{\text{real}} = 0.0040$ does not carry over. Phase~3 must be re-run on
+the new initialisation, and the F4 gate re-read from \emph{trained} $\tau$. The
+init numbers establish that TAD scale is now expressible, not that training
+preserves it --- and Phase~3's central finding was exactly that init $\tau$ and
+trained $\tau$ diverge.
+\end{itemize}
+
 \subsection*{2026-08-12 --- PHASE 3 COMPLETE: the F4 gate fails, Phase 4 must be
 re-scoped}
 

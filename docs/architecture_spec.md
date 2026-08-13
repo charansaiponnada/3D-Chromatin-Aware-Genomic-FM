@@ -317,6 +317,40 @@ The mass floor of 1e-04 (one triple in ten thousand) is the part added on 2026-0
 
 **The threshold was fixed before seeds 1 and 2 completed and before any verdict was computed**, so it is not a post-hoc adjustment to the observed answer. `scripts/phase3_report.py` implements exactly this and reads the mass from the exact per-layer fractions, not from the subsampled summary field, whose 5e-05 detection floor is coarser than the effect being tested.
 
+---
+
+#### F4 RESOLVED, 2026-08-12 — the cap was `dt_min`, and it was exact
+
+Phase 3 failed this gate on all three arms (`results/baselines/phase3_report.txt`). The cause is one line, `model.py::_init_dt`, and the arithmetic is exact rather than approximate:
+
+- Δ is initialized log-uniform over `[dt_min, dt_max] = [1e-3, 1e-1]`
+- `A = -arange(1, d_state+1)`, so `|A| ≥ 1`
+- τ = 1/(Δ·|A|), therefore **τ_max at init is exactly `1/dt_min` = 1,000 tokens**
+
+The measured init τ_max was **999.5**. Mamba's reference `dt_min` put a hard ceiling on the memory horizon 100× below TAD scale, and no amount of training moved the bulk of the distribution: median τ was 14.6 at init and 14.2 after 2,000 steps. The model was never able to express what the mechanism conditions on.
+
+**Change:** `dt_min` 1e-3 → **1e-6**, `dt_floor` 1e-4 → **1e-7**, `dt_max` unchanged at 1e-1. Now config fields (`ModelConfig.dt_min/dt_max/dt_floor`) rather than `_init_dt` defaults, so `train.py` records them in `run_config.yaml` — a run whose memory horizon is absent from its own provenance cannot be compared with another.
+
+**Measured at initialization** (`scripts/f4_memory_horizon.py`, and `BiMambaLM.tau_stats()` agrees):
+
+| quantity | before | after |
+|---|---|---|
+| τ median | 14.9 | 472.5 |
+| τ p90 | 108.8 | 47,940 (47.9 kb) |
+| τ p99 | 497.4 | 290,487 (290 kb) |
+| τ max | 994 | 985,872 (986 kb) |
+| fraction τ ≥ 5 kb | 0.0000 | 0.3101 |
+| fraction τ ≥ 100 kb | 0.0000 | 0.0433 |
+| **parameters** | **7,725,312** | **7,725,312** |
+
+The 385 kb validated TAD now fits inside τ_max with ~2.5× headroom, and the TAD-scale mass is 433× above the 1e-04 gate floor. Parameter count is **unchanged** — this is an initialization change, not a capacity change — so the matched-compute comparison against the structural arm is preserved, as is init-equivalence between the structural and baseline models (`test_model.py`, max gap still exactly 0.0).
+
+**Why `dt_min` and not `d_state` or `d_model`.** Raising `d_state` adds states but `|A|` still starts at 1, so the τ ceiling does not move. Raising `d_model` adds channels drawn from the same Δ range, so it buys more samples of an unchanged distribution, and it breaks the parameter match. Widening the Δ range is the only lever that moves the ceiling without changing capacity. Re-initializing `A` log-spaced over `[0.01, 16]` is a second, independent lever that also works (measured: τ_max 99,432 on its own) and is deliberately **not** applied — one variable at a time, so a Phase 4 result can be attributed.
+
+**⚠ The `dt_floor` clamp is a trap.** `_init_dt` clamps Δ at `dt_floor`, which caps τ at `1/dt_floor` regardless of `dt_min`. Lowering `dt_min` to 1e-6 while leaving `dt_floor` at Mamba's 1e-4 yields τ_max of exactly 10,000 tokens and looks like the change silently failed. `_init_dt` now raises `ValueError` when `dt_floor > dt_min` rather than capping quietly, and `test_model.py` asserts τ_max ≥ 385,000.
+
+**⚠ This invalidates the Phase 3 baseline.** The three completed seeds in `results/baselines/` were trained at `dt_min=1e-3` and are a different architecture. They remain valid as the record of *why* this change was made, but they are **not** the baseline for Phase 4 and their σ_real (0.0040) does not carry over. Phase 3 must be re-run on the new initialization before any Phase 4 comparison, and the F4 gate re-read from the **trained** τ — the init numbers above establish only that TAD scale is now expressible, not that training preserves it. Phase 3's central finding was precisely that init τ and trained τ can diverge.
+
 **Do not skip this.** It is a cheap measurement on a run that Phase 3 requires anyway, and it can invalidate the mechanism's premise before the expensive phase begins.
 
 **Other mitigations if needed:** the pilot `.mcool` already carries 1 kb and 2 kb resolution levels (τ_max/bin = 0.994 and 0.497 respectively), so changing resolution needs no new download — but it costs comparability with CHROME's 5 kb and buys noisier contacts. Treat resolution as an ablation axis, not a default change.

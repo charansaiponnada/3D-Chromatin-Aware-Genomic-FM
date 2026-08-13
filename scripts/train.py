@@ -571,6 +571,12 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
                     "vocab_size")},
                 "d_inner": cfg.d_inner,
                 "dt_rank": cfg.dt_rank,
+                # Delta init range. Recorded because it sets the memory horizon
+                # (tau_max at init is exactly 1/dt_min) and therefore decides
+                # the F4 gate. Runs with different values are not comparable,
+                # and the Phase 3 baseline in results/baselines/ was trained at
+                # dt_min=1e-3.
+                **{k: getattr(cfg, k) for k in ("dt_min", "dt_max", "dt_floor")},
             },
             "scan_backend": {
                 "backend": "triton (forced)",

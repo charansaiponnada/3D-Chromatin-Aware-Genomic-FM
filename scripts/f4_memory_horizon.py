@@ -29,8 +29,13 @@ D_MODEL, N_LAYER, D_STATE, EXPAND = 256, 16, 16, 2
 D_INNER = D_MODEL * EXPAND
 DT_RANK = math.ceil(D_MODEL / 16)
 
-# Mamba reference initialisation
-DT_MIN, DT_MAX, DT_INIT_FLOOR = 1e-3, 1e-1, 1e-4
+# Delta init. These MUST mirror ModelConfig.dt_min/dt_max/dt_floor in
+# src/chromfm/model.py -- this script exists to predict what the model does, so
+# a drift between the two makes it predict a model that is not being trained.
+# Mamba's reference values were (1e-3, 1e-1, 1e-4); they cap tau at 1/dt_min =
+# 1,000 tokens, which failed the F4 gate in Phase 3 (results/baselines/
+# phase3_report.txt). Changed 2026-08-12.
+DT_MIN, DT_MAX, DT_INIT_FLOOR = 1e-6, 1e-1, 1e-7
 
 BIN_BP = 5_000            # pilot Hi-C resolution -> tokens per bin at 1 bp/token
 ALT_BINS = (1_000, 2_000, 5_000, 10_000)   # levels present in the same mcool
