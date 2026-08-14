@@ -70,7 +70,22 @@ def mean_sd(vals):
     return stats.mean(vals), stats.stdev(vals)
 
 
-def load_runs(prefix="baseline_seed"):
+def out_path(prefix: str) -> Path:
+    """Report filename for a run prefix; each architecture gets its own file.
+
+    The original dt_min=1e-3 runs keep phase3_report.txt, which is the evidence
+    that justified the initialisation change and must not be overwritten by the
+    re-run's numbers.
+    """
+    if prefix == "baseline_seed":
+        return RESULTS / "phase3_report.txt"
+    # removesuffix, not rstrip: rstrip('_seed') strips any trailing character in
+    # the set {_,s,e,d}, so a prefix like "ablation_dense" would silently become
+    # "ablation_den".
+    return RESULTS / f"phase3_report_{prefix.removesuffix('_seed')}.txt"
+
+
+def load_runs(prefix="baseline_v2_seed"):
     runs = []
     for d in sorted(RESULTS.glob(f"{prefix}*")):
         cfg_p, met_p = d / "run_config.yaml", d / "metrics.json"
@@ -84,9 +99,13 @@ def load_runs(prefix="baseline_seed"):
 
 
 def main() -> int:
-    runs = load_runs()
+    # Which architecture to report on. Default is the current one; pass
+    # "baseline_seed" to regenerate the original dt_min=1e-3 report.
+    prefix = sys.argv[1] if len(sys.argv) > 1 else "baseline_v2_seed"
+    out = out_path(prefix)
+    runs = load_runs(prefix)
     if not runs:
-        print(f"No runs found under {RESULTS}. Nothing to report.")
+        print(f"No runs found under {RESULTS} matching {prefix}*. Nothing to report.")
         return 1
 
     done = [r for r in runs if r["status"] == "COMPLETED"]
@@ -109,7 +128,7 @@ def main() -> int:
         w("")
     if not done:
         w("NO COMPLETED RUNS. Nothing can be reported.")
-        OUT.write_text("\n".join(L) + "\n", encoding="utf-8")
+        out.write_text("\n".join(L) + "\n", encoding="utf-8")
         print("\n".join(L))
         return 1
 
@@ -387,9 +406,9 @@ def main() -> int:
     w("=" * 78)
 
     text = "\n".join(L) + "\n"
-    OUT.write_text(text, encoding="utf-8")
+    out.write_text(text, encoding="utf-8")
     print(text)
-    print(f"written to {OUT}")
+    print(f"written to {out}")
     return 0
 
 

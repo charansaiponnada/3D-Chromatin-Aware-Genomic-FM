@@ -32,6 +32,14 @@ SEEDS="0 1 2"
 MAX_ATTEMPTS=20
 RETRY_SLEEP=60
 
+# Run-directory prefix. baseline_v2_* is the re-run on the corrected Delta
+# initialisation (dt_min 1e-6, architecture_spec.md 4.1.4 "F4 RESOLVED").
+# The original baseline_* runs stay untouched: they are the measurement that
+# justified the change, and overwriting them would destroy the evidence for it.
+# They are NOT the Phase 4 baseline -- different architecture, and their
+# sigma_real does not carry over.
+PREFIX=baseline_v2_seed
+
 cd "$REPO" || exit 1
 mkdir -p "$OUT"
 
@@ -55,7 +63,7 @@ completed() {  # $1 = run directory
 echo "===== supervisor start $(date -u +%F_%H:%M:%S) pid=$$ ====="
 
 for S in $SEEDS; do
-    RUN="$OUT/baseline_seed$S"
+    RUN="$OUT/$PREFIX$S"
 
     if completed "$RUN"; then
         echo "########## SEED $S already COMPLETED, skipping ##########"
@@ -85,7 +93,7 @@ for S in $SEEDS; do
         # grep needs --line-buffered: with stdout redirected to a file it block
         # buffers, which is why the console log used to lag tens of lines behind
         # the run.
-        "$PY" -u scripts/train.py --seed "$S" --resume \
+        "$PY" -u scripts/train.py --seed "$S" --resume --run-name "$PREFIX$S" \
             --steps 2000 --batch-size 2 --grad-accum 2 \
             --warmup-steps 150 --eval-every 200 --tau-every 200 --ckpt-every 120 \
             --log-every 50 2>&1 | grep --line-buffered -v "Can't initialize NVML"

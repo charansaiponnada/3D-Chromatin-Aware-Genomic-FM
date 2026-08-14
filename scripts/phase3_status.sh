@@ -37,7 +37,7 @@ echo "--- evals logged (2000 steps per seed, 3 seeds) ---"
 echo
 echo "--- seed completion ---"
 for S in 0 1 2; do
-    cfg="results/baselines/baseline_seed$S/run_config.yaml"
+    cfg="results/baselines/baseline_v2_seed$S/run_config.yaml"
     if [ -f "$cfg" ]; then
         printf "seed %s: %s\n" "$S" "$(grep -m1 '^status:' "$cfg")"
     else
