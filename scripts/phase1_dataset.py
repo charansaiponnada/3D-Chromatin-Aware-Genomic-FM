@@ -250,6 +250,73 @@ def main() -> None:
     print("\nready for Phase 3. Nothing has been trained.")
 
 
+# Shuffled-structure controls, architecture_spec.md 4.1.3. All operate on phi
+# BEFORE the structural encoder and leave the sequence completely untouched, so
+# any difference they produce is attributable to structure and nothing else.
+PHI_CONTROLS = ("none", "S1", "S2", "S3")
+
+# S2 shifts by at least this many bases. The spec asks for "much greater than
+# the max memory horizon"; the largest trained tau measured in Phase 3 v2 is
+# ~6e7 tokens, but tau above the 32,768-token window is not behaviourally
+# distinguishable (architecture_spec.md 4.1.4 scope limit), so the window is the
+# quantity that matters and 10 Mb is ~300x it.
+S2_SHIFT_BP = 10_000_000
+
+# Controls are drawn from a FIXED seed, deliberately not the training seed. Each
+# training seed must see the SAME shuffled structure, otherwise seed variance and
+# shuffle variance are confounded and the 2*sigma_real gate cannot be read.
+PHI_CONTROL_SEED = 20260815
+
+
+def apply_phi_control(phi: np.ndarray, usable: np.ndarray, control: str
+                      ) -> tuple[np.ndarray, np.ndarray]:
+    """Return (phi, usable) transformed by one of the S-controls.
+
+    S1 GLOBAL-PERM      permute phi rows uniformly across usable bins. Destroys
+                        sequence<->structure correspondence AND local
+                        autocorrelation; preserves the marginal distribution
+                        exactly. The primary reliance probe.
+    S2 CIRCULAR-SHIFT   roll phi by 10 Mb. Destroys alignment only; preserves
+                        marginal and local autocorrelation. Controls for "the
+                        model just likes any smooth auxiliary channel".
+    S3 DISTANCE-MATCHED phi recomputed from contacts resampled under the
+                        empirical P(s). CANNOT be produced by permuting phi --
+                        it requires the contact matrix -- so it is read from a
+                        file the Phase 1 feature pipeline must write.
+
+    `usable` is carried through the same transform as `phi`: a permuted or
+    shifted feature vector that kept the original validity mask would let
+    invented structure land on bins that were masked out for good reason.
+    """
+    if control not in PHI_CONTROLS:
+        raise ValueError(f"unknown phi control {control!r}; expected {PHI_CONTROLS}")
+    if control == "none":
+        return phi, usable
+    if control == "S1":
+        rng = np.random.default_rng(PHI_CONTROL_SEED)
+        perm = rng.permutation(phi.shape[0])
+        return phi[perm], usable[perm]
+    if control == "S2":
+        shift = S2_SHIFT_BP // RES
+        if shift >= phi.shape[0]:
+            raise ValueError(
+                f"S2 shift of {S2_SHIFT_BP:,} bp is {shift} bins, but phi has "
+                f"only {phi.shape[0]}; a shift >= the chromosome wraps to a "
+                f"near-identity and is not a control")
+        return np.roll(phi, shift, axis=0), np.roll(usable, shift, axis=0)
+    # S3
+    path = PROCESSED / f"phi_{CHROM}_{RES}bp_S3.npz"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} not found. S3 is the distance-matched rewire control: it "
+            f"resamples contacts under the empirical P(s) and RECOMPUTES phi, "
+            f"so it cannot be made by permuting the phi array. Build it with "
+            f"scripts/phase1_features.py --rewire-distance-matched before "
+            f"running this control.")
+    z = np.load(path, allow_pickle=True)
+    return z["phi"], z["usable"].astype(bool)
+
+
 class WindowDataset:
     """Windows of tokenised sequence with structural features attached.
 
@@ -261,7 +328,8 @@ class WindowDataset:
     """
 
     def __init__(self, split: str, structural: bool = True,
-                 rc_augment: bool = False, seed: int = 0):
+                 rc_augment: bool = False, seed: int = 0,
+                 phi_control: str = "none"):
         z = np.load(PROCESSED / "dataset_index.npz", allow_pickle=True)
         self.starts = z[split]
         self.window = int(z["window"])
@@ -270,6 +338,15 @@ class WindowDataset:
         self.symmetry = z["feature_symmetry"].astype(np.int8)
         self.tokens = np.load(PROCESSED / f"tokens_{CHROM}.npy", mmap_mode="r")
         self.structural = structural
+        self.phi_control = phi_control
+        if structural:
+            self.phi, self.usable = apply_phi_control(
+                self.phi, self.usable, phi_control)
+        elif phi_control != "none":
+            raise ValueError(
+                f"phi_control={phi_control!r} with structural=False: the "
+                f"baseline never reads phi, so this would silently be a no-op "
+                f"and produce a run that looks like a control but is not one")
         self.rc_augment = rc_augment
         self.rng = np.random.default_rng(seed)
         self._comp = np.arange(16, dtype=np.int8)

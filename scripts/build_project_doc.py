@@ -48,7 +48,14 @@ def main() -> int:
                 [engine, "-interaction=nonstopmode", "-halt-on-error",
                  "--enable-installer", f"-output-directory={tmpdir}",
                  str(TEX)],
+                # errors="replace", not strict: pdflatex echoes source lines
+                # into its output when it warns, and it emits them byte-for-byte
+                # rather than as UTF-8. A single non-ASCII byte anywhere in the
+                # .tex could therefore crash the BUILD SCRIPT with a
+                # UnicodeDecodeError while pdflatex itself exited 0 -- a build
+                # failure that has nothing to do with the document.
                 cwd=DOCDIR, capture_output=True, text=True, timeout=900,
+                errors="replace",
             )
             print(f"  pass {i}: exit {proc.returncode}")
             if proc.returncode != 0:

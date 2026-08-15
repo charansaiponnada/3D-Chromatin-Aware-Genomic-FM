@@ -510,6 +510,84 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-15 (second entry) --- PHASE 4 STARTED: the structural arm
+is wired and pretraining}
+
+\begin{itemize}
+\item \textbf{What was missing.} The structural \emph{model} has existed and
+passed its unit tests since Phase 2 (7{,}758{,}354 parameters, +0.43\,\%). What
+did not exist was the \emph{data path}: \code{train.py} hardcoded
+\code{structural=False}, its \code{collate} dropped $\varphi$, and its
+checkpointed forward raised \code{NotImplementedError}. That is what this change
+builds.
+\item \textbf{Wiring.} \code{collate} now carries \code{phi} and
+\code{phi\_valid} (with \code{np.ascontiguousarray}, because the
+reverse-complement augmentation returns negative-stride views that
+\code{torch.from\_numpy} rejects); a single \code{batch\_struct} helper supplies
+the structural kwargs to the training loop, the eval loop and the $\tau$ probe so
+the three cannot drift apart; \code{CheckpointedLM.forward} mirrors
+\code{BiMambaLM.forward}; and \code{--structural}, \code{--phi-control} and
+\code{--out-dir} are exposed on the CLI.
+\item \textbf{$\tau$ measurement corrected for the structural arm.} The
+structural path adds \code{W\_dstruct(s)} to \code{dt\_pre} \emph{before} the
+softplus, so \code{DeltaCapture}'s hook on \code{dt\_proj} alone would have
+reported the \textbf{baseline's} $\tau$ for the structural model. \code{DeltaCapture}
+now hooks \code{W\_dstruct} as well and sums the two. This would have been a
+silent error, not a loud one: the numbers would have looked entirely plausible.
+\item \textbf{Shuffled-structure controls implemented} (\S4.1.3), in
+\code{phase1\_dataset.py::apply\_phi\_control}. S1 \code{GLOBAL-PERM} and S2
+\code{CIRCULAR-SHIFT} (10\,Mb) are pure $\varphi$ transforms. S3
+\code{DISTANCE-MATCHED REWIRE} cannot be: it requires resampling contacts under
+the empirical $P(s)$ and recomputing $\varphi$, so it raises a
+\code{FileNotFoundError} naming the script that must build it. Controls draw
+from a \textbf{fixed} seed (20260815), deliberately not the training seed ---
+every training seed must see the \emph{same} shuffled structure or seed variance
+and shuffle variance are confounded and the $2\sigma_{\mathrm{real}}$ gate cannot
+be read. A control requested without \code{--structural} is a hard error, since
+the baseline never reads $\varphi$ and the run would be mislabelled.
+\item \textbf{Verification before compute:} \code{scripts/test\_phase4\_wiring.py},
+\textbf{27/27 passing}. It checks that S1/S2 preserve the marginal exactly, that
+S2 preserves local autocorrelation while S1 destroys it (successive-difference
+sd $0.2608 \rightarrow 1.2471$), that $\varphi$ arrives as
+$(b, 32768, 8)$ float32 with invalid positions exactly zero, that gradient
+reaches both the encoder and \code{W\_dstruct}, that \code{DeltaCapture} sees the
+structural contribution, and --- CLAUDE.md's Phase 4 gate --- that \textbf{shuffling
+$\varphi$ changes the output} once \code{W\_dstruct} is non-zero, while at
+initialisation it provably does \emph{not} (zero-init equivalence). \code{test\_model.py}
+still passes 17/17.
+\item \textbf{One test tolerance was wrong, not the code.} The S2
+autocorrelation check was written at \code{rtol=1e-6} and failed at
+$1.2\times10^{-4}$. The residual is the single bin-to-bin transition
+\code{np.roll} replaces with the seam across 27{,}679 bins --- the control
+working as designed. Tolerance corrected to \code{1e-3}, with the reason
+recorded at the assertion.
+\item \textbf{A bug caught in the first launch, four minutes in.}
+\code{train.py} hardcoded \code{RESULTS = results/baselines}, so the Phase 4 run
+wrote there while \code{run\_phase4.sh} watched \code{results/novel\_model} for
+\code{status: COMPLETED}. The run would have trained correctly and then been
+retried until the 20-attempt limit, because the supervisor could never see it
+finish. Fixed with \code{--out-dir}; the launch was stopped, the stray run
+directory removed, and an orphaned spawn child holding port 29511 killed before
+relaunching.
+\item \textbf{Now running.} \code{results/novel\_model/structural\_seed\{0,1,2\}},
+started 2026-08-15 21:38 IST, supervised by \code{run\_phase4.sh} +
+\code{phase4\_guard.sh} (same design as Phase 3, same
+\code{--ckpt-every 120} against the idle culler). \textbf{Every training
+hyperparameter is identical to Phase 3's}, because matched compute is the basis
+of the comparison; the only differences are \code{--structural} and the output
+directory.
+\item \textbf{What is deliberately NOT running.} \S4.1.3 splits Phase 4 into P1
+(swap $\varphi$ at inference on the real-structure model; cheap; \emph{this is
+the gate}) and P2 (pretrain separate S1 and S3 models; six seeds,
+${\sim}18$ GPU-hours). Only the three real-structure seeds
+(${\sim}9$ GPU-hours) are launched. If P1 shows the mechanism is inert, the spec
+says stop --- and P2 would have been 18 GPU-hours spent answering a question that
+no longer matters.
+\item \textbf{The bar.} P1 passes iff $\Delta_{S1} > 0$ with a 95\,\% bootstrap
+CI over seeds excluding 0 \textbf{and} $\Delta_{S1} \ge 2\sigma_{\mathrm{real}} =
+\mathbf{0.0050}$ bits. For scale, the three Phase 3 v2 seeds span 1.5172--1.5223.
+\end{itemize}
+
 \subsection*{2026-08-15 --- PHASE 3 RE-RUN COMPLETE: the F4 gate passes on
 trained $\tau$}
 
@@ -947,7 +1025,7 @@ which are the ones checked against the 4DN API, are unchanged. Band contents
 re-verified directly: 7{,}108{,}483 entries, 0 non-finite, min
 $4.25\times10^{-6}$ / median $3.10\times10^{-4}$ / max 0.942, 27{,}679 bins,
 5{,}345 (19.31\%) without a balancing weight---every figure matching
-\code{docs/data\_card.md} §4. Whether to commit the Linux manifest is a
+\code{docs/data\_card.md} \S4. Whether to commit the Linux manifest is a
 judgement call left to the PI; a manifest whose md5s are platform-dependent
 cannot serve as a cross-platform integrity check for the derived files, only
 for the downloaded ones.

@@ -228,6 +228,8 @@ results/**/*.tmp
 # runtime scratch, not results
 results/baselines/*.pid
 results/baselines/*.lock
+results/novel_model/*.pid
+results/novel_model/*.lock
 
 # --- Phase 1 pilot data -------------------------------------------------
 # Raw and intermediate genomics data are large and fully reproducible from

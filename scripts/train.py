@@ -78,8 +78,30 @@ sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "scripts"))
 
 from chromfm.model import BiMambaLM, ModelConfig, use_scan   # noqa: E402
-from phase1_dataset import WindowDataset                     # noqa: E402
+from phase1_dataset import (WindowDataset, PHI_CONTROLS,     # noqa: E402
+                            PHI_CONTROL_SEED, S2_SHIFT_BP)
 
+# One line each, written into run_config.yaml so a run states what it is without
+# needing the spec open. Full definitions: architecture_spec.md 4.1.3.
+PHI_CONTROL_DOC = {
+    "none": "S0 -- real structure, phi as measured",
+    "S1": "GLOBAL-PERM -- phi permuted uniformly across all bins; destroys "
+          "sequence-structure correspondence AND local autocorrelation; "
+          "preserves the marginal. The primary reliance probe.",
+    "S2": f"CIRCULAR-SHIFT -- phi rolled by {S2_SHIFT_BP:,} bp; destroys "
+          f"alignment only; preserves marginal and local autocorrelation.",
+    "S3": "DISTANCE-MATCHED REWIRE -- phi recomputed from contacts resampled "
+          "under the empirical P(s); removes locus-specific structure, keeps "
+          "the 1D-distance-explainable component. The control that matters most.",
+}
+
+# Default only. Phase 3 baselines live here; Phase 4 passes --out-dir
+# results/novel_model, per CLAUDE.md's deliverable layout. This was hardcoded
+# until 2026-08-15, which meant a Phase 4 run wrote its results under
+# results/baselines/ while its supervisor watched results/novel_model/ for the
+# `status: COMPLETED` line -- the run would have trained correctly and then been
+# retried until the attempt limit, because the supervisor could never see it
+# finish.
 RESULTS = REPO / "results" / "baselines"
 
 # vocabulary, from phase1_dataset.py -- kept as literals so a silent change
@@ -120,10 +142,22 @@ class CheckpointedLM(torch.nn.Module):
         c = self.core
         u = c.embed(tokens)
         s = s_rev = None
-        if c.c.structural:                      # Phase 4 will need this path
-            raise NotImplementedError(
-                "checkpointed forward is wired for the sequence-only baseline; "
-                "the structural arm must extend it to carry s and s_rev")
+        if c.c.structural:
+            # Mirrors BiMambaLM.forward exactly. The encoder is 178 parameters
+            # and runs once per forward, so it is deliberately NOT checkpointed
+            # -- recomputing it would save nothing and s/s_rev are needed by
+            # every layer anyway.
+            if phi is None:
+                raise ValueError("structural model called without phi")
+            s = c.struct_encoder(phi)
+            phi_rev = phi.flip(1)
+            if symmetry is not None:
+                phi_rev = phi_rev * symmetry.view(1, 1, -1).to(phi.dtype)
+            s_rev = c.struct_encoder(phi_rev)
+            if phi_valid is not None:
+                m = phi_valid.unsqueeze(-1).to(s.dtype)
+                s = s * m
+                s_rev = s_rev * m.flip(1)
         for layer in c.layers:
             u = torch.utils.checkpoint.checkpoint(
                 layer, u, s, s_rev, use_reentrant=False)
@@ -239,17 +273,46 @@ def env_state() -> dict:
 # --------------------------------------------------------------------------
 
 def collate(batch: list[dict]) -> dict:
-    return {
+    out = {
         "tokens": torch.from_numpy(
             np.stack([b["tokens"] for b in batch]).astype(np.int64)),
         "start": torch.tensor([b["start"] for b in batch], dtype=torch.int64),
+    }
+    # phi is present only when the dataset was built structural=True. The rc
+    # augmentation returns reversed VIEWS (negative stride), which
+    # torch.from_numpy rejects, hence the ascontiguousarray.
+    if "phi" in batch[0]:
+        out["phi"] = torch.from_numpy(np.ascontiguousarray(
+            np.stack([b["phi"] for b in batch]), dtype=np.float32))
+        out["phi_valid"] = torch.from_numpy(np.ascontiguousarray(
+            np.stack([b["phi_valid"] for b in batch]).astype(np.bool_)))
+    return out
+
+
+def batch_struct(batch: dict, device, symmetry) -> dict:
+    """The structural kwargs for BiMambaLM.forward, or {} for the baseline.
+
+    Kept in one place so the training loop, the eval loop and the tau probe
+    cannot drift apart: a structural model silently fed phi=None raises, but a
+    structural model fed phi in training and not in eval would quietly report a
+    validation number for a different model than the one being trained.
+    """
+    if "phi" not in batch:
+        return {}
+    return {
+        "phi": batch["phi"].to(device, non_blocking=True),
+        "phi_valid": batch["phi_valid"].to(device, non_blocking=True),
+        "symmetry": symmetry,
     }
 
 
 def make_loader(split: str, batch_size: int, rank: int, world: int,
                 seed: int, rc_augment: bool, num_workers: int,
-                shuffle: bool) -> tuple[DataLoader, DistributedSampler | None]:
-    ds = WindowDataset(split, structural=False, rc_augment=rc_augment, seed=seed)
+                shuffle: bool, structural: bool = False,
+                phi_control: str = "none"
+                ) -> tuple[DataLoader, DistributedSampler | None]:
+    ds = WindowDataset(split, structural=structural, rc_augment=rc_augment,
+                       seed=seed, phi_control=phi_control)
     sampler = None
     if world > 1:
         sampler = DistributedSampler(ds, num_replicas=world, rank=rank,
@@ -297,15 +360,25 @@ class DeltaCapture:
     """Capture Delta as the model actually produces it, per layer and direction.
 
     Hooks `dt_proj`, whose output is `dt_pre`. For structural=False,
-    Delta = softplus(dt_pre) exactly. The structural arm adds `W_dstruct(s)`
-    before the softplus, so when Phase 4 reuses this the hook must move to after
-    that addition or it will report the baseline's tau for the structural model.
+    Delta = softplus(dt_pre) exactly.
+
+    The structural arm adds `W_dstruct(s)` to dt_pre BEFORE the softplus
+    (`model.py::MambaDirection.forward`), so hooking dt_proj alone would report
+    the BASELINE's tau for the structural model -- the exact confusion this
+    class was warned about. `W_dstruct` is therefore hooked as well and the two
+    outputs are summed, which reconstructs the real pre-softplus argument
+    without touching the model. Both fire exactly once per direction per
+    forward, so pairing them by key is safe.
+
+    Reading tau for the structural arm from dt_proj alone would be a silent
+    error, not a loud one: the numbers would look entirely plausible.
     """
 
     def __init__(self, model: BiMambaLM):
         self.model = model
         self.handles = []
         self.store: dict[str, torch.Tensor] = {}
+        self.struct: dict[str, torch.Tensor] = {}
 
     def __enter__(self):
         for i, layer in enumerate(self.model.layers):
@@ -316,7 +389,19 @@ class DeltaCapture:
                 def hook(mod, inp, out, key=key):
                     self.store[key] = out.detach()
                 self.handles.append(d.dt_proj.register_forward_hook(hook))
+
+                if getattr(d, "W_dstruct", None) is not None:
+                    def shook(mod, inp, out, key=key):
+                        self.struct[key] = out.detach()
+                    self.handles.append(d.W_dstruct.register_forward_hook(shook))
         return self
+
+    def dt_pre(self, key: str) -> torch.Tensor:
+        """The full pre-softplus argument, structural contribution included."""
+        v = self.store[key]
+        if key in self.struct:
+            v = v + self.struct[key]
+        return v
 
     def __exit__(self, *exc):
         for h in self.handles:
@@ -326,22 +411,28 @@ class DeltaCapture:
 
 @torch.no_grad()
 def empirical_tau(model: BiMambaLM, batch_tokens: torch.Tensor,
-                  n_positions: int = 128, seed: int = 0) -> dict:
+                  n_positions: int = 128, seed: int = 0,
+                  struct_kwargs: dict | None = None) -> dict:
     """tau = 1 / (Delta * |A|) in tokens, from Delta on real data.
 
     Sub-samples positions because the full tensor is
     (batch, length, d_inner, d_state) and would not fit.
+
+    struct_kwargs carries phi/phi_valid/symmetry for the structural arm. It must
+    be the SAME structural input the model trains on: Delta is input-dependent
+    through W_dstruct, so probing a structural model with different phi measures
+    a memory horizon the run never had.
     """
     core = unwrap(model)
     core.eval()
     with DeltaCapture(core) as cap:
-        core(batch_tokens)
+        core(batch_tokens, **(struct_kwargs or {}))
         g = torch.Generator(device=batch_tokens.device).manual_seed(seed)
         per_layer, all_tau = {}, []
         for i, layer in enumerate(core.layers):
             for name in ("fwd", "rev"):
                 key = f"layer{i}.{name}"
-                dt_pre = cap.store[key]                      # (b, l, d_inner)
+                dt_pre = cap.dt_pre(key)                      # (b, l, d_inner)
                 b, l, _ = dt_pre.shape
                 idx = torch.randint(0, l, (min(n_positions, l),),
                                     device=dt_pre.device, generator=g)
@@ -383,7 +474,7 @@ def empirical_tau(model: BiMambaLM, batch_tokens: torch.Tensor,
 
 @torch.no_grad()
 def evaluate(model, loader, device, mask_prob, p_mask, p_random,
-             eval_seed: int, world: int) -> dict:
+             eval_seed: int, world: int, symmetry=None) -> dict:
     """Validation loss. The masking pattern is regenerated from a fixed seed at
     every eval so the number moves because the model moved, not the mask."""
     model.eval()
@@ -394,7 +485,7 @@ def evaluate(model, loader, device, mask_prob, p_mask, p_random,
     for batch in loader:
         tokens = batch["tokens"].to(device, non_blocking=True)
         inputs, labels = mask_tokens(tokens, mask_prob, gen, p_mask, p_random)
-        logits = model(inputs)
+        logits = model(inputs, **batch_struct(batch, device, symmetry))
         sel = labels != -100
         if not sel.any():
             continue
@@ -517,7 +608,7 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
     cfg = ModelConfig(
         d_model=args.d_model, n_layer=args.n_layer, d_state=args.d_state,
         d_conv=args.d_conv, expand=args.expand, vocab_size=args.vocab_size,
-        structural=False,
+        structural=args.structural,
     )
     model = BiMambaLM(cfg).to(device)
     n_params = model.n_params()
@@ -534,12 +625,24 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
 
     train_loader, train_sampler = make_loader(
         "train", args.batch_size, rank, world, args.seed,
-        rc_augment=args.rc_augment, num_workers=args.num_workers, shuffle=True)
+        rc_augment=args.rc_augment, num_workers=args.num_workers, shuffle=True,
+        structural=args.structural, phi_control=args.phi_control)
     val_loader, _ = make_loader(
         "val", args.eval_batch_size, rank, world, args.seed,
-        rc_augment=False, num_workers=args.num_workers, shuffle=False)
+        rc_augment=False, num_workers=args.num_workers, shuffle=False,
+        structural=args.structural, phi_control=args.phi_control)
 
-    run_dir = RESULTS / args.run_name
+    # phi's antisymmetric coordinates (directionality index, the two directional
+    # contact masses) must flip sign when the window is reversed for the reverse
+    # pass -- failure mode F7. The dataset owns the definition; the model is
+    # handed it as a tensor rather than re-deriving it, so the two can never
+    # disagree about which coordinates are antisymmetric.
+    symmetry = None
+    if args.structural:
+        symmetry = torch.from_numpy(
+            np.asarray(train_loader.dataset.symmetry, dtype=np.float32)).to(device)
+
+    run_dir = Path(args.out_dir) / args.run_name
     if is_main:
         run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -547,10 +650,15 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
     if is_main:
         config = {
             "run_name": args.run_name,
-            "phase": "3 -- sequence-only baseline",
+            "phase": ("4 -- structural arm" if args.structural
+                      else "3 -- sequence-only baseline"),
             "written_at_utc": datetime.now(timezone.utc).isoformat(),
             "status": "STARTED -- no metrics yet",
-            "hypothesis_arm": "baseline (structural=False)",
+            "hypothesis_arm": (
+                f"structural (structural=True, phi_control={args.phi_control})"
+                if args.structural else "baseline (structural=False)"),
+            "phi_control": args.phi_control,
+            "phi_control_meaning": PHI_CONTROL_DOC[args.phi_control],
             "seed": args.seed,
             "hyperparameters": {
                 k: getattr(args, k) for k in (
@@ -572,11 +680,12 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
             },
             "model": {
                 "class": "BiMambaLM",
-                "structural": False,
+                "structural": args.structural,
                 "n_parameters": n_params,
                 **{k: getattr(cfg, k) for k in (
                     "d_model", "n_layer", "d_state", "d_conv", "expand",
-                    "vocab_size")},
+                    "vocab_size", "d_struct", "d_struct_raw",
+                    "d_struct_hidden", "use_permeability")},
                 "d_inner": cfg.d_inner,
                 "dt_rank": cfg.dt_rank,
                 # Delta init range. Recorded because it sets the memory horizon
@@ -617,7 +726,10 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
             "data": {
                 "source": "scripts/phase1_dataset.py WindowDataset",
                 "window": args.window,
-                "structural_features_supplied": False,
+                "structural_features_supplied": args.structural,
+                "phi_control": args.phi_control,
+                "phi_control_seed": (PHI_CONTROL_SEED if args.phi_control != "none"
+                                     else None),
                 "n_train_windows": len(train_loader.dataset),
                 "n_val_windows": len(val_loader.dataset),
             },
@@ -682,7 +794,7 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
             tokens = batch["tokens"].to(device, non_blocking=True)
             inputs, labels = mask_tokens(tokens, args.mask_prob, train_gen,
                                          args.p_mask, args.p_random)
-            logits = ddp_model(inputs)
+            logits = ddp_model(inputs, **batch_struct(batch, device, symmetry))
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
                                    labels.view(-1), ignore_index=-100)
             (loss / args.grad_accum).backward()
@@ -713,7 +825,8 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
 
         if step % args.eval_every == 0 or step == args.steps:
             ev = evaluate(ddp_model, val_loader, device, args.mask_prob,
-                          args.p_mask, args.p_random, args.eval_seed, world)
+                          args.p_mask, args.p_random, args.eval_seed, world,
+                          symmetry=symmetry)
             rec = {"step": step, "epoch": epoch,
                    "train_loss_nats": micro_loss,
                    "train_bits_per_nucleotide": micro_loss / LN2,
@@ -722,9 +835,16 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
                    "elapsed_s": time.time() - t_start,
                    **ev}
             if step % args.tau_every == 0 or step == args.steps:
-                probe = next(iter(val_loader))["tokens"][:1].to(device)
+                pb = next(iter(val_loader))
+                probe = pb["tokens"][:1].to(device)
+                # slice phi to the same single window, or Delta is computed from
+                # a phi batch that does not match the tokens
+                pb1 = {k: (v[:1] if torch.is_tensor(v) else v)
+                       for k, v in pb.items()}
                 core = unwrap(ddp_model)
-                rec["tau_empirical"] = empirical_tau(core, probe, seed=args.eval_seed)
+                rec["tau_empirical"] = empirical_tau(
+                    core, probe, seed=args.eval_seed,
+                    struct_kwargs=batch_struct(pb1, device, symmetry))
                 rec["tau_bias_only"] = core.tau_stats()
             append_metric(rec)
             if is_main:
@@ -799,9 +919,24 @@ def parse() -> argparse.Namespace:
     p.add_argument("--port", type=int, default=29511)
     p.add_argument("--resume", action="store_true", default=True)
     p.add_argument("--no-resume", dest="resume", action="store_false")
+    p.add_argument("--out-dir", type=str, default=str(RESULTS),
+                   help="directory the run directory is created under "
+                        "(default results/baselines; Phase 4 uses "
+                        "results/novel_model)")
+    p.add_argument("--structural", action="store_true", default=False,
+                   help="Phase 4 structural arm: condition Delta on phi")
+    p.add_argument("--phi-control", choices=PHI_CONTROLS, default="none",
+                   help="shuffled-structure control applied to phi before the "
+                        "encoder (architecture_spec.md 4.1.3). Requires "
+                        "--structural.")
     p.add_argument("--smoke", action="store_true",
                    help="tiny config, few hundred steps, for wiring validation")
     args = p.parse_args()
+
+    if args.phi_control != "none" and not args.structural:
+        p.error("--phi-control requires --structural: the baseline never reads "
+                "phi, so a control on it would be a no-op and the run would be "
+                "mislabelled as a control")
 
     if args.smoke:
         args.d_model, args.n_layer, args.d_state = 64, 2, 16
@@ -812,7 +947,12 @@ def parse() -> argparse.Namespace:
         args.batch_size = args.eval_batch_size = 2
         args.grad_accum = 1
         args.run_name = args.run_name or f"smoke_seed{args.seed}"
-    args.run_name = args.run_name or f"baseline_seed{args.seed}"
+    if args.run_name is None:
+        if args.structural:
+            suffix = "" if args.phi_control == "none" else f"_{args.phi_control}"
+            args.run_name = f"structural{suffix}_seed{args.seed}"
+        else:
+            args.run_name = f"baseline_seed{args.seed}"
     return args
 
 

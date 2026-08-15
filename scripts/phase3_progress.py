@@ -14,16 +14,23 @@ already seen.
 import glob
 import json
 import os
+import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Default covers Phase 3. baseline_seed* is the original run at dt_min=1e-3;
+# baseline_v2_seed* is the re-run on the corrected Delta init. Both match, so a
+# glance shows them side by side -- they are different architectures and must
+# never be pooled, but comparing their traces is the whole point of the re-run.
+#
+# Pass a glob to read any other set, e.g. the Phase 4 arms:
+#   phase3_progress.py 'results/novel_model/structural*seed*'
+DEFAULT_GLOB = "results/baselines/baseline*seed*"
+
 
 def main() -> None:
-    # baseline_seed* is the original run at dt_min=1e-3; baseline_v2_seed* is
-    # the re-run on the corrected Delta init. Both match, so a glance shows
-    # them side by side -- they are different architectures and must never be
-    # pooled, but comparing their traces is the whole point of the re-run.
-    for run_dir in sorted(glob.glob(os.path.join(REPO, "results/baselines/baseline*seed*"))):
+    pattern = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_GLOB
+    for run_dir in sorted(glob.glob(os.path.join(REPO, pattern))):
         path = os.path.join(run_dir, "metrics.json")
         if not os.path.exists(path):
             continue
