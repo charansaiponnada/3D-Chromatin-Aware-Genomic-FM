@@ -291,6 +291,8 @@ At Mamba's standard initialization for our config (d_model=256, d_inner=512, d_s
 
 **No channel's memory horizon reaches even one 5 kb bin.** τ_max/bin = 0.199. Depth composition helps — 16 × τ_max ≈ 15,900 tokens ≈ 3.2 bins — but that is a relay heuristic, not a bound.
 
+> **⚠ SUPERSEDED 2026-08-12.** The table above records the measurement at Mamba's reference `dt_min=1e-3`, which is no longer the initialisation. Its cause and the fix are in **"F4 RESOLVED"** below; the current numbers are there. This table is retained as the evidence that motivated the change.
+
 **Two consequences, and the second is bigger than F4.**
 
 1. *For the mechanism:* φ assigned as a step function per 5 kb bin is constant across everything any single layer's state can see. **Mitigation now mandatory, not optional: interpolate φ to token resolution** (linear between bin centres) so s_t varies continuously at every position rather than jumping every 5,000 tokens. This is cheap and should be done regardless of anything else.
@@ -345,11 +347,36 @@ The measured init τ_max was **999.5**. Mamba's reference `dt_min` put a hard ce
 
 The 385 kb validated TAD now fits inside τ_max with ~2.5× headroom, and the TAD-scale mass is 433× above the 1e-04 gate floor. Parameter count is **unchanged** — this is an initialization change, not a capacity change — so the matched-compute comparison against the structural arm is preserved, as is init-equivalence between the structural and baseline models (`test_model.py`, max gap still exactly 0.0).
 
+**⚠ What "reaches TAD scale" does and does not license (added 2026-08-15).** The training window is **32,768 bp** (`run_config.yaml: data.window`). A τ of 100,000 tokens is 3× that window and a 385 kb TAD is 11.7× it, so within one forward pass the model never sees a TAD, and any τ beyond ~32,768 is not behaviourally distinguishable from any larger τ — the state simply does not decay appreciably across the window either way. τ is a **decay rate**, and the 100 kb / 385 kb thresholds were chosen by analogy to TAD size rather than to anything a 32.7 kb window can exercise.
+
+The claim the measurement actually supports is still the one that matters, and it is not weak: at τ median 14 the model forgot within 14 bp, so a structural feature spanning even one 5 kb bin was **inexpressible**; at τ median ~435 with ~4.8% of (position, channel, state) triples effectively non-decaying, the model **retains across the entire window**. The mechanism never required the model to *see* a TAD — φ carries the long-range structure, computed from the full contact matrix and delivered per bin. That is the point of the design.
+
+**Consequences for how this is written up:** state the gate as *"the state retains across the full 32.7 kb window"*, not *"a 385 kb TAD fits inside τ_max"* — a reviewer who checks the window length will catch the latter. `test_model.py`'s `tau_max >= 385_000` assertion is retained as a regression guard on the Δ initialisation (it is a sharp, cheap check that `dt_min`/`dt_floor` have not drifted back), **not** as evidence of TAD-scale modelling capacity. If the window is ever raised, revisit both thresholds together.
+
 **Why `dt_min` and not `d_state` or `d_model`.** Raising `d_state` adds states but `|A|` still starts at 1, so the τ ceiling does not move. Raising `d_model` adds channels drawn from the same Δ range, so it buys more samples of an unchanged distribution, and it breaks the parameter match. Widening the Δ range is the only lever that moves the ceiling without changing capacity. Re-initializing `A` log-spaced over `[0.01, 16]` is a second, independent lever that also works (measured: τ_max 99,432 on its own) and is deliberately **not** applied — one variable at a time, so a Phase 4 result can be attributed.
 
 **⚠ The `dt_floor` clamp is a trap.** `_init_dt` clamps Δ at `dt_floor`, which caps τ at `1/dt_floor` regardless of `dt_min`. Lowering `dt_min` to 1e-6 while leaving `dt_floor` at Mamba's 1e-4 yields τ_max of exactly 10,000 tokens and looks like the change silently failed. `_init_dt` now raises `ValueError` when `dt_floor > dt_min` rather than capping quietly, and `test_model.py` asserts τ_max ≥ 385,000.
 
-**⚠ This invalidates the Phase 3 baseline.** The three completed seeds in `results/baselines/` were trained at `dt_min=1e-3` and are a different architecture. They remain valid as the record of *why* this change was made, but they are **not** the baseline for Phase 4 and their σ_real (0.0040) does not carry over. Phase 3 must be re-run on the new initialization before any Phase 4 comparison, and the F4 gate re-read from the **trained** τ — the init numbers above establish only that TAD scale is now expressible, not that training preserves it. Phase 3's central finding was precisely that init τ and trained τ can diverge.
+**⚠ This invalidates the Phase 3 baseline.** The three completed `baseline_seed*` seeds in `results/baselines/` were trained at `dt_min=1e-3` and are a different architecture. They remain valid as the record of *why* this change was made, but they are **not** the baseline for Phase 4 and their σ_real (0.0040) does not carry over. Phase 3 must be re-run on the new initialization before any Phase 4 comparison, and the F4 gate re-read from the **trained** τ — the init numbers above establish only that TAD scale is now expressible, not that training preserves it. Phase 3's central finding was precisely that init τ and trained τ can diverge.
+
+#### Re-run complete, 2026-08-15 — F4 gate PASSES on trained τ
+
+Three seeds at the corrected initialization (`results/baselines/baseline_v2_seed{0,1,2}`, report `phase3_report_baseline_v2.txt`), same recipe and same 2,000 steps as the originals:
+
+| trained, at step 2000 | v1 (`dt_min=1e-3`) | v2 (`dt_min=1e-6`) |
+|---|---|---|
+| val bits/nt, 3 seeds | 1.5210 ± 0.0040 | **1.5197 ± 0.0025** |
+| τ median | 14.2 | **434.7 ± 29.8** |
+| τ p99 | ~500 | 358,615 ± 22,332 |
+| exact mass τ ≥ 100 kb | ~0 (seed 1: 1.19e-07) | **4.846e-02 ± 1.056e-03** |
+| layer-directions with any triple at TAD scale | 0 / 32 | **32 / 32** |
+
+The gate condition (`mass ≥ 1e-04`, PI-fixed 2026-08-12 before seeds 1 and 2 completed) passes with 485× margin. **Proceed to Phase 4.**
+
+Two findings worth carrying forward:
+
+1. **The 30× longer memory horizon bought nothing on masked-token prediction.** 1.5210 → 1.5197 is well within seed noise. This is not a failure — MLM at 32 kb windows is dominated by local sequence statistics — but it removes the convenient story that longer memory improves pretraining, and it means the structural arm must earn its result on downstream tasks rather than on val loss.
+2. **σ_real is now 0.0025**, not 0.0040. §4.1.3's gate is `Δ_S1 ≥ 2·σ_real`, so the Phase 4 bar is **0.0050 bits** — tighter than before, and comparable to the spread between v2 seeds 1 and 2 (1.5172 vs 1.5223).
 
 **Do not skip this.** It is a cheap measurement on a run that Phase 3 requires anyway, and it can invalidate the mechanism's premise before the expensive phase begins.
 
@@ -434,7 +461,7 @@ Changed to `b_g = −4`: p = 0.018, still negligible against the decay term, wit
 
 ### What the tests now guarantee
 
-Parameter counts match `param_accounting.py` exactly; the structural model is numerically identical to the baseline at initialisation (max gap 0.0); different φ produces different output; gradient reaches `W_Δs` and the gate despite zero-init; masked positions stay finite; the reverse-complement sign flip changes the reverse pass; and `tau_stats()` reproduces the F4 measurement (τ_max ≈ 1000 tokens, median 14.5).
+Parameter counts match `param_accounting.py` exactly; the structural model is numerically identical to the baseline at initialisation (max gap 0.0); different φ produces different output; gradient reaches `W_Δs` and the gate despite zero-init; masked positions stay finite; the reverse-complement sign flip changes the reverse pass; and `tau_stats()` reproduces the **corrected** Δ initialisation — `test_model.py` asserts `1e5 ≤ τ_max < 2e6`, i.e. that the memory horizon clears 100 kb. (Before 2026-08-12 this assertion read τ_max ≈ 1000 tokens, median 14.5; see "F4 RESOLVED" above.)
 
 One bug the tests caught that inspection had missed: the reverse-complement sign flip was being applied to the **encoded** s rather than to raw φ. The encoder mixes all eight coordinates, so there is no per-feature correspondence left to flip afterwards — the operation was meaningless. It now happens on φ before encoding, at the cost of a second encoder pass.
 

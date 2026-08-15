@@ -87,6 +87,8 @@ The training script does not exist. Phase 3 needs:
 
 That last one matters more than it sounds. At initialisation the longest memory horizon is 994 tokens against a 5,000-token Hi-C bin, and roughly 15,900 tokens across all sixteen layers relayed — short of a 385 kb TAD. The timescale is learned and can grow, so this is not proof of failure, but it limits the sequence-only baseline exactly as much as the structural model. If trained horizons never approach TAD scale, conditioning on TAD structure is not expressible at this model size, and the mechanism should be re-scoped **before** the expensive phase rather than after.
 
+> **⚠ Superseded 2026-08-15.** The paragraph above describes the architecture at `dt_min=1e-3`, which measurement showed was an exact 1,000-token cap on τ. It is fixed: `dt_min=1e-6`, `dt_floor=1e-7`, no parameter change. Three re-run Phase 3 seeds measure trained τ median **434.7** and **4.85e-02** of triples past 100 kb (was ~0), and the F4 gate passes. Note the scope limit: the training window is 32,768 bp, so this means *the state retains across the full window*, not that the model sees a 385 kb TAD. Details in `architecture_spec.md` §4.1.4.
+
 `BiMambaLM.tau_stats()` returns the per-layer numbers; the training script needs to log it periodically.
 
 ## Two things that will confuse you if unflagged

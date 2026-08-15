@@ -180,18 +180,26 @@ def nvml_works() -> bool:
 
 
 def git_state() -> dict:
-    def run(*a):
+    def run(*a, strip=True):
         try:
-            return subprocess.run(a, cwd=REPO, capture_output=True, text=True,
-                                  timeout=30).stdout.strip()
+            out = subprocess.run(a, cwd=REPO, capture_output=True, text=True,
+                                 timeout=30).stdout
         except Exception:
             return "unavailable"
-    dirty = run("git", "status", "--porcelain")
+        # `git status --porcelain` encodes the status in the first two columns,
+        # and an unstaged-only change leaves column 1 blank. A .strip() would
+        # eat that leading space on the FIRST line only, so ln[3:] then cuts one
+        # character too many and the run records "esults/..." instead of
+        # "results/...". Every line after the first was fine, which is why this
+        # went unnoticed until the v2 configs were diffed.
+        return out.strip() if strip else out.rstrip("\n")
+    dirty = run("git", "status", "--porcelain", strip=False)
     return {
         "commit": run("git", "rev-parse", "HEAD"),
         "branch": run("git", "rev-parse", "--abbrev-ref", "HEAD"),
         "dirty": bool(dirty),
-        "dirty_files": [ln[3:] for ln in dirty.splitlines()] if dirty else [],
+        "dirty_files": ([ln[3:] for ln in dirty.splitlines()]
+                        if dirty and dirty != "unavailable" else []),
     }
 
 

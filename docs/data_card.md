@@ -96,7 +96,9 @@ Contacts are read with `balance=True` — the ICE-balanced weights stored in the
 
 5 kb, matching CHROME's bulk Hi-C resolution (`related_work.md` §D1) for comparability.
 
-**Open risk — failure mode F4. MEASURED 2026-08-07, and the news is not good.** At Mamba's standard initialization for the planned config, the slowest channel's memory horizon is **994 tokens ≈ 1 kb**, and **zero** (channel, state) pairs reach the 5,000 tokens spanned by one bin. Full numbers and consequences in `architecture_spec.md` §4.1.4 F4; script: [`scripts/f4_memory_horizon.py`](../scripts/f4_memory_horizon.py).
+**~~Open risk~~ — failure mode F4. MEASURED 2026-08-07, and the news is not good.** At Mamba's standard initialization for the planned config, the slowest channel's memory horizon is **994 tokens ≈ 1 kb**, and **zero** (channel, state) pairs reach the 5,000 tokens spanned by one bin. Full numbers and consequences in `architecture_spec.md` §4.1.4 F4; script: [`scripts/f4_memory_horizon.py`](../scripts/f4_memory_horizon.py).
+
+> **✅ RESOLVED 2026-08-12, confirmed on trained models 2026-08-15.** The cap was `dt_min`: since `|A| ≥ 1`, τ_max at init is exactly `1/dt_min`, so Mamba's reference `1e-3` was a hard 1,000-token ceiling. With `dt_min=1e-6` (and `dt_floor=1e-7`), at **no parameter cost**, three re-run Phase 3 seeds give trained τ median **434.7** and **4.85e-02** of triples past 100 kb, against ~0 before. See `architecture_spec.md` §4.1.4 "F4 RESOLVED" and "Re-run complete". **Point 1 below still stands** — φ interpolation remains a requirement, since even 435 tokens is well under one 5 kb bin. Point 2 is no longer forced.
 
 Two things follow for this data card:
 
