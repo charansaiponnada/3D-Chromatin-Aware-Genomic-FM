@@ -1,0 +1,261 @@
+{
+  "generated_utc": "2026-08-16T18:30:24Z",
+  "eval_seed": 1234,
+  "alt_masking_seed": 4321,
+  "note": "Delta = benefit, KL = reliance. architecture_spec.md 4.1.3 amendment 2026-08-16. The gate is read on S1.",
+  "per_run": {
+    "structural_seed0": {
+      "run": "structural_seed0",
+      "step": 2000,
+      "status": "COMPLETED",
+      "n_parameters": 7758354,
+      "real": {
+        "val_bits_per_nucleotide": 1.5271086438994912,
+        "val_accuracy": 0.5212073943161938,
+        "n_masked": 1344979
+      },
+      "floor_kernel": {
+        "kl_mean": 0.0,
+        "kl_median": 0.0,
+        "argmax_flip_frac": 0.0,
+        "n_shared": 1344979
+      },
+      "floor_masking": {
+        "kl_mean": 0.12863682210445404,
+        "kl_median": 0.024606596678495407,
+        "argmax_flip_frac": 0.32484695315361023,
+        "n_shared": 202403
+      },
+      "controls": {
+        "S0": {
+          "val_bits_per_nucleotide": 1.527043136678197,
+          "val_accuracy": 0.5211627839542476,
+          "delta_bits": -6.550722129428088e-05,
+          "kl_mean": 4.061875006300397e-05,
+          "kl_median": 1.4937540981918573e-05,
+          "argmax_flip_frac": 0.006894531659781933,
+          "kl_above_kernel_floor": true
+        },
+        "S1": {
+          "val_bits_per_nucleotide": 1.5270715326382014,
+          "val_accuracy": 0.5212051637980964,
+          "delta_bits": -3.711126128980169e-05,
+          "kl_mean": 6.494840636150911e-05,
+          "kl_median": 2.0691193640232086e-05,
+          "argmax_flip_frac": 0.00846630334854126,
+          "kl_above_kernel_floor": true
+        },
+        "S2": {
+          "val_bits_per_nucleotide": 1.5270736658967432,
+          "val_accuracy": 0.5211650144723449,
+          "delta_bits": -3.497800274798735e-05,
+          "kl_mean": 4.256020474713296e-05,
+          "kl_median": 1.2717675417661667e-05,
+          "argmax_flip_frac": 0.00662389537319541,
+          "kl_above_kernel_floor": true
+        },
+        "S3": {
+          "val_bits_per_nucleotide": 1.527087946106451,
+          "val_accuracy": 0.5211590664240854,
+          "delta_bits": -2.0697793040147516e-05,
+          "kl_mean": 6.097899313317612e-05,
+          "kl_median": 1.811189576983452e-05,
+          "argmax_flip_frac": 0.008081167005002499,
+          "kl_above_kernel_floor": true
+        },
+        "S4": {
+          "val_bits_per_nucleotide": 1.5270888532519935,
+          "val_accuracy": 0.5211375047491448,
+          "delta_bits": -1.979064749768611e-05,
+          "kl_mean": 2.912739546445664e-05,
+          "kl_median": 8.702045306563377e-06,
+          "argmax_flip_frac": 0.00571830477565527,
+          "kl_above_kernel_floor": true
+        }
+      }
+    },
+    "structural_seed1": {
+      "run": "structural_seed1",
+      "step": 2000,
+      "status": "COMPLETED",
+      "n_parameters": 7758354,
+      "real": {
+        "val_bits_per_nucleotide": 1.5187229025143156,
+        "val_accuracy": 0.5244594897020697,
+        "n_masked": 1344979
+      },
+      "floor_kernel": {
+        "kl_mean": 0.0,
+        "kl_median": 0.0,
+        "argmax_flip_frac": 0.0,
+        "n_shared": 1344979
+      },
+      "floor_masking": {
+        "kl_mean": 0.13562937080860138,
+        "kl_median": 0.026371093466877937,
+        "argmax_flip_frac": 0.328690767288208,
+        "n_shared": 202403
+      },
+      "controls": {
+        "S0": {
+          "val_bits_per_nucleotide": 1.5188091562379662,
+          "val_accuracy": 0.5244349540029993,
+          "delta_bits": 8.62537236505645e-05,
+          "kl_mean": 2.07348566618748e-05,
+          "kl_median": 5.877998319192557e-06,
+          "argmax_flip_frac": 0.004748029634356499,
+          "kl_above_kernel_floor": true
+        },
+        "S1": {
+          "val_bits_per_nucleotide": 1.5188131032638368,
+          "val_accuracy": 0.5243643209299179,
+          "delta_bits": 9.020074952115209e-05,
+          "kl_mean": 7.085248216753826e-05,
+          "kl_median": 1.2245544894540217e-05,
+          "argmax_flip_frac": 0.007284128572791815,
+          "kl_above_kernel_floor": true
+        },
+        "S2": {
+          "val_bits_per_nucleotide": 1.5189655524242796,
+          "val_accuracy": 0.5242847657844472,
+          "delta_bits": 0.00024264990996392122,
+          "kl_mean": 8.649320807307959e-05,
+          "kl_median": 1.5772817278048024e-05,
+          "argmax_flip_frac": 0.00843804981559515,
+          "kl_above_kernel_floor": true
+        },
+        "S3": {
+          "val_bits_per_nucleotide": 1.5189531043133635,
+          "val_accuracy": 0.5244319799788696,
+          "delta_bits": 0.00023020179904786886,
+          "kl_mean": 0.00010051492427010089,
+          "kl_median": 1.4688122064399067e-05,
+          "argmax_flip_frac": 0.008861848153173923,
+          "kl_above_kernel_floor": true
+        },
+        "S4": {
+          "val_bits_per_nucleotide": 1.5188438912178899,
+          "val_accuracy": 0.5243992657134424,
+          "delta_bits": 0.00012098870357424296,
+          "kl_mean": 3.720528548001312e-05,
+          "kl_median": 8.636502570880111e-06,
+          "argmax_flip_frac": 0.006029090378433466,
+          "kl_above_kernel_floor": true
+        }
+      }
+    },
+    "structural_seed2": {
+      "run": "structural_seed2",
+      "step": 2000,
+      "status": "COMPLETED",
+      "n_parameters": 7758354,
+      "real": {
+        "val_bits_per_nucleotide": 1.5226294383730037,
+        "val_accuracy": 0.5224854811859516,
+        "n_masked": 1344979
+      },
+      "floor_kernel": {
+        "kl_mean": 0.0,
+        "kl_median": 0.0,
+        "argmax_flip_frac": 0.0,
+        "n_shared": 1344979
+      },
+      "floor_masking": {
+        "kl_mean": 0.13212589919567108,
+        "kl_median": 0.02583320438861847,
+        "argmax_flip_frac": 0.32310786843299866,
+        "n_shared": 202403
+      },
+      "controls": {
+        "S0": {
+          "val_bits_per_nucleotide": 1.5226936477267146,
+          "val_accuracy": 0.5224007214982539,
+          "delta_bits": 6.420935371087566e-05,
+          "kl_mean": 1.482058814872289e-05,
+          "kl_median": 4.5664655772270635e-06,
+          "argmax_flip_frac": 0.0038781275507062674,
+          "kl_above_kernel_floor": true
+        },
+        "S1": {
+          "val_bits_per_nucleotide": 1.522727228871979,
+          "val_accuracy": 0.5224089000646107,
+          "delta_bits": 9.779049897540304e-05,
+          "kl_mean": 5.423014226835221e-05,
+          "kl_median": 1.1806592738139443e-05,
+          "argmax_flip_frac": 0.006264038383960724,
+          "kl_above_kernel_floor": true
+        },
+        "S2": {
+          "val_bits_per_nucleotide": 1.5227450344839077,
+          "val_accuracy": 0.5224051825344485,
+          "delta_bits": 0.0001155961109040593,
+          "kl_mean": 3.678049688460305e-05,
+          "kl_median": 7.25158224668121e-06,
+          "argmax_flip_frac": 0.005216438323259354,
+          "kl_above_kernel_floor": true
+        },
+        "S3": {
+          "val_bits_per_nucleotide": 1.5227358362795105,
+          "val_accuracy": 0.5223523936061455,
+          "delta_bits": 0.00010639790650679437,
+          "kl_mean": 4.3320105760358274e-05,
+          "kl_median": 7.188717972894665e-06,
+          "argmax_flip_frac": 0.0056677465327084064,
+          "kl_above_kernel_floor": true
+        },
+        "S4": {
+          "val_bits_per_nucleotide": 1.5226274145794838,
+          "val_accuracy": 0.5224029520163512,
+          "delta_bits": -2.0237935198785806e-06,
+          "kl_mean": 1.989426527870819e-05,
+          "kl_median": 4.252045982866548e-06,
+          "argmax_flip_frac": 0.003938351292163134,
+          "kl_above_kernel_floor": true
+        }
+      }
+    }
+  },
+  "summary": {
+    "n_seeds": 3,
+    "gate_readable": true,
+    "kernel_floor_mean": 0.0,
+    "masking_floor_mean_CONTEXT_ONLY": 0.1321306973695755,
+    "per_control": {
+      "S0": {
+        "delta_bits_mean": 2.8318618689053093e-05,
+        "delta_bits_sd": 8.199972407235958e-05,
+        "kl_mean": 2.5391398291200556e-05,
+        "flip_frac_mean": 0.005173562948281567,
+        "kl_relative_to_S0": 1.0
+      },
+      "S1": {
+        "delta_bits_mean": 5.0293329068917814e-05,
+        "delta_bits_sd": 7.578966213162747e-05,
+        "kl_mean": 6.334367693246652e-05,
+        "flip_frac_mean": 0.007338156768431266,
+        "kl_relative_to_S0": 2.4946903752999856
+      },
+      "S2": {
+        "delta_bits_mean": 0.00010775600603999773,
+        "delta_bits_sd": 0.0001389799083047704,
+        "kl_mean": 5.5277969901605197e-05,
+        "flip_frac_mean": 0.006759461170683305,
+        "kl_relative_to_S0": 2.1770352805170994
+      },
+      "S3": {
+        "delta_bits_mean": 0.00010530063750483858,
+        "delta_bits_sd": 0.0001254533950394737,
+        "kl_mean": 6.827134105454509e-05,
+        "flip_frac_mean": 0.007536920563628276,
+        "kl_relative_to_S0": 2.688758620993499
+      },
+      "S4": {
+        "delta_bits_mean": 3.3058087518892755e-05,
+        "delta_bits_sd": 7.666655206132752e-05,
+        "kl_mean": 2.8742315407725982e-05,
+        "flip_frac_mean": 0.005228582148750623,
+        "kl_relative_to_S0": 1.1319705625541188
+      }
+    }
+  }
+}

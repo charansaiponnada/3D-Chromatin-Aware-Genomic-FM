@@ -510,6 +510,168 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-16 (third entry) --- PHASE 4 COMPLETE: the benefit is null,
+the pathway is live only in the top four layers, and the permeability gate never
+moved}
+
+All three structural seeds reached \code{status: COMPLETED} at step 2000. Three
+measurements were then run back to back on the finished checkpoints, and they do
+not all say the same thing. What follows is every number, and then what the
+disagreement between them means.
+
+\begin{itemize}
+
+\item \textbf{Benefit: null, decisively.} \code{scripts/phase4\_report.py}
+against \code{baseline\_v2}:
+
+\begin{center}
+\begin{tabular}{llrrr}
+\toprule
+arm & seed & val bits/nt & val acc & $\tau$ median \\
+\midrule
+structural & 0 & 1.5266 & 0.5222 & 473.8 \\
+structural & 1 & 1.5177 & 0.5256 & 500.8 \\
+structural & 2 & 1.5209 & 0.5234 & 487.3 \\
+baseline   & 0 & 1.5196 & 0.5247 & 451.6 \\
+baseline   & 1 & 1.5172 & 0.5257 & 452.2 \\
+baseline   & 2 & 1.5223 & 0.5241 & 400.2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Structural mean $1.5217$ (sd $0.0045$), baseline mean $1.5197$ (sd $0.0025$).
+Difference $+0.0020$ bits, $+0.80\,\sigma_{\text{real}}$, against a
+pre-registered floor of $2\sigma = 0.0050$. It \textbf{does not clear the
+floor}, and the sign is the wrong one --- the structural arm is nominally worse.
+Exact two-sided permutation test over all 20 arrangements: $p = 0.6000$. The
+minimum attainable $p$ at 3~vs~3 is $0.1000$, so $p<0.05$ was arithmetically
+unreachable by this design regardless of the mechanism; that is stated in the
+report itself rather than left for a referee.
+
+\item \textbf{Memory horizon: moved, consistently.} Every structural seed's
+median $\tau$ exceeds every baseline seed's ($+52.6$ tokens on the means). The
+mechanism does lengthen memory. It buys nothing on the loss.
+
+\item \textbf{Reliance (P1 swap, \code{scripts/phase4\_p1\_swap.py}): non-zero
+and very small.} Three seeds, val split, fixed masking seed 1234, 1{,}344{,}979
+masked positions per pass.
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+control & $\Delta$ bits & KL & argmax flip & KL / KL$_{S0}$ \\
+\midrule
+S0 removed          & $+0.0000$ & 2.539e-05 & 0.0052 & 1.00 \\
+S1 shuffled         & $+0.0001$ & 6.334e-05 & 0.0073 & 2.49 \\
+S2 shifted 10\,Mb    & $+0.0001$ & 5.528e-05 & 0.0068 & 2.18 \\
+S3 distance-matched & $+0.0001$ & 6.827e-05 & 0.0075 & 2.69 \\
+S4 sequence-matched & $+0.0000$ & 2.874e-05 & 0.0052 & 1.13 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Kernel floor (same $\varphi$, same masking, twice) $= 0.000$e$+00$ exactly, so
+the divergences are real at floating-point resolution and not numerical noise.
+Masking floor, reported as context only, $= 1.321$e$-01$: a $\varphi$ swap moves
+predictions roughly \textbf{2000$\times$ less} than re-masking a seventh of the
+sequence does.
+
+Two honest caveats on this table. First, $\Delta$ is flat everywhere --- feeding
+the model deliberately wrong folding costs it $+0.0001$ bits, i.e.\ nothing.
+Second, the ordering S3\,$\approx$\,S1\,$\approx$\,S2\,$\gg$\,S4\,$\approx$\,S0
+is what one expects if divergence tracks \emph{how far the substituted values
+sit from the true ones}: S1--S3 preserve $\varphi$'s marginal and so supply
+wrong-but-plausibly-scaled values, whereas S0 supplies zeros, which is the
+standardised mean and therefore the closest substitute available. The ordering
+confirms that the input reaches the output. It is not by itself evidence of
+structural understanding.
+
+\item \textbf{Diagnostics D1--D3 (\code{scripts/phase4\_d1\_diagnostic.py}, new
+this entry) --- and this is the finding that matters.} D1 is
+$\mathrm{Var}_t(W_{\Delta s}s_t)/\mathrm{Var}_t(W_{dt}\delta'_t)$ per layer per
+direction, with $<0.05 \Rightarrow$ inert (F1), pre-registered at \S4.1.3.
+Median pooled D1: \textbf{0.0004, 0.0002, 0.0002} across seeds 0, 1, 2 ---
+between two and three orders of magnitude \emph{below} the inert threshold. But
+the median hides the actual structure, which is a sharp depth discontinuity
+reproduced in all three seeds:
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+layer & seed 0 & seed 1 & seed 2 \\
+\midrule
+L00--L11 (mean) & $\le 0.0023$ & $\le 0.0004$ & $\le 0.0004$ \\
+L12 & 0.9056 & 0.0004 & 0.0014 \\
+L13 & 0.8310 & 0.0007 & 0.3685 \\
+L14 & 0.8703 & 0.0039 & 0.4898 \\
+L15 & 0.8227 & 0.5064 & 0.3591 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Directions clearing the 0.05 threshold: \textbf{8/32, 2/32, 6/32} --- and in
+every seed, without exception, \emph{every one of them lies in layers 12--15}.
+L15 is live in all three. The structural pathway is inert throughout the encoder
+and live only in a thin slice next to the output head.
+
+\item \textbf{D3 separates "no gradient reached it'' from "what it produces is a
+constant''.} $\|W_{\Delta s}\|_F$ at the endpoint is non-zero in
+\textbf{32/32 directions in every seed} (per-seed min 0.1048 / 0.0936 / 0.1307,
+median 0.1943 / 0.1956 / 0.2169, max 0.6614 / 1.0843 / 0.6125), against the
+exact $0$ it was initialised to. So gradient pressure reached the dead layers
+and moved their weights; what those weights then produce is a term whose
+variance across positions is $\sim\!10^{-4}$ of $\Delta$'s. That is failure mode
+\textbf{F1 (bias absorption into $b_{dt}$) confirmed by direct measurement} in
+layers 0--11, not inferred. Only the endpoint is available --- \code{train.py}
+overwrites \code{checkpoint.pt}, so the trajectory \S4.1.3 asks for is not
+recoverable and this entry does not claim it.
+
+\item \textbf{D2: the permeability gate never engaged (F5).} $p_t$ initialises
+at $\mathrm{softplus}(-4) = 0.018150$. Measured over 287{,}309{,}824 gate
+evaluations per seed, the mean is \textbf{0.017234 / 0.017193 / 0.017108} and
+the full observed range is $[0.0133, 0.0197]$. All mass falls in the single
+histogram bin $[0, 0.0312)$. The weights did move --- the fraction sitting
+exactly at the init value is 5.07e-04, 8e-06 and 0 respectively --- but never
+further than about 5\% of the init value. The ``soft reset at a domain boundary''
+half of the mechanism did not happen.
+
+\item \textbf{The two pre-registered criteria now disagree, which \S4.1.3
+anticipated in writing.} The spec says: ``D1 $<0.05$ and $D_{S1}\approx0$ should
+agree, and disagreement between them is itself informative.'' They disagree.
+$D_{S1}$ is non-zero against an exactly-zero kernel floor, which by the letter
+of the amended gate is the flat-loss / live-divergence cell and licenses
+proceeding to Phase~5. D1 is INERT at the median in all three seeds. Both are
+correct, and together they reconcile into one statement rather than a conflict:
+the 2--8 live top-layer directions are what generate the small non-zero
+divergence, and the 24--30 dead encoder directions generate none. That is
+exactly why the divergence is real but sits at 0.05\% of the masking floor.
+
+\item \textbf{What this does to the project's central claim, stated plainly.}
+The claim is that conditioning \emph{representation learning} on structure beats
+bolting structure on afterwards --- the contrast with CHROME, which trains its
+sequence encoder to convergence with no structure present. A mechanism that is
+inert through layers 0--11 and live only in layers 12--15 is, functionally, a
+late-stage readout correction. It sits much closer to the post-hoc integration
+this project defines itself against than the design intended. No result is
+withdrawn and no number here is adjusted; but the mechanism as built and trained
+did not do the thing the claim rests on, and any write-up must say so.
+
+\item \textbf{Not concluded, deliberately.} This is one configuration:
+$d_{\text{struct}}=2$ behind an encoder that \S4.2bis measured training roughly
+five orders of magnitude slower than $W_{\Delta s}$, at 2000 steps with val loss
+still descending in both arms. F1 confirmed in the encoder is consistent with an
+under-parameterised, slowly-trained $s_t$ that early layers cannot use as
+anything but a bias. Whether the depth profile survives dropping the encoder for
+$d_{\text{struct}}=8$ (the spec's own \S4.2bis recommendation, $+1.70\%$ params,
+not applied to these runs) is untested and is the cheapest informative next
+experiment. Recording it as untested, not as refuted.
+
+\end{itemize}
+
+Artifacts: \code{results/novel\_model/phase4\_report.txt},
+\code{results/novel\_model/p1\_swap\_results.json},
+\code{results/novel\_model/d1\_diagnostic.json}.
+
 \subsection*{2026-08-16 --- Controls S3 and S4 built; the P1 gate is
 pre-registered, and its first draft was wrong}
 
@@ -621,6 +783,37 @@ exception for \code{data/processed/*\_validation\_report.json}). They carry
 measured numbers the write-up will cite --- $\varphi$'s agreement with the
 independent 4DN tracks, S3's $P(s)$ preservation, S4's correlation with $\varphi$
 --- and a number a paper quotes has to live in a tracked file.
+\end{itemize}
+
+\subsection*{2026-08-16 (second entry) --- val/test windows were a thinned
+train grid; now enumerated independently at the no-overlap stride}
+
+\begin{itemize}
+\item \textbf{The bug.} \code{build\_index} scanned the chromosome once, at the
+training stride \code{STRIDE\_TRAIN = 16{,}384}, and kept a held-out window only
+when \code{start \% STRIDE\_EVAL == 0}. So \code{STRIDE\_EVAL = 32{,}768} was a
+\emph{filter} on a grid anchored to the chromosome origin, not an independent
+enumeration: every val/test window had to land simultaneously on both the
+half-window train grid and the full-window eval grid, and the region was covered
+from whichever global multiple happened to fall inside it. The held-out windows
+did not overlap (verified: all consecutive val and test gaps exactly 32{,}768),
+but the enumeration was an emergent property of the train grid, not a stated one.
+
+\item \textbf{The fix.} val and test are now enumerated in their own pass,
+anchored at each region boundary and stepping by \code{STRIDE\_EVAL == WINDOW}:
+\code{range(region[0], region[1], STRIDE\_EVAL)}. Held-out windows still must sit
+\emph{entirely} inside their region (\code{assign\_split}), so the buffer rule is
+unchanged, and the same N-fraction and structure-fraction filters apply. The
+train scan is untouched.
+
+\item \textbf{Re-reported counts} (rebuilt \code{dataset\_index.npz},
+2026-08-16, no model affected --- \code{train.py} holds the old index in memory
+for the running seed):
+\begin{itemize}
+\item train: \textbf{5{,}422} (unchanged, identical starts),
+\item val: 273 $\rightarrow$ \textbf{274}, test: 242 $\rightarrow$ \textbf{243}.
+\item no overlap in either held-out set; every consecutive gap exactly 32{,}768.
+\end{itemize}
 \end{itemize}
 
 \subsection*{2026-08-15 (second entry) --- PHASE 4 STARTED: the structural arm

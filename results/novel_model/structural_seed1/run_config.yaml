@@ -1,7 +1,7 @@
 run_name: structural_seed1
 phase: 4 -- structural arm
 written_at_utc: '2026-08-16T10:12:17.898472+00:00'
-status: STARTED -- no metrics yet
+status: COMPLETED
 hypothesis_arm: structural (structural=True, phi_control=none)
 phi_control: none
 phi_control_meaning: S0 -- real structure, phi as measured
@@ -242,3 +242,5 @@ tau_at_init_bias_only:
 tau_measurement_note: tau_stats() uses dt_proj.bias only, which is a proxy that is
   good at init and unreliable after training; empirical tau from Delta on real batches
   is logged in metrics.json and is the number the F4 gate should be read from
+completed_at_utc: '2026-08-16T13:40:43.557659+00:00'
+wall_clock_s: 12505.373024702072

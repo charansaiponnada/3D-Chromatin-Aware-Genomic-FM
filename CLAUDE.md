@@ -100,7 +100,15 @@ window"*, **not** "the model sees a TAD". The `tau_max >= 385_000` assertion in
 |---|---|---|
 | Phase 3 v1 baseline, 3 seeds (`dt_min=1e-3`) | 1.5210 ± 0.0040 | 14.2 |
 | **Phase 3 v2 baseline, 3 seeds** | **1.5197 ± 0.0025** | 434.7 |
-| Phase 4 structural, seed 0 only | 1.5266 | 473.8 |
+| **Phase 4 structural, 3 seeds** | **1.5217 ± 0.0045** | 487.3 |
+
+Per seed — structural 1.5266 / 1.5177 / 1.5209, baseline 1.5196 / 1.5172 /
+1.5223. Difference **+0.0020 bits (+0.80σ)**, does not clear the 0.0050 floor,
+and the sign is the wrong one. Exact two-sided permutation p = **0.6000**
+(minimum attainable at 3v3 = 0.1000, so p<0.05 was unreachable by design).
+
+Every structural τ median exceeds every baseline τ median (+52.6 tokens).
+Memory lengthened; loss did not improve.
 
 Uniform-random floor is exactly **2.000** (ACGT; N and PAD never masked, never
 contribute loss).
@@ -111,17 +119,78 @@ contribute loss).
 architecture. They are kept as the evidence that justified the fix. The Phase 4
 baseline is `baseline_v2_seed*`.
 
-**Two negative results already in hand, both worth reporting:**
+### P1 gate + D1–D3 — the Phase 4 verdict, and the depth finding
+
+`p1_swap_results.json`, 3 seeds, kernel floor **exactly 0.0**, masking floor
+1.321e-01 (context only, never a threshold):
+
+| control | Δ bits | KL | flip | KL/S0 |
+|---|---|---|---|---|
+| S0 removed | +0.0000 | 2.539e-05 | 0.0052 | 1.00 |
+| S1 shuffled | +0.0001 | 6.334e-05 | 0.0073 | 2.49 |
+| S2 shifted | +0.0001 | 5.528e-05 | 0.0068 | 2.18 |
+| S3 distance | +0.0001 | 6.827e-05 | 0.0075 | 2.69 |
+| S4 sequence | +0.0000 | 2.874e-05 | 0.0052 | 1.13 |
+
+Benefit null; reliance non-zero but ~0.05% of the masking floor. The ordering
+S3≈S1≈S2 ≫ S4≈S0 is what you get if divergence tracks *distance of the
+substituted values from the true ones* — S0 is zeros, i.e. the standardised
+mean. It shows the input reaches the output, not that structure is understood.
+
+**D1 = Var_t(W_dstruct·s)/Var_t(dt_proj·δ'), `d1_diagnostic.json`. Threshold
+<0.05 ⇒ inert.** Median pooled D1 = **0.0004 / 0.0002 / 0.0002** — INERT in all
+three seeds. But the median hides a sharp, seed-reproducible depth split:
+
+| | seed 0 | seed 1 | seed 2 |
+|---|---|---|---|
+| L00–L11 | ≤0.0023 | ≤0.0004 | ≤0.0004 |
+| L12–L15 | 0.82–0.91 | 0.0004–0.51 | 0.0014–0.49 |
+| directions ≥0.05 | 8/32 | 2/32 | 6/32 |
+
+**Every live direction, in every seed, is in layers 12–15.** L15 live in all
+three. The pathway is inert through the encoder and live only next to the
+output head — functionally a late readout correction, which is closer to the
+post-hoc integration this project defines itself *against* than to the design.
+
+**D3:** ‖W_dstruct‖_F non-zero in 32/32 directions every seed (median 0.19–0.22)
+against the exact 0 it was initialised to. So gradient pressure *did* reach the
+dead layers; what they produce is near-constant across positions. That is
+**F1 (bias absorption into b_dt) confirmed by measurement**, not inferred.
+
+**D2: the permeability gate never engaged (F5).** p_t init =
+softplus(−4) = 0.018150; measured mean 0.017234 / 0.017193 / 0.017108 over
+287,309,824 evaluations, full range [0.0133, 0.0197], all mass in one bin. The
+"soft reset at a boundary" half of the mechanism did not happen.
+
+**The two pre-registered criteria disagree, and §4.1.3 said in advance that
+disagreement is informative.** D_S1 > 0 ⇒ proceed; D1 < 0.05 ⇒ inert. They
+reconcile: the 2–8 live top-layer directions produce the tiny divergence, the
+24–30 dead ones produce none.
+
+**Three negative results in hand, all worth reporting:**
 1. A 30× longer memory horizon changed val loss by less than seed noise.
-2. Structural seed 0 finished 0.0069 bits *worse* than the baseline mean
-   (+2.74σ), worse than every baseline seed individually. One seed; seeds 1 and
-   2 decide whether it holds.
+2. The structural arm is +0.0020 bits *worse* at 3 seeds — inside noise, but
+   with no hint of benefit in any seed.
+3. The mechanism is inert in 24–30 of 32 directions, and the survivors are all
+   in the last four layers.
+
+**Untested, not refuted:** whether the depth profile survives dropping the
+encoder for `d_struct=8` (§4.2bis's own recommendation, +1.70% params, never
+applied). Cheapest informative next experiment, ~6 GPU-h.
 
 ### Data
 chr9 only, GM12878, 4D Nucleome experiment set `4DNES3JX38V5` (Rao et al. 2014),
 GRCh38. The 27.4 GB `.mcool` is **never downloaded** — read over HTTP range
 requests. 27,679 bins at 5 kb, 21,519 usable (77.7%). Windows: 5,422 train /
-273 val / 242 test, 50% overlap, ~89 Mb unique sequence.
+**274 val / 243 test**, 50% overlap on train only, ~89 Mb unique sequence.
+
+**The 273/242 counts are stale.** `build_index` used to thin the train grid to
+get val/test; they are now enumerated independently at `STRIDE_EVAL == WINDOW`
+(fixed 2026-08-16). Train starts are byte-identical. The Phase 3/4 *training*
+evals ran on the old 273-window val set; P1 and D1 ran on the new 274. That is
+why `p1_swap`'s "real" val bits (1.5271 / 1.5187 / 1.5226) differ slightly from
+`metrics.json` (1.5266 / 1.5177 / 1.5209). Every P1 comparison is within one
+dataset, so the gate is unaffected — but do not mix the two sources in a table.
 
 φ validated against independent 4DN tracks: insulation_100kb r = **0.9969**,
 compartment PC1 r = **0.9759**.
@@ -145,42 +214,44 @@ steps and tokens, not wall clock.
 | 1 Data | done — `docs/data_card.md`, validated visually and against 4DN |
 | 2 Mechanism design | done — `docs/architecture_spec.md` |
 | 3 Baselines | **done twice.** v1 failed the F4 gate; v2 passes |
-| 4 Structural arm | **running.** seed 0 COMPLETED, seed 1 in progress, seed 2 pending |
-| 5 Evaluation | not started |
+| 4 Structural arm | **done.** 3/3 seeds COMPLETED; P1 swap and D1–D3 run |
+| 5 Evaluation | not started — **PI decision pending**, see §6 |
 | 6 Paper | not started |
 
-Phase 4 runs the **real-structure arm only** — the 3 seeds P1 needs. P2 (S1/S3
-pretraining, 6 seeds, ~18 GPU-h) is deliberately not launched: P1 is the gate,
-and if the mechanism is inert the spec says stop.
+Phase 4 ran the **real-structure arm only** — the 3 seeds P1 needs. P2 (S1/S3
+pretraining, 6 seeds, ~18 GPU-h) was deliberately not launched: P1 is the gate,
+and P1 has now answered. Do not launch P2 to "double-check" the null; it
+answers a question P1 already answered.
 
 ---
 
-## 6. OPEN DECISION — blocking, and time-critical
+## 6. OPEN DECISION — what to do with a weak pass
 
-**The P1 gate as written cannot distinguish its own alternative hypotheses.**
+The previous open decision (separate reliance from benefit) was **resolved**:
+pre-registered in `architecture_spec.md` §7 decisions 5–6 *before* any control
+touched a trained model, then executed. That amendment stands and is closed.
 
-MLM over 32 kb windows is dominated by local k-mer statistics. A flat loss delta
-is consistent with *the mechanism is inert*, *the mechanism works but MLM cannot
-express it*, and *structure carries no information* — and §4.1.3 assigns the
-same verdict to all three, which is "do not proceed to Phase 5". Phase 5 is
-where the claim lives.
+**What the gate returned.** Loss flat, divergence live-but-tiny, D1 inert
+everywhere except layers 12–15. By the letter of the pre-registered 2×2 that is
+the bottom-right cell → *proceed to Phase 5*. Do not move that goalpost; it was
+fixed before the numbers existed and moving it now is exactly what it existed to
+prevent.
 
-Evidence the metric lacks power: a 30× memory-horizon change moved it 0.0013
-bits.
+**But it is a weak pass, and the D1 depth profile is the reason.** The mechanism
+is a top-four-layer readout correction, not a representation-shaping prior. The
+project's claim — structure during representation learning beats structure
+bolted on afterwards — is not what this run demonstrates.
 
-**Proposed fix — measure reliance separately from benefit.** Reliance is
-prediction divergence (KL between logits under real vs shuffled φ, or argmax
-flip rate), not a loss delta. It is an inference-time measurement on existing
-checkpoints.
+**The live options, PI's call:**
 
-| | loss moves | loss flat |
+| option | cost | what it buys |
 |---|---|---|
-| divergence high | structure helps | used but not useful for MLM → proceed to Phase 5 |
-| divergence low | (impossible) | **inert → stop** |
+| A. Proceed to Phase 5 as the gate says | weeks | tests transfer of a representation the diagnostics say is barely structure-shaped |
+| B. One re-run, no encoder, `d_struct=8` | ~6 GPU-h | tests whether F1 in layers 0–11 is intrinsic or self-inflicted by `d_struct=2` |
+| C. Write up as a negative result now | days | F4 cap + null + confirmed-F1 depth profile is publishable and honest |
 
-**This must be written into §7 before the P1 swap runs.** It is genuine
-pre-registration now; it stops being so the moment the swap executes.
-PI decision, not mine.
+B before A is the recommendation on record: it is one seed of compute and it
+changes how A or C should be written either way.
 
 ---
 

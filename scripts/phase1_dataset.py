@@ -148,32 +148,45 @@ def build_index(tokens: np.ndarray, phi: dict) -> dict:
     kept: dict[str, list[int]] = {"train": [], "val": [], "test": []}
     dropped = {"buffer": 0, "n_frac": 0, "struct_frac": 0, "short": 0}
 
-    for split_name, stride in (("scan", STRIDE_TRAIN),):
-        for start in range(0, chrom_len, stride):
+    def maybe_keep(split: str | None, start: int) -> None:
+        if split is None:
+            dropped["buffer"] += 1
+            return
+        n_frac = (n_cumsum[start + WINDOW] - n_cumsum[start]) / WINDOW
+        if n_frac > MAX_N_FRAC:
+            dropped["n_frac"] += 1
+            return
+        b0 = start // RES
+        b1 = min(b0 + bins_per_window + 1, len(usable))
+        if usable[b0:b1].mean() < MIN_STRUCT_FRAC:
+            dropped["struct_frac"] += 1
+            return
+        kept[split].append(start)
+
+    # train: full-chromosome scan at STRIDE_TRAIN (50% overlap).
+    for start in range(0, chrom_len, STRIDE_TRAIN):
+        end = start + WINDOW
+        if end > chrom_len:
+            dropped["short"] += 1
+            continue
+        split = assign_split(start, end)
+        if split == "train":
+            maybe_keep(split, start)
+
+    # val/test: enumerated independently, anchored at each region boundary and
+    # stepping by STRIDE_EVAL == WINDOW, so consecutive held-out windows are
+    # non-overlapping and the region is covered without depending on the train
+    # grid's alignment to the chromosome origin.
+    for split_name, region in (("val", VAL_REGION), ("test", TEST_REGION)):
+        for start in range(region[0], region[1], STRIDE_EVAL):
             end = start + WINDOW
             if end > chrom_len:
                 dropped["short"] += 1
                 continue
-
             split = assign_split(start, end)
-            if split is None:
-                dropped["buffer"] += 1
-                continue
-            if split != "train" and (start % STRIDE_EVAL) != 0:
-                continue                # eval splits do not overlap
-
-            n_frac = (n_cumsum[end] - n_cumsum[start]) / WINDOW
-            if n_frac > MAX_N_FRAC:
-                dropped["n_frac"] += 1
-                continue
-
-            b0 = start // RES
-            b1 = min(b0 + bins_per_window + 1, len(usable))
-            if usable[b0:b1].mean() < MIN_STRUCT_FRAC:
-                dropped["struct_frac"] += 1
-                continue
-
-            kept[split].append(start)
+            if split != split_name:
+                continue                # window must sit entirely in its region
+            maybe_keep(split, start)
 
     print(f"  window {WINDOW:,} bp, train stride {STRIDE_TRAIN:,}, "
           f"eval stride {STRIDE_EVAL:,}")
