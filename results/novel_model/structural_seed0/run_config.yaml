@@ -1,6 +1,6 @@
 run_name: structural_seed0
 phase: 4 -- structural arm
-written_at_utc: '2026-08-15T16:07:15.095936+00:00'
+written_at_utc: '2026-08-16T04:43:05.939560+00:00'
 status: STARTED -- no metrics yet
 hypothesis_arm: structural (structural=True, phi_control=none)
 phi_control: none
@@ -83,16 +83,11 @@ data:
   n_train_windows: 5422
   n_val_windows: 273
 git:
-  commit: 625b2b8dab7fe52c4b9147b1dbd268c578d77a8e
+  commit: aaa5a20fdd39e20cd9425c6c4e4c9ee7a12130e8
   branch: main
   dirty: true
   dirty_files:
-  - scripts/phase1_dataset.py
-  - scripts/train.py
-  - results/novel_model/
-  - scripts/phase4_guard.sh
-  - scripts/run_phase4.sh
-  - scripts/test_phase4_wiring.py
+  - results/novel_model/structural_seed0/metrics.json
 environment:
   python: 3.10.10
   platform: Linux-6.8.0-107-generic-x86_64-with-glibc2.39
