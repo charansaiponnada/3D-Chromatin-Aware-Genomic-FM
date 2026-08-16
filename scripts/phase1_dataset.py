@@ -253,7 +253,7 @@ def main() -> None:
 # Shuffled-structure controls, architecture_spec.md 4.1.3. All operate on phi
 # BEFORE the structural encoder and leave the sequence completely untouched, so
 # any difference they produce is attributable to structure and nothing else.
-PHI_CONTROLS = ("none", "S1", "S2", "S3")
+PHI_CONTROLS = ("none", "S1", "S2", "S3", "S4")
 
 # S2 shifts by at least this many bases. The spec asks for "much greater than
 # the max memory horizon"; the largest trained tau measured in Phase 3 v2 is
@@ -283,6 +283,11 @@ def apply_phi_control(phi: np.ndarray, usable: np.ndarray, control: str
                         empirical P(s). CANNOT be produced by permuting phi --
                         it requires the contact matrix -- so it is read from a
                         file the Phase 1 feature pipeline must write.
+    S4 SEQUENCE-MATCHED phi replaced by eight ALIGNED covariates computed from
+                        sequence and GENCODE alone, no Hi-C. Also read from a
+                        file (scripts/phase4_build_s4.py). Rules out "structure
+                        is just GC content and gene density"; S2 cannot, because
+                        that objection needs alignment PRESERVED.
 
     `usable` is carried through the same transform as `phi`: a permuted or
     shifted feature vector that kept the original validity mask would let
@@ -304,17 +309,36 @@ def apply_phi_control(phi: np.ndarray, usable: np.ndarray, control: str
                 f"only {phi.shape[0]}; a shift >= the chromosome wraps to a "
                 f"near-identity and is not a control")
         return np.roll(phi, shift, axis=0), np.roll(usable, shift, axis=0)
-    # S3
-    path = PROCESSED / f"phi_{CHROM}_{RES}bp_S3.npz"
+    # S3 and S4 are both precomputed feature files rather than transforms of
+    # phi, for the same underlying reason: neither can be produced by moving the
+    # existing numbers around. S3 needs the contact matrix; S4 needs the
+    # sequence and the annotation.
+    builder = {
+        "S3": ("scripts/phase1_features.py --rewire-distance-matched",
+               "the distance-matched rewire control: it resamples contacts "
+               "under the empirical P(s) and RECOMPUTES phi"),
+        "S4": ("scripts/phase4_build_s4.py",
+               "the sequence-matched control: eight aligned covariates from "
+               "sequence and GENCODE, with no Hi-C input at all"),
+    }[control]
+    path = PROCESSED / f"phi_{CHROM}_{RES}bp_{control}.npz"
     if not path.exists():
         raise FileNotFoundError(
-            f"{path} not found. S3 is the distance-matched rewire control: it "
-            f"resamples contacts under the empirical P(s) and RECOMPUTES phi, "
-            f"so it cannot be made by permuting the phi array. Build it with "
-            f"scripts/phase1_features.py --rewire-distance-matched before "
-            f"running this control.")
+            f"{path} not found. {control} is {builder[1]}, so it cannot be made "
+            f"by permuting the phi array. Build it with: {builder[0]}")
     z = np.load(path, allow_pickle=True)
-    return z["phi"], z["usable"].astype(bool)
+    ctl_phi, ctl_usable = z["phi"], z["usable"].astype(bool)
+    if ctl_phi.shape != phi.shape:
+        raise ValueError(
+            f"{control} phi has shape {ctl_phi.shape}, real phi has "
+            f"{phi.shape}; a control of a different shape is not a control")
+    # The control must be defined where the real features are, or the two runs
+    # see different positions and the comparison is confounded by coverage.
+    if int((ctl_usable & usable).sum()) < int(usable.sum()):
+        lost = int(usable.sum()) - int((ctl_usable & usable).sum())
+        print(f"[phi_control] WARNING: {control} is undefined at {lost:,} bins "
+              f"where real phi is defined; restricting to the intersection")
+    return ctl_phi, (ctl_usable & usable)
 
 
 class WindowDataset:

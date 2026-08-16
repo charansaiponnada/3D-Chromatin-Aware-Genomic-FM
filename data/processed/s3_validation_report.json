@@ -1,0 +1,21 @@
+{
+  "control": "S3 DISTANCE-MATCHED REWIRE",
+  "built_utc": "2026-08-16T12:03:33Z",
+  "seed": 20260815,
+  "method": "permute contact values within each diagonal; NaN pattern left in place; coarse matrix permuted on the upper triangle and mirrored",
+  "ps_max_abs_deviation": 1.862645149230957e-09,
+  "band_cells_unmoved_frac": 0.04915676522209223,
+  "usable_bins_real": 21519,
+  "usable_bins_s3": 21519,
+  "s3_vs_real_feature_correlation": {
+    "insulation_100kb": 0.034,
+    "insulation_250kb": 0.0479,
+    "insulation_500kb": 0.1279,
+    "directionality_2Mb": 0.1013,
+    "log_contact_density": 0.0774,
+    "upstream_mass_frac": 0.1027,
+    "short_long_ratio": 0.1818,
+    "compartment_pc1": -0.0448
+  },
+  "elapsed_s": 7.1
+}

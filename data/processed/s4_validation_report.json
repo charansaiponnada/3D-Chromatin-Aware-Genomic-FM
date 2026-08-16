@@ -1,0 +1,63 @@
+{
+  "control": "S4 SEQUENCE-MATCHED",
+  "built_utc": "2026-08-16T11:58:04Z",
+  "hi_c_used": false,
+  "n_bins": 27679,
+  "usable_bins_phi": 21519,
+  "usable_bins_s4": 21519,
+  "feature_names": [
+    "gc_100kb",
+    "gc_250kb",
+    "gc_500kb",
+    "gc_gradient_2Mb",
+    "gene_density_100kb",
+    "upstream_gene_frac",
+    "cpg_over_gc",
+    "gc_gene_composite"
+  ],
+  "feature_symmetry": [
+    1,
+    1,
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    1
+  ],
+  "phi_vs_s4_best_correlation": {
+    "insulation_100kb": {
+      "best_r": 0.1822,
+      "with": "gc_500kb"
+    },
+    "insulation_250kb": {
+      "best_r": 0.1434,
+      "with": "gc_500kb"
+    },
+    "insulation_500kb": {
+      "best_r": -0.0887,
+      "with": "gc_gradient_2Mb"
+    },
+    "directionality_2Mb": {
+      "best_r": -0.0765,
+      "with": "gc_gradient_2Mb"
+    },
+    "log_contact_density": {
+      "best_r": -0.1618,
+      "with": "gc_500kb"
+    },
+    "upstream_mass_frac": {
+      "best_r": 0.104,
+      "with": "gc_gradient_2Mb"
+    },
+    "short_long_ratio": {
+      "best_r": 0.1387,
+      "with": "gc_500kb"
+    },
+    "compartment_pc1": {
+      "best_r": 0.7384,
+      "with": "gc_500kb"
+    }
+  },
+  "elapsed_s": 6.1
+}

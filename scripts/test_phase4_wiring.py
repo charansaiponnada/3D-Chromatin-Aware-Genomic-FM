@@ -12,6 +12,7 @@ the scan.
 Runs on CPU except where a scan is needed. Takes well under a minute.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -82,12 +83,57 @@ def main() -> int:
           np.allclose(np.roll(p2, -shift, axis=0), phi0),
           f"{S2_SHIFT_BP:,} bp = {shift} bins")
 
+    # S3 and S4 are precomputed files, not transforms of phi. Built 2026-08-16
+    # by phase4_build_s3.py and phase4_build_s4.py.
+    for name, why in (("S3", "distance-matched rewire"),
+                      ("S4", "sequence-matched covariates")):
+        p, u = apply_phi_control(phi0, use0, name)
+        check(f"{name} loads and matches phi's shape ({why})",
+              p.shape == phi0.shape, str(p.shape))
+        # Coverage must match exactly, or the control run sees a different
+        # number of positions than the real run and coverage confounds the
+        # comparison.
+        check(f"{name} is defined at exactly the bins real phi is defined at",
+              int(u.sum()) == int(use0.sum()),
+              f"{int(u.sum()):,} vs {int(use0.sum()):,}")
+        check(f"{name} differs from real phi",
+              not np.allclose(np.nan_to_num(p), np.nan_to_num(phi0)))
+
+    # S3's defining property: it must preserve the distance-decay curve while
+    # destroying which locus pair holds which contact. Read from the build
+    # report rather than recomputed, so the assertion tracks what was shipped.
+    rep3 = json.loads((REPO / "data/processed/s3_validation_report.json")
+                      .read_text(encoding="utf-8"))
+    check("S3 preserves P(s) to floating-point exactness",
+          rep3["ps_max_abs_deviation"] < 1e-5,
+          f"max deviation {rep3['ps_max_abs_deviation']:.2e} over all diagonals")
+    worst3 = max(abs(v) for v in rep3["s3_vs_real_feature_correlation"].values())
+    check("S3 destroys locus-specific structure (|r| < 0.3 on every feature)",
+          worst3 < 0.3, f"worst |r| = {worst3:.4f}")
+
+    # S4's reason for existing: compartment_pc1 is largely 1D-explainable, the
+    # rest of phi is not. If that stopped being true the control's framing in
+    # architecture_spec.md 4.1.3 would need revisiting.
+    rep4 = json.loads((REPO / "data/processed/s4_validation_report.json")
+                      .read_text(encoding="utf-8"))
+    check("S4 uses no Hi-C at all", rep4["hi_c_used"] is False)
+    check("S4 reproduces phi's reverse-complement symmetry",
+          rep4["feature_symmetry"] == [int(v) for v in ds.symmetry],
+          str(rep4["feature_symmetry"]))
+    c14 = rep4["phi_vs_s4_best_correlation"]
+    check("S4 captures compartment_pc1, the 1D-explainable coordinate",
+          abs(c14["compartment_pc1"]["best_r"]) > 0.5,
+          f"r = {c14['compartment_pc1']['best_r']} with "
+          f"{c14['compartment_pc1']['with']}")
+    others = [abs(v["best_r"]) for k, v in c14.items() if k != "compartment_pc1"]
+    check("the other seven phi coordinates are NOT 1D-explainable",
+          max(others) < 0.35, f"worst |r| = {max(others):.4f}")
+
     try:
-        apply_phi_control(phi0, use0, "S3")
-        check("S3 raises a directing error when its file is absent", False)
-    except FileNotFoundError as e:
-        check("S3 raises a directing error when its file is absent",
-              "phase1_features.py" in str(e), "names the script that builds it")
+        apply_phi_control(phi0, use0, "S9")
+        check("an unknown control is rejected", False)
+    except ValueError:
+        check("an unknown control is rejected", True)
 
     try:
         WindowDataset("train", structural=False, phi_control="S1")

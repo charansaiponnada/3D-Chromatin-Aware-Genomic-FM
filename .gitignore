@@ -236,8 +236,16 @@ results/novel_model/*.lock
 # data/pilot_manifest.json (accessions + URLs + md5s), which IS tracked.
 data/raw/
 data/interim/
-data/processed/
+# NOTE the trailing /* rather than /. Git cannot re-include a file whose PARENT
+# DIRECTORY is excluded, so `data/processed/` would make the exception below
+# silently do nothing -- the reports would look tracked in .gitignore and not be.
+data/processed/*
 *.mcool
 *.hic
 *.part
+# ...the validation reports ARE results, not data. They carry measured numbers
+# the write-up cites -- phi's agreement with the independent 4DN tracks, S3's
+# P(s) preservation, S4's correlation with phi -- and a number a paper quotes has
+# to live in a tracked file. They are a few kB each.
+!data/processed/*_validation_report.json
 !data/pilot_manifest.json

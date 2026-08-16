@@ -510,6 +510,119 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-16 --- Controls S3 and S4 built; the P1 gate is
+pre-registered, and its first draft was wrong}
+
+\begin{itemize}
+\item \textbf{Two decisions of record added (\S7, items 5 and 6), both PI
+decisions, both recorded before any control was fed to any trained model.} At
+the time of writing, Phase~4 seed~0 was \code{COMPLETED}, seed~1 was mid-run,
+seed~2 had not started, and no swap artifact of any kind existed. That is
+checkable against the run directories and the git history, and it is what makes
+this pre-registration rather than an adjustment.
+
+\item \textbf{Decision 5 --- reliance is measured separately from benefit.} The
+P1 gate as originally written read reliance off a \emph{loss delta}. Masked-token
+prediction over a 32\,kb window is dominated by local $k$-mer statistics, so a
+flat $\Delta_{S1}$ is consistent with three incompatible states: the mechanism is
+inert; the mechanism is used but MLM cannot express its contribution; structure
+carries no information. \S4.1.3 assigned all three the same verdict --- ``do not
+proceed to Phase~5'' --- and Phase~5 is where the hypothesis lives. Evidence the
+metric lacks power: correcting \code{dt\_min} lengthened the trained memory
+horizon $30\times$ and moved validation loss 0.0013 bits. Reliance is now
+prediction divergence, $D_S = \mathrm{mean}\,\mathrm{KL}(p_{\mathrm{real}} \,\|\,
+p_S)$ over masked positions, plus the argmax-flip rate $F_S$. Benefit is
+unchanged: $\Delta_{S1} \ge 2\sigma_{\mathrm{real}} = 0.0050$ bits with a 95\,\%
+CI excluding 0.
+
+\item \textbf{The first draft of that rule was wrong, and is recorded as
+withdrawn rather than quietly replaced.} It set the pass threshold at ``exceed
+the divergence from re-evaluating under a different masking seed''. A dry run of
+\code{scripts/phase4\_p1\_swap.py} against a deliberately untrained 20-step model
+--- executed before any trained checkpoint was swapped --- showed two faults.
+\emph{The magnitudes are mismatched}: re-masking perturbs 15\,\% of the
+nucleotides the model reads, while a $\varphi$ swap perturbs an auxiliary
+channel, so the rule demanded that lying about the folding move predictions
+further than re-masking a seventh of the sequence does. Measured, that floor was
+$\mathrm{KL} = 19.56$. \emph{And it was unnecessary}: a model that ignores
+$\varphi$ does not produce a small divergence, it produces bitwise identical
+logits. On the dry-run model, whose $W_{\Delta s}$ was still at its zero init,
+every control returned $\mathrm{KL} \approx 10^{-23}$ with an argmax-flip rate of
+exactly $0.000000$ against a kernel floor of exactly $0.0$. Corrected rule:
+\textbf{reliance passes iff $D_{S1}$ exceeds the kernel floor by a wide margin
+($>10^{-12}$) with a materially non-zero flip rate}. The masking floor is still
+computed and reported, labelled context-only. $D_{S0}$ is reported as the upper
+reference, so $D_{S1}/D_{S0}$ states how much of the available structural effect
+the shuffle disrupts.
+
+\item \textbf{Decision 6 --- control S4 \code{SEQUENCE-MATCHED} added.}
+\code{compartment\_pc1} correlates strongly with GC content and gene density,
+both computable from sequence alone, so without an \emph{aligned} 1D control a
+positive result reads as ``you handed the model a GC proxy''. S2 cannot cover
+this: the objection requires alignment to be preserved and S2 destroys it. S3 and
+S4 together remove the two benign explanations --- genomic distance, and sequence
+composition.
+
+\item \textbf{S4 built} (\code{scripts/phase4\_build\_s4.py}, CPU only, no Hi-C
+read at any point). Eight aligned covariates from \code{tokens\_chr9.npy} and
+GENCODE (3{,}190 genes on chr9): GC smoothed at 100/250/500\,kb, a 2\,Mb GC
+gradient, gene density, upstream-minus-downstream gene fraction, CpG-over-GC, and
+a GC+gene composite. Reproduces $\varphi$'s \code{feature\_symmetry}
+$[1,1,1,-1,1,-1,1,1]$ --- asserted, with the two antisymmetric coordinates built
+as downstream-minus-upstream differences so they genuinely flip under
+reverse-complement --- and standardised chromosome-wide exactly as $\varphi$ is,
+over the same \textbf{21{,}519} usable bins.
+
+\item \textbf{Measured, and it settles the objection quantitatively.} Best
+correlation of each $\varphi$ coordinate with any S4 coordinate:
+\code{compartment\_pc1} $r = \mathbf{0.7384}$ with \code{gc\_500kb}, i.e.\
+smoothed GC explains \textbf{55\,\%} of its variance. Every other coordinate is
+at $|r| \le 0.19$ (worst: \code{insulation\_100kb} at 0.1822). \textbf{The GC
+objection was real but confined to one of eight features}; insulation and
+directionality --- the coordinates that encode domain boundaries --- are not
+recoverable from sequence composition.
+
+\item \textbf{S3 built} (\code{scripts/phase4\_build\_s3.py}, CPU only; both Hi-C
+inputs were already cached under \code{data/interim/}, so no network). Contact
+values are permuted \emph{within each diagonal} of the 5\,kb band, and on the
+upper triangle of the 250\,kb matrix with symmetry restored by mirroring.
+Permuting within a diagonal --- rather than substituting the diagonal mean ---
+preserves the value distribution as well as the mean, so the control is not
+testing two things at once. $\varphi$ is then recomputed by calling
+\code{phase1\_features}' \emph{own} functions, so the only difference from real
+$\varphi$ is the matrix it was computed from.
+
+\item \textbf{S3 verification.} $P(s)$ preserved to $1.86\times10^{-9}$ (max
+absolute deviation of any diagonal mean, over 401 diagonals); 8{,}612{,}548
+measurable cells permuted with 2{,}486{,}731 NaNs left in place, so the
+measurability pattern is untouched; \textbf{21{,}519} usable bins, identical to
+real $\varphi$. Correlation of each recomputed feature with its real counterpart:
+worst $|r| = 0.1818$, \code{compartment\_pc1} at $-0.0448$. Distance decay
+preserved exactly, locus specificity gone.
+
+\item \textbf{Test suite extended to 39/39} (\code{test\_phase4\_wiring.py}). The
+old assertion that S3 raises when its file is absent was removed --- it stopped
+being true once S3 was built --- and replaced with checks that both file-based
+controls match $\varphi$'s shape, are defined at \emph{exactly} the same bins,
+differ from real $\varphi$, and satisfy their defining properties. Coverage
+equality matters: a control defined at a different set of positions would confound
+the comparison with coverage. \code{test\_model.py} still 17/17.
+
+\item \textbf{\code{CLAUDE.md} rewritten} as a current-state working document; the
+original pre-research plan is preserved unchanged at \code{docs/original\_plan.md}.
+A plain-language summary for non-specialist readers was added at
+\code{docs/project\_summary\_plain.md}. \code{train.py} gained \code{--out-dir};
+\code{phi\_control} gained shape and coverage validation for file-based controls.
+\code{build\_project\_doc.py} now decodes pdflatex output with
+\code{errors="replace"}.
+
+\item \textbf{Validation reports are now tracked in git} (\code{.gitignore}
+exception for \code{data/processed/*\_validation\_report.json}). They carry
+measured numbers the write-up will cite --- $\varphi$'s agreement with the
+independent 4DN tracks, S3's $P(s)$ preservation, S4's correlation with $\varphi$
+--- and a number a paper quotes has to live in a tracked file.
+\end{itemize}
+
 \subsection*{2026-08-15 (second entry) --- PHASE 4 STARTED: the structural arm
 is wired and pretraining}
 

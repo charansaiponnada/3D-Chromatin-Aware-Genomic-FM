@@ -223,6 +223,11 @@ Per `CLAUDE.md`, Phase 4 does not exit until a shuffled-structure ablation shows
 | **S1** | `GLOBAL-PERM` — permute φ_b uniformly at random across all bins genome-wide | sequence↔structure correspondence **and** local autocorrelation | exact marginal distribution of φ | — (primary reliance probe) |
 | **S2** | `CIRCULAR-SHIFT` — per chromosome, circularly shift φ by ≫ max memory horizon (≥10 Mb) | alignment only | marginal **and** local autocorrelation | "the model just benefits from any smooth, slowly-varying auxiliary channel" |
 | **S3** | `DISTANCE-MATCHED REWIRE` — resample contacts preserving the distance-decay curve P(s), then recompute φ | locus-specific structure | the 1D-distance-explainable component | **"structure is just genomic distance in disguise"** |
+| **S4** | `SEQUENCE-MATCHED` — replace φ with eight *aligned* covariates computed from sequence and the GENCODE annotation alone, no Hi-C anywhere | all 3D content | alignment, smoothness, and the 1D-sequence-explainable component | **"structure is just GC content and gene density in disguise"** |
+
+**S4 added 2026-08-16 (PI decision), before any P1 swap was run.** `compartment_pc1` — one of the eight φ coordinates — correlates strongly with GC content and gene density, both computable from sequence alone. Without an **aligned** 1D control, a positive result has an obvious benign reading: the model was handed a GC proxy, not chromatin conformation. S2 does not cover this, because the objection requires alignment to be *preserved*, and S2 destroys it. S4 must reproduce φ's `feature_symmetry` = `[1,1,1,-1,1,-1,1,1]`, i.e. two of its eight coordinates must be antisymmetric under reverse-complement, or it is not matched. Proposed composition: GC content smoothed at 100 kb / 250 kb / 500 kb (matching the three insulation scales), CpG density, gene density, repeat-or-N density, and two antisymmetric channels such as upstream-minus-downstream gene density. Standardized genome-wide exactly as φ is.
+
+**S3 and S4 are the two matched controls**, each removing a different benign explanation: S3 removes "it is only genomic distance", S4 removes "it is only sequence composition". A claim of 3D-structural signal requires both.
 
 **S3 is the control that matters most.** Per `related_work.md` §A1, contact probability decays smoothly with genomic distance under the fractal-globule model. If S3 performs like the real-structure run, the mechanism has learned a re-parameterized positional prior, not a structural one — and the paper's central claim is false regardless of how good the headline numbers look. It mirrors CHROME's degree- and distance-matched controls (§D1), so it is also the control a reviewer familiar with that paper will expect.
 
@@ -238,6 +243,69 @@ Per `CLAUDE.md`, Phase 4 does not exit until a shuffled-structure ablation shows
 > **The gate passes iff, on P1 with control S1:** Δ_S1 > 0 with a 95% bootstrap CI over seeds excluding 0, **and** Δ_S1 ≥ 2·σ_real.
 
 A statistically significant but tiny effect is not sufficient — the 2σ_real floor is what stops a p-value from standing in for an effect size.
+
+---
+
+##### AMENDMENT 2026-08-16 (PI decision) — reliance is measured separately from benefit
+
+**Recorded before any P1 swap was executed.** At the time of writing, Phase 4 seed 0 was complete and seed 1 was mid-run; no control had been fed to any model. This is a pre-registration, not a post-hoc adjustment, and the timestamp is checkable against the run directories and the git history.
+
+**The defect being fixed.** The rule above reads reliance off a *loss delta*. Masked-token prediction over a 32,768 bp window is dominated by local k-mer statistics, so a flat Δ_S1 is consistent with three incompatible states of the world:
+
+1. the mechanism is inert,
+2. the mechanism is used but MLM cannot express what it contributes,
+3. structure carries no information at all.
+
+The rule assigns all three the same verdict — "mechanism is inert, do not proceed to Phase 5" — and Phase 5 is where the hypothesis actually lives. As written, the protocol could terminate the study one step before the experiment that tests it.
+
+This is not hypothetical. §4.1.4 "Re-run complete" records that correcting `dt_min` lengthened the trained median memory horizon by ~30× and moved validation loss by 0.0013 bits, well inside seed noise. A metric that cannot see a 30× capability change has no power to adjudicate this mechanism.
+
+**The amendment.** Reliance and benefit are different quantities and are now measured as such.
+
+- **Benefit** stays exactly as above: Δ_S1 on val bits/nucleotide, 95% bootstrap CI excluding 0, and Δ_S1 ≥ 2·σ_real.
+- **Reliance** is **prediction divergence** under the swap, computed on the same held-out windows with the same fixed masking seed:
+
+  ```
+  D_S = mean_t KL( p_real(· | x, φ)  ||  p_S(· | x, φ_S) )      over masked positions
+  F_S = fraction of masked positions where argmax p_real != argmax p_S
+  ```
+
+  Both are inference-only on existing checkpoints. `D_S1` is the headline; `F_S1` is reported alongside as an interpretable scale.
+
+**Revised decision table.** Read on control S1:
+
+| | Δ_S1 ≥ 2·σ_real | Δ_S1 flat |
+|---|---|---|
+| **D_S1 high** | structure helps — proceed | **used, but not expressible in MLM — PROCEED to Phase 5** |
+| **D_S1 ≈ 0** | (incoherent; investigate) | **mechanism inert — STOP** |
+
+"High" is not left to judgement. The floor is measured, not assumed, and reported with the gate — see the correction immediately below for which floor.
+
+###### Correction to this amendment, same day, before any model was swapped
+
+The paragraph above originally read: *"D_S1 must exceed the divergence produced by re-evaluating the same model on the same data under a different masking seed."* **That threshold was wrong, and is withdrawn.** It was caught by a dry run of `scripts/phase4_p1_swap.py` against a deliberately untrained 20-step model, executed before any trained checkpoint was swapped. Recording the error rather than quietly replacing it, because the withdrawn version was written into this document and into §7.
+
+Two things were wrong with it.
+
+**It compared perturbations of different magnitude.** Re-masking changes 15% of the nucleotides the model is reading; a φ swap changes an auxiliary conditioning channel. Requiring D_S1 > D_masking demands that lying about the folding move predictions further than re-masking a seventh of the sequence does. That is not a test of reliance — it is a test of whether φ dominates the sequence, which nobody claims and which would be alarming if true. Measured on the dry run, the masking floor was **KL 19.56**, larger than any plausible structural effect.
+
+**It was unnecessary, because inertness is detectable at machine precision.** A model that ignores φ does not produce a small divergence; it produces bitwise identical logits. On the dry-run model, whose `W_Δs` was still effectively at its zero init, every control returned **KL ≈ 1e-23 with an argmax flip rate of exactly 0.000000**, against a kernel floor of exactly **0.0**. Inference through the Triton scan is deterministic, so there is no numerical noise to clear.
+
+**Corrected rule:**
+
+> **Reliance passes iff D_S1 exceeds the kernel floor by a wide margin (operationally, D_S1 > 1e-12) and F_S1 is materially non-zero.**
+
+- `floor_kernel` — same φ, same masking, evaluated twice — **is** the null floor.
+- `floor_masking` is still computed and reported, as **context only**: the scale of movement under a large perturbation of the *primary* input. It is not a threshold.
+- `D_S0` — divergence when structure is removed altogether — is reported as the natural upper reference. `D_S1 / D_S0` says how much of the total available structural effect the shuffle disrupts.
+
+Nothing about the **benefit** half of the gate changes: Δ_S1 ≥ 2·σ_real with a 95% CI excluding 0, exactly as pre-registered.
+
+**What this does and does not license.** Passing on the bottom-right cell licenses *proceeding to Phase 5*. It does **not** license any claim that structure improved pretraining — on that question a flat Δ_S1 is a null and gets reported as one. The two must not be conflated in the write-up.
+
+**D_S1 ≈ 0 remains a hard stop.** If shuffling φ does not change the model's predictions, the mechanism is decorative and no downstream result could be attributed to it.
+
+The diagnostics D1–D4 below are corroborating evidence for the same question, measured during training rather than after; D1 < 0.05 and D_S1 ≈ 0 should agree, and disagreement between them is itself informative.
 
 **Predicted ordering, as a falsifiable ladder:**
 
@@ -536,6 +604,8 @@ Taken 2026-08-07 under explicit delegation from the PI ("you take everything"). 
 | 2 | RC handling | **Caduceus-PH** (RC data augmentation), not PS | §4.1.0. Equivariance is orthogonal to the hypothesis; coupling them makes a null result uninterpretable. Note Lee (§I3) cites RC-equivariance as a *fix* for Evo2's failure — so PS becomes interesting later, as a follow-up, not a confound now. | Moderate — PS requires the sign-tying of §4.1.0 and a re-run. |
 | 3 | Hi-C resolution | **5 kb default**, 1 kb/2 kb as an ablation axis | CHROME comparability (§D1). F4 argues for 1 kb (τ_max/bin 0.994 vs 0.199) but 1 kb buys noisier contacts. Both levels are in the same `.mcool`, so switching costs one band re-extraction and no download. | Low — re-run `phase1_acquire.py` with `RESOLUTION` changed. |
 | 4 | Cross-species scope | **Out of scope for this paper** | Evo2HiC uses 177 DNA Zoo species, HiCFoundation 316 (§H3, §B1). Entering that lane against two better-resourced groups splits compute and weakens the single-chromosome pilot's already-narrow claim. Keep as future work. | Low — additive, not structural. |
+| 5 | **P1 gate metric** (2026-08-16) | **Reliance measured as prediction divergence D_S1, separately from benefit Δ_S1** | §4.1.3 Amendment. A loss delta alone cannot separate "inert" from "used but not expressible in MLM", and assigns both the verdict that stops the study before Phase 5 — where the hypothesis lives. Evidence the metric lacks power: a 30× memory-horizon change moved val loss 0.0013 bits (§4.1.4). Recorded before any swap was executed; seed 0 complete, seed 1 mid-run, no control yet fed to any model. **Floor definition corrected the same day** — see the correction under the §4.1.3 amendment: the original bar (exceed the different-masking-seed divergence) is withdrawn as mismatched in magnitude and unnecessary. The bar is the kernel floor, measured at exactly 0.0 by a dry run on an untrained model. | Low — inference-only on existing checkpoints. Does not touch the model, the data, or any completed run. |
+| 6 | **Control set** (2026-08-16) | **S4 `SEQUENCE-MATCHED` added to S1–S3** | §4.1.3. `compartment_pc1` correlates strongly with GC content and gene density, both computable from sequence alone, so without an *aligned* 1D control a positive result reads as "you handed it a GC proxy". S2 does not cover this — it destroys the alignment the objection depends on. S3 and S4 together remove the two benign explanations: genomic distance, and sequence composition. | Low — CPU-only feature build plus an inference swap. No retraining. |
 
 **Consequential update from §I3.** Adopt **DNALongBench** (`related_work.md` §I2) as the Phase 5 evaluation suite rather than assembling tasks ad hoc, and add **Lee's perturbation-sensitivity protocol** as a head-to-head evaluation: does our structurally-conditioned model penalise TAD boundary deletions and CTCF inversions more than matched controls, where Evo2-7B does not? That is a direct quantitative claim against a published negative result, and a stronger contribution than another benchmark table.
 
