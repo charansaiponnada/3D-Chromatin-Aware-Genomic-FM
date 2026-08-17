@@ -1,0 +1,213 @@
+================================================================================
+chr9 TRAIN / VAL / TEST SPLIT — EXACT LOGIC AND DIRECT VERIFICATION
+Written 2026-08-16. Every number below came from a command that was run; the
+commands are included so each one can be re-checked.
+================================================================================
+
+ANSWER, UP FRONT
+--------------------------------------------------------------------------------
+The splits are GENOMICALLY CONTIGUOUS BLOCKS, not interleaved windows assigned
+after the fact.
+
+    train  = 9p through proximal 9q, MINUS a 29.8 Mb centromeric hole
+    val    = one distal-9q block
+    test   = a second, further-distal 9q block
+
+Verified directly against the built index: ZERO val or test windows overlap ANY
+train window in genomic coordinates. The 50% stride applies to TRAIN ONLY.
+
+
+1. THE CONSTANTS — scripts/phase1_dataset.py, lines 43-55 (verbatim)
+--------------------------------------------------------------------------------
+    WINDOW        = 32_768
+    STRIDE_TRAIN  = 16_384          # 50% overlap for training coverage
+    STRIDE_EVAL   = 32_768          # no overlap in val/test
+    MAX_N_FRAC    = 0.10            # drop a window if >10% of its sequence is N
+    MIN_STRUCT_FRAC = 0.50          # drop if <50% of positions have usable phi
+
+    TEST_REGION   = (130_000_000, 138_394_717)  # distal 9q; contains the
+                                                #   validated NOTCH1 loop
+    VAL_REGION    = (120_000_000, 129_000_000)
+    SPLIT_BUFFER  = 1_000_000       # dead zone around held-out regions,
+                                    #   >= one window
+
+
+2. THE ASSIGNMENT FUNCTION — verbatim, not paraphrased
+--------------------------------------------------------------------------------
+    def assign_split(start: int, end: int) -> str | None:
+        """Which split a window belongs to, or None if it lands in a buffer.
+
+        Held-out windows must sit *entirely* inside their region. A window that
+        only straddles the edge is discarded rather than assigned, so every
+        split is an exact genomic interval and no evaluation window carries
+        sequence from the buffer zone.
+        """
+        def contains(region):
+            return start >= region[0] and end <= region[1]
+
+        def overlaps(region, pad=0):
+            return start < region[1] + pad and end > region[0] - pad
+
+        if contains(TEST_REGION):
+            return "test"
+        if contains(VAL_REGION):
+            return "val"
+        if overlaps(TEST_REGION, SPLIT_BUFFER) or overlaps(VAL_REGION, SPLIT_BUFFER):
+            return None                 # buffer: discard to stop overlap leakage
+        return "train"
+
+
+3. THE ENUMERATION LOOP — build_index(), same file
+--------------------------------------------------------------------------------
+Windows are enumerated ONCE across the whole chromosome at STRIDE_TRAIN, then
+filtered. The relevant body:
+
+    for start in range(0, chrom_len, stride):          # stride = STRIDE_TRAIN
+        end = start + WINDOW
+        if end > chrom_len:
+            dropped["short"] += 1; continue
+
+        split = assign_split(start, end)
+        if split is None:
+            dropped["buffer"] += 1; continue
+        if split != "train" and (start % STRIDE_EVAL) != 0:
+            continue                    # eval splits do not overlap
+
+        n_frac = (n_cumsum[end] - n_cumsum[start]) / WINDOW
+        if n_frac > MAX_N_FRAC:
+            dropped["n_frac"] += 1; continue
+
+        b0 = start // RES
+        b1 = min(b0 + bins_per_window + 1, len(usable))
+        if usable[b0:b1].mean() < MIN_STRUCT_FRAC:
+            dropped["struct_frac"] += 1; continue
+
+        kept[split].append(start)
+
+
+4. THE THREE MECHANISMS THAT PREVENT LEAKAGE
+--------------------------------------------------------------------------------
+(a) ASSIGNMENT USES `contains`, NOT `overlaps`.
+    A held-out window must sit entirely inside its region. One that straddles
+    an edge is not assigned to that split at all.
+
+(b) THE BUFFER CLAUSE.
+    Any window coming within SPLIT_BUFFER = 1 Mb of either held-out region is
+    discarded outright — it goes to no split. 126 windows were dropped this way.
+
+(c) THE DECISIVE LINE FOR THE 50%-STRIDE QUESTION:
+
+        if split != "train" and (start % STRIDE_EVAL) != 0:
+            continue
+
+    Val and test retain only windows whose start is a multiple of 32,768. So
+    within the eval splits, windows are strictly non-overlapping. THE 50%
+    OVERLAP EXISTS ONLY IN TRAIN.
+
+
+5. DIRECT VERIFICATION AGAINST THE BUILT INDEX
+--------------------------------------------------------------------------------
+Not inferred from the code — computed from data/processed/dataset_index.npz,
+by exact pairwise interval intersection over all window pairs.
+
+    train  n=5,422  span [    294,912 ..  118,996,992]
+    val    n=  273  span [120,029,184 ..  128,974,848]
+    test   n=  242  span [130,023,424 ..  137,953,280]
+    window 32,768
+
+    PAIRWISE GENOMIC OVERLAP BETWEEN SPLITS
+      val  vs train :   0 of 273 val windows overlap any train window
+      test vs train :   0 of 242 test windows overlap any train window
+      val  vs test  :   0 of 273 val windows overlap any test window
+
+    GAPS BETWEEN BLOCKS
+      train max end   118,996,992
+      val   min start 120,029,184   gap = 1,032,192 bp
+      val   max end   128,974,848
+      test  min start 130,023,424   gap = 1,048,576 bp
+
+    Both gaps exceed SPLIT_BUFFER (1,000,000 bp).
+
+    START-TO-START DELTAS WITHIN EACH SPLIT
+      val  : {32768: 272}          <- all 272 intervals exactly one window apart
+      test : {32768: 241}          <- all 241 intervals exactly one window apart
+      train: {16384: 5417, 32768: 2, 49152: 1, 29802496: 1}
+
+    The val and test deltas confirm empirically that eval windows never overlap
+    each other either.
+
+
+6. A CORRECTION WORTH MAKING EXPLICIT: TRAIN IS NOT ONE CONTIGUOUS BLOCK
+--------------------------------------------------------------------------------
+The train delta histogram above contains a 29,802,496 bp jump. Located:
+
+    train gap:  38,780,928 ->  68,550,656   (29,802,496 bp start-to-start)
+    train gap:  70,713,344 ->  70,729,728   (    49,152 bp)
+    train gap:  81,936,384 ->  81,936,384   (    32,768 bp)
+    train gap: 113,082,368 -> 113,082,368   (    32,768 bp)
+
+The 29.8 Mb hole is the chr9 centromere and its flanking heterochromatin,
+removed by the sequence and structure filters — NOT by the split logic. Window
+accounting from data/processed/dataset_meta.json:
+
+    dropped = {'buffer': 126, 'n_frac': 1054, 'struct_frac': 799, 'short': 2}
+    n_windows = {'train': 5422, 'val': 273, 'test': 242}
+
+So the accurate one-line description is:
+
+    train = 9p + proximal 9q, minus a 29.8 Mb centromeric hole
+    val   = 120.0-129.0 Mb block, non-overlapping windows
+    test  = 130.0-138.4 Mb block, non-overlapping windows
+    each pair separated by >= 1 Mb of discarded sequence
+
+
+7. WHAT THIS DOES NOT ADDRESS
+--------------------------------------------------------------------------------
+The split is clean at the SEQUENCE level. No window of sequence is shared
+between splits, and this is now verified rather than asserted.
+
+It does not address the STRUCTURAL leakage concern, which is separate and still
+open: Hi-C-derived features autocorrelate over megabase scales — compartment
+PC1 especially — so a 1 Mb buffer is roughly one autocorrelation length, not
+several. Held-out phi therefore remains statistically related to training phi in
+a way held-out sequence is not, and that bias runs TOWARD the structural arm.
+
+Two further points for the write-up:
+
+  * CHROME holds out chr9 ENTIRELY. This design evaluates on a subset of the
+    chromosome the comparator excludes. A reviewer familiar with CHROME will
+    notice.
+  * The fix is cross-chromosome evaluation: extract phi for one held-out
+    chromosome and evaluate the existing trained models on it. CPU-only feature
+    extraction plus a sequence download; no GPU retraining.
+
+
+8. HOW TO REPRODUCE EVERY NUMBER ABOVE
+--------------------------------------------------------------------------------
+    cd /home/jupyter-238w1a5447/3d-gen
+    ./3d-gen/bin/python - <<'EOF'
+    import numpy as np, json
+    z = np.load("data/processed/dataset_index.npz", allow_pickle=True)
+    W = int(z["window"])
+    S = {k: np.sort(z[k].astype(np.int64)) for k in ("train","val","test")}
+    for k,v in S.items():
+        print(f"{k:<6} n={len(v):>6,}  span [{v.min():,} .. {v.max()+W:,}]")
+
+    def ivs(a): return np.stack([a, a+W], 1)
+    def any_overlap(A, B):
+        a0,a1 = A[:,0],A[:,1]; b0,b1 = B[:,0],B[:,1]
+        order = np.argsort(b0); b0s = b0[order]
+        hits = []
+        for s,e in zip(a0,a1):
+            cand = order[:np.searchsorted(b0s, e, side="left")]
+            if cand.size and (b1[cand] > s).any(): hits.append(s)
+        return hits
+    for x,y in (("val","train"),("test","train"),("val","test")):
+        print(x, "vs", y, len(any_overlap(ivs(S[x]), ivs(S[y]))), "overlaps")
+
+    for k in S:
+        print(k, dict(zip(*np.unique(np.diff(S[k]), return_counts=True))))
+    print(json.load(open("data/processed/dataset_meta.json"))["dropped"])
+    EOF
+
+================================================================================

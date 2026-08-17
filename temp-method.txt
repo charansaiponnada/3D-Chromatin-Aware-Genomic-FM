@@ -1,0 +1,295 @@
+================================================================================
+THE PROJECT, FROM ZERO
+3D-Chromatin-Aware Genomic Foundation Model
+Written 2026-08-16. Nine layers, each earning the next. No prior knowledge
+assumed.
+
+Every number here came from a file in the repository. Sources are named at the
+end of each section so any of them can be checked.
+================================================================================
+
+
+LAYER 0 — DNA IS A STRING OF FOUR LETTERS
+--------------------------------------------------------------------------------
+A, C, G, T. Human DNA is about 3 billion of them. Chromosome 9, the one this
+project uses, is 138,394,717 letters.
+
+That is the raw material. Nothing else.
+
+    source: data/processed/tokens_chr9.npy
+
+
+LAYER 1 — THE MEANING DEPENDS ON THINGS FAR APART
+--------------------------------------------------------------------------------
+If DNA were a sentence, nearby letters would explain each other. Mostly they do.
+
+But a gene's on/off switch can sit 500,000 letters away along the string. The
+letters in between are irrelevant to that particular relationship.
+
+So a model that only looks at nearby letters misses exactly the part of biology
+that matters most for disease.
+
+
+LAYER 2 — THE STRING IS FOLDED, AND FOLDING DECIDES WHAT IS ACTUALLY NEAR WHAT
+--------------------------------------------------------------------------------
+Two metres of DNA is packed into a nucleus a few thousandths of a millimetre
+across. Not randomly — into a reproducible shape.
+
+The shape does two jobs:
+
+  1. It brings distant pieces into physical contact. That is how a far-off
+     switch reaches its gene.
+  2. It builds walls. Inside a domain, DNA can interact freely; DNA outside
+     cannot reach in. Break a wall and the wrong switch reaches the wrong gene.
+     That is a documented disease mechanism.
+
+An experiment called Hi-C measures which pieces touch which.
+
+This project's Hi-C data:
+    4D Nucleome experiment set 4DNES3JX38V5
+    cell line GM12878, in situ Hi-C, Rao et al. 2014
+    assembly GRCh38
+
+HOW THE DATA IS ACTUALLY OBTAINED — because "the 27.4 GB file is never
+downloaded" is true of the WHOLE file but would mislead if left there. Two small
+extracts ARE downloaded and cached, and everything downstream is built from them.
+
+  1. READ THE REMOTE FILE IN PIECES. The 4DN bucket supports HTTP range
+     requests, so fsspec provides a file handle that fetches only the byte
+     ranges asked for. cooler reads the HDF5 index, works out which blocks hold
+     the wanted region, and pulls just those.
+         scripts/phase1_acquire.py:148
+         fh = fsspec.open(mcool_url, mode="rb", block_size=4<<20).open()
+
+  2. PULL ONLY A NEAR-DIAGONAL BAND. The full chr9 matrix at 5 kb would be
+     27,679 x 27,679 cells. Contacts beyond a couple of megabases are sparse and
+     mostly distance decay, so acquisition tiles along the diagonal and keeps a
+     +/- 2 Mb band, 400 bins wide. 7,108,483 nonzero entries, stored as
+     row/col/val triplets.
+         BAND_BP = 2_000_000        scripts/phase1_acquire.py:61
+
+  3. PLUS ONE COARSE WHOLE-CHROMOSOME MATRIX. Compartments are a megabase-scale
+     phenomenon, so a 250 kb matrix suffices: 554 x 554.
+
+  4. CACHE BOTH LOCALLY. These two files are the ENTIRE Hi-C footprint of the
+     project, and everything since has run off them -- including the S3 control,
+     which needed no network at all.
+         data/interim/hic_band_chr9_5000bp.npz       27.9 MB
+         data/interim/hic_coarse_chr9_250000bp.npz    0.72 MB
+
+  5. COMPUTE PHI. phase1_features.py turns the band into insulation at three
+     scales, directionality, contact density, upstream mass fraction and
+     short/long ratio; the coarse matrix gives compartment PC1. Result: 8 numbers
+     per 5 kb bin over 27,679 bins -> 1.3 MB.
+
+  6. INTERPOLATE AT LOAD TIME. WindowDataset.__getitem__ interpolates phi
+     linearly between bin centres to per-nucleotide resolution, in memory.
+     Materialising it would be 138M x 8 floats ~ 4.4 GB; instead it is computed
+     per window on the fly.
+
+THE SIZE CHAIN:
+
+    27.4 GB   remote .mcool          (never fully downloaded)
+       |      range reads: +/-2 Mb band + 250 kb coarse
+    28.6 MB   cached locally         (this IS on disk)
+       |      feature computation
+     1.3 MB   phi, 8 numbers x 27,679 bins
+       |      interpolation at load time
+              per-nucleotide phi, never stored
+
+    source: data/pilot_manifest.json, docs/data_card.md,
+            scripts/phase1_acquire.py, scripts/phase1_features.py
+
+
+LAYER 3 — WHAT A DNA LANGUAGE MODEL DOES
+--------------------------------------------------------------------------------
+Take the string. Hide 15% of the letters. Make a model predict them from what
+remains. Repeat millions of times.
+
+To get good at this the model must learn real patterns — where genes start, what
+regulatory sequence looks like. Nobody tells it any of that. It falls out of the
+prediction task.
+
+Scoring is in BITS PER LETTER. Guessing at random among four letters scores
+exactly 2.000. This project's model scores 1.5197. Lower is better.
+
+And these models read letters only. They know nothing about the folding.
+
+
+LAYER 4 — WHAT OTHERS HAVE TRIED, AND THE GAP
+--------------------------------------------------------------------------------
+  CHROME       trains on sequence, freezes the model, then bolts a
+               folding-aware graph layer on top. The encoder never saw folding
+               while it was learning.
+
+  Evo2HiC      distils a small model to imitate a large one, with a second
+               objective nudging its embeddings toward Hi-C patches. No
+               fill-in-the-blank objective over nucleotides at all.
+
+  Akita, Orca  go the other direction — predict folding FROM sequence.
+               Single-purpose. Nobody, including their authors, has asked what
+               else their representations can do.
+
+Nobody has put folding INSIDE the learning itself. That is the question:
+
+    If the model sees the folding WHILE IT LEARNS, does it learn better than
+    one that only ever sees the letters?
+
+    source: docs/related_work.md, docs/architecture_spec.md section 1
+
+
+LAYER 5 — HOW THIS MODEL READS, AND THE ONE NUMBER THAT MATTERS
+--------------------------------------------------------------------------------
+The model is a STATE-SPACE MODEL. It sweeps along the DNA carrying a running
+memory. At each letter it updates that memory slightly and makes a prediction.
+It reads both directions, forward and backward, 16 layers deep.
+
+Inside there is a number called DELTA that controls how fast the memory fades.
+
+    large delta  ->  memory fades fast   ->  only nearby letters matter
+    small delta  ->  memory persists     ->  distant letters still influence
+
+The memory length is
+
+    tau = 1 / (delta * |A|)          measured in letters
+
+That single quantity — how far back the model can remember — is the hinge the
+whole project turns on.
+
+    source: src/chromfm/model.py, docs/architecture_spec.md section 4.1.1
+
+
+LAYER 6 — THE MECHANISM, IN ONE SENTENCE
+--------------------------------------------------------------------------------
+    LET THE FOLDING ADJUST DELTA.
+
+At a wall between two domains, the model can raise delta — shorten its memory,
+stop carrying information across a boundary that biology says is a boundary.
+Inside a domain, lower delta and reach further.
+
+Concretely: eight numbers per 5,000-letter chunk describe the local folding
+(insulation at three scales, directionality, contact density, upstream mass
+fraction, short/long ratio, compartment). A small network — 178 parameters —
+turns them into a nudge on delta. A second term acts as a soft reset, letting the
+model partially flush its memory at a boundary.
+
+This is why it is not merely "add eight extra inputs". It changes HOW THE MODEL
+READS, not what it looks at afterwards.
+
+Cost:
+    baseline model     7,725,312 parameters
+    structural model   7,758,354 parameters      +0.43%
+
+And the nudge is initialised to exactly zero, so the two models are NUMERICALLY
+IDENTICAL at step 0. Everything that develops afterwards is learned, not built in.
+
+    source: results/*/run_config.yaml, scripts/test_phase4_wiring.py
+
+
+LAYER 7 — WHY THE SETUP HAS TO BE PARANOID
+--------------------------------------------------------------------------------
+If you built the folding model and it scored better, that would prove nothing.
+It could be luck, or the extra parameters, or the fact that any eight extra
+numbers help. So:
+
+SAME EVERYTHING. Same size, same data, same training recipe. The plain model was
+trained and logged FIRST, before the folding model existed, so there is no way to
+retro-fit a flattering comparison.
+
+THREE RANDOM RESTARTS EACH. One run's luck is not a result. The plain model's
+three runs land at:
+
+    1.5196   1.5172   1.5223       mean 1.5197,  sd 0.0025
+
+That spread is the noise floor. Any claimed effect must beat it. The
+pre-registered bar is 2 x sd = 0.0050 bits.
+
+FOUR DELIBERATELY-WRONG VERSIONS OF THE FOLDING DATA, each built to kill the
+claim in a different way:
+
+    S1  shuffle it randomly across the chromosome
+        -> destroys everything. The basic "does it rely on this at all" probe.
+
+    S2  slide it 10 million letters along
+        -> still smooth and realistic, just pointing at the wrong place.
+           Kills the explanation "the model just likes any smooth extra input".
+
+    S3  rebuild it keeping ONLY "closer things touch more"
+        -> if the model does as well on this, "structure" was just genomic
+           distance in disguise, and the central claim is false.
+
+    S4  replace it with GC content and gene density from the sequence alone
+        -> if the model does as well on this, you handed it a sequence property,
+           not 3D folding.
+
+S3 and S4 are the two that can kill the paper. Both were built 2026-08-16.
+
+    source: docs/architecture_spec.md section 4.1.3,
+            scripts/phase4_build_s3.py, scripts/phase4_build_s4.py
+
+
+LAYER 8 — WHAT HAS ACTUALLY HAPPENED
+--------------------------------------------------------------------------------
+A BUG, FOUND AND FIXED. The standard Mamba initialisation caps the memory at
+EXACTLY 1,000 letters — before training even starts. The reason is arithmetic,
+not accident: tau_max at initialisation equals exactly 1/dt_min, and the
+reference dt_min is 0.001. Almost nothing in genomics fits inside 1,000 letters.
+
+    measured before the fix:   tau_max 999.5,  median tau 14.2 after training
+    after the fix:             median tau 434.7,  and 4.8% of the model's
+                               internal state effectively stops decaying
+    cost:                      three constants. ZERO extra parameters.
+
+AND THE SCORE DID NOT IMPROVE.
+
+    before   1.5210  (3 runs, sd 0.0040)
+    after    1.5197  (3 runs, sd 0.0025)
+
+A 30x longer memory moved the score by less than the noise between runs. That is
+the first real finding, and it is a negative one: more memory bought nothing on
+fill-in-the-blank.
+
+THE FOLDING MODEL, SO FAR.
+
+    run 1  FINISHED   1.5266     slightly WORSE than the plain model's 1.5197
+    run 2  step 1600  1.5261     inside the normal spread, tracking the best
+                                 baseline seed
+    run 3  not started
+
+TWO THINGS MEASURED BEFORE ANY MODEL WAS TESTED.
+
+    Of the eight folding features, only ONE — compartment — is explainable by
+    GC content (r = 0.7384, so 55% of its variance). The other seven are not
+    (worst |r| = 0.18). So insulation and directionality carry genuine
+    conformational information that sequence alone does not have.
+
+    The distance-matched control preserves the distance-decay curve to
+    1.86e-09 while destroying which locus touches which (worst feature
+    correlation with the real thing, |r| = 0.18).
+
+    source: results/baselines/phase3_report_baseline_v2.txt,
+            data/processed/s3_validation_report.json,
+            data/processed/s4_validation_report.json
+
+
+LAYER 9 — WHAT IS ACTUALLY BEING CLAIMED
+--------------------------------------------------------------------------------
+NOT "use Hi-C to train a sequence model". Akita and Orca already did that.
+
+The unclaimed territory is showing that A FOLDING-SHAPED SEQUENCE REPRESENTATION
+TRANSFERS — to variant pathogenicity, enhancer-gene links, TAD boundary
+sensitivity. That is Phase 5, and it is where the contribution lives.
+
+The fill-in-the-blank score was never the claim. It is the training signal.
+
+WHERE THAT LEAVES THINGS.
+
+The evidence so far leans toward "no effect on pretraining". But the project is
+built so that a clean negative — with S3 and S4 ruling out the easy
+explanations — is a real, reportable result.
+
+And the 1,000-letter memory cap stands entirely on its own. It is useful to
+anyone building these models, it cost nothing to fix, and it is true regardless
+of how the folding question resolves.
+
+================================================================================
