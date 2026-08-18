@@ -1,7 +1,7 @@
 run_name: structural_seed0
 phase: 4 -- structural arm
-written_at_utc: '2026-08-16T09:14:13.080217+00:00'
-status: COMPLETED
+written_at_utc: '2026-08-17T18:42:53.410679+00:00'
+status: STARTED -- no metrics yet
 hypothesis_arm: structural (structural=True, phi_control=none)
 phi_control: none
 phi_control_meaning: S0 -- real structure, phi as measured
@@ -60,7 +60,7 @@ scan_backend:
   bitwise_reproducible: false
   bitwise_note: dBmat, dCmat and dp accumulate through tl.atomic_add across d_inner
     programs; measured relative spread ~1e-6 (fp32 rounding)
-grad_checkpointing: false
+grad_checkpointing: true
 precision:
   dtype: float32
   autocast: false
@@ -80,14 +80,59 @@ data:
   structural_features_supplied: true
   phi_control: none
   phi_control_seed: null
-  n_train_windows: 5422
-  n_val_windows: 273
+  n_train_windows: 2713
+  n_val_windows: 137
 git:
-  commit: 97e04ea58d51ef7cebe29fc64e83ade1ad660742
+  commit: 8cd8013ca4ef8a22350ba4da5d3ebd7c2fa18a90
   branch: main
   dirty: true
   dirty_files:
+  - project-docs/project.pdf
+  - project-docs/project.tex
+  - results/baselines/baseline_v2_seed0/metrics.json
+  - results/baselines/baseline_v2_seed0/run_config.yaml
+  - results/baselines/baseline_v2_seed1/metrics.json
+  - results/baselines/baseline_v2_seed1/run_config.yaml
+  - results/baselines/baseline_v2_seed2/metrics.json
+  - results/baselines/baseline_v2_seed2/run_config.yaml
+  - results/novel_model/p5_pos_cache/baseline_v2_seed0_tr_12_4096.npy
+  - results/novel_model/p5_pos_cache/baseline_v2_seed0_va_274_4096.npy
+  - results/novel_model/p5_pos_cache/baseline_v2_seed1_tr_12_4096.npy
+  - results/novel_model/p5_pos_cache/structural_seed0_tr_12_4096.npy
+  - results/novel_model/p5_pos_cache/structural_seed0_va_274_4096.npy
+  - results/novel_model/p5_pos_cache/structural_seed1_tr_12_4096.npy
+  - results/novel_model/p5_pos_cache/structural_seed1_va_274_4096.npy
+  - results/novel_model/p5_pos_cache/structural_seed2_tr_12_4096.npy
+  - results/novel_model/p5_pos_cache/structural_seed2_va_274_4096.npy
   - results/novel_model/structural_seed0/metrics.json
+  - results/novel_model/structural_seed0/run_config.yaml
+  - results/novel_model/structural_seed1/metrics.json
+  - results/novel_model/structural_seed1/run_config.yaml
+  - results/novel_model/structural_seed2/metrics.json
+  - results/novel_model/structural_seed2/run_config.yaml
+  - scripts/phase1_acquire.py
+  - scripts/phase1_dataset.py
+  - scripts/run_phase4.sh
+  - scripts/train.py
+  - docs/NEXT_SESSION.md
+  - results/baselines/w32768/
+  - results/novel_model/p5_pos_cache/baseline_v2_seed0_tr_500_512.npy
+  - results/novel_model/p5_pos_cache/baseline_v2_seed0_va_274_512.npy
+  - results/novel_model/p5_pos_cache/baseline_v2_seed1_tr_500_512.npy
+  - results/novel_model/p5_pos_cache/baseline_v2_seed1_va_274_512.npy
+  - results/novel_model/p5_pos_cache/baseline_v2_seed2_tr_500_512.npy
+  - results/novel_model/p5_pos_cache/baseline_v2_seed2_va_274_512.npy
+  - results/novel_model/p5_pos_cache/structural_seed0_tr_500_512.npy
+  - results/novel_model/p5_pos_cache/structural_seed0_va_274_512.npy
+  - results/novel_model/p5_pos_cache/structural_seed1_tr_500_512.npy
+  - results/novel_model/p5_pos_cache/structural_seed1_va_274_512.npy
+  - results/novel_model/p5_pos_cache/structural_seed2_tr_500_512.npy
+  - results/novel_model/p5_pos_cache/structural_seed2_va_274_512.npy
+  - results/novel_model/p5_positional_probe.json
+  - results/novel_model/p5_window_scan.json
+  - results/novel_model/w32768/
+  - scripts/phase5_memcheck.py
+  - scripts/phase5_window_scan.py
 environment:
   python: 3.10.10
   platform: Linux-6.8.0-107-generic-x86_64-with-glibc2.39
@@ -114,131 +159,129 @@ tau_at_init_bias_only:
     tau_p99: 289950.5
     tau_max: 989510.375
   layer0.rev:
-    tau_median: 438.41845703125
-    tau_p99: 344980.5625
-    tau_max: 975772.4375
+    tau_median: 471.0395812988281
+    tau_p99: 301600.40625
+    tau_max: 984160.1875
   layer1.fwd:
-    tau_median: 666.2220458984375
-    tau_p99: 324593.3125
-    tau_max: 999323.8125
+    tau_median: 443.7979431152344
+    tau_p99: 204900.609375
+    tau_max: 839555.1875
   layer1.rev:
-    tau_median: 323.9930725097656
-    tau_p99: 305541.65625
-    tau_max: 998818.8125
+    tau_median: 618.0889892578125
+    tau_p99: 294532.59375
+    tau_max: 988043.0625
   layer2.fwd:
-    tau_median: 517.6104125976562
-    tau_p99: 317171.46875
-    tau_max: 984962.875
+    tau_median: 536.7660522460938
+    tau_p99: 356031.03125
+    tau_max: 956351.9375
   layer2.rev:
-    tau_median: 756.4002075195312
-    tau_p99: 319722.4375
-    tau_max: 992124.0
+    tau_median: 291.44451904296875
+    tau_p99: 263021.53125
+    tau_max: 932227.5625
   layer3.fwd:
-    tau_median: 450.7913513183594
-    tau_p99: 304614.71875
-    tau_max: 985784.3125
+    tau_median: 550.9296875
+    tau_p99: 295093.65625
+    tau_max: 902343.0
   layer3.rev:
-    tau_median: 562.6331176757812
-    tau_p99: 314404.8125
-    tau_max: 976681.125
+    tau_median: 434.90203857421875
+    tau_p99: 299253.8125
+    tau_max: 981101.375
   layer4.fwd:
-    tau_median: 405.4350280761719
-    tau_p99: 292473.21875
-    tau_max: 988982.875
+    tau_median: 307.31610107421875
+    tau_p99: 252943.453125
+    tau_max: 995859.8125
   layer4.rev:
-    tau_median: 478.6463317871094
-    tau_p99: 286929.28125
-    tau_max: 982965.125
+    tau_median: 555.0492553710938
+    tau_p99: 302139.21875
+    tau_max: 986819.875
   layer5.fwd:
-    tau_median: 411.8970947265625
-    tau_p99: 294622.21875
-    tau_max: 987306.5625
+    tau_median: 472.5005187988281
+    tau_p99: 314972.96875
+    tau_max: 976539.5625
   layer5.rev:
-    tau_median: 368.0457458496094
-    tau_p99: 291312.84375
-    tau_max: 963322.375
+    tau_median: 409.5302734375
+    tau_p99: 293295.03125
+    tau_max: 963061.5625
   layer6.fwd:
-    tau_median: 364.1234436035156
-    tau_p99: 303989.90625
-    tau_max: 997469.0625
+    tau_median: 548.7715454101562
+    tau_p99: 324193.1875
+    tau_max: 919855.875
   layer6.rev:
-    tau_median: 591.330078125
-    tau_p99: 287015.25
-    tau_max: 999299.0625
+    tau_median: 279.5238037109375
+    tau_p99: 239790.578125
+    tau_max: 938820.8125
   layer7.fwd:
-    tau_median: 222.68861389160156
-    tau_p99: 299217.75
-    tau_max: 964857.875
+    tau_median: 425.2671813964844
+    tau_p99: 283397.40625
+    tau_max: 996639.8125
   layer7.rev:
-    tau_median: 506.40966796875
-    tau_p99: 302901.09375
-    tau_max: 998393.125
+    tau_median: 466.8737487792969
+    tau_p99: 248145.828125
+    tau_max: 977249.4375
   layer8.fwd:
-    tau_median: 532.8843994140625
-    tau_p99: 248708.5
-    tau_max: 977698.8125
+    tau_median: 576.0017700195312
+    tau_p99: 324940.625
+    tau_max: 996241.6875
   layer8.rev:
-    tau_median: 288.44146728515625
-    tau_p99: 250533.734375
-    tau_max: 947490.75
+    tau_median: 396.7676086425781
+    tau_p99: 281792.125
+    tau_max: 988591.625
   layer9.fwd:
-    tau_median: 493.5458679199219
-    tau_p99: 332344.40625
-    tau_max: 996446.0
+    tau_median: 350.3330383300781
+    tau_p99: 298911.375
+    tau_max: 980166.25
   layer9.rev:
-    tau_median: 401.9916687011719
-    tau_p99: 302240.84375
-    tau_max: 987018.4375
+    tau_median: 499.3876953125
+    tau_p99: 312937.59375
+    tau_max: 983657.1875
   layer10.fwd:
-    tau_median: 715.3057250976562
-    tau_p99: 312714.78125
-    tau_max: 970100.4375
+    tau_median: 557.8844604492188
+    tau_p99: 332925.53125
+    tau_max: 996023.1875
   layer10.rev:
-    tau_median: 284.457275390625
-    tau_p99: 306511.15625
-    tau_max: 959997.875
+    tau_median: 633.3662109375
+    tau_p99: 263837.53125
+    tau_max: 961596.875
   layer11.fwd:
-    tau_median: 587.7185668945312
-    tau_p99: 299273.8125
-    tau_max: 991621.6875
+    tau_median: 434.2989807128906
+    tau_p99: 311295.625
+    tau_max: 998776.875
   layer11.rev:
-    tau_median: 498.7255859375
-    tau_p99: 292962.28125
-    tau_max: 977544.0625
+    tau_median: 421.00628662109375
+    tau_p99: 275605.0
+    tau_max: 998495.0
   layer12.fwd:
-    tau_median: 479.4281005859375
-    tau_p99: 288758.59375
-    tau_max: 999685.0625
+    tau_median: 517.97216796875
+    tau_p99: 282535.375
+    tau_max: 986703.125
   layer12.rev:
-    tau_median: 388.7603454589844
-    tau_p99: 292122.375
-    tau_max: 995830.375
+    tau_median: 406.16064453125
+    tau_p99: 294084.8125
+    tau_max: 982042.3125
   layer13.fwd:
-    tau_median: 485.3758544921875
-    tau_p99: 298712.78125
-    tau_max: 967262.4375
+    tau_median: 344.070068359375
+    tau_p99: 323835.84375
+    tau_max: 991789.0625
   layer13.rev:
-    tau_median: 407.0587463378906
-    tau_p99: 348446.5625
-    tau_max: 973051.5625
+    tau_median: 446.12542724609375
+    tau_p99: 336883.71875
+    tau_max: 998248.3125
   layer14.fwd:
-    tau_median: 594.7177734375
-    tau_p99: 288447.5625
-    tau_max: 965995.8125
+    tau_median: 456.9133605957031
+    tau_p99: 298685.90625
+    tau_max: 988946.125
   layer14.rev:
-    tau_median: 569.2824096679688
-    tau_p99: 294027.625
-    tau_max: 996307.1875
+    tau_median: 603.7501831054688
+    tau_p99: 310077.25
+    tau_max: 941962.4375
   layer15.fwd:
-    tau_median: 600.806884765625
-    tau_p99: 307354.15625
-    tau_max: 960949.625
+    tau_median: 411.15814208984375
+    tau_p99: 269328.34375
+    tau_max: 920212.9375
   layer15.rev:
-    tau_median: 427.7113037109375
-    tau_p99: 296515.96875
-    tau_max: 998416.9375
+    tau_median: 367.8359680175781
+    tau_p99: 289045.5
+    tau_max: 993320.5625
 tau_measurement_note: tau_stats() uses dt_proj.bias only, which is a proxy that is
   good at init and unreliable after training; empirical tau from Delta on real batches
   is logged in metrics.json and is the number the F4 gate should be read from
-completed_at_utc: '2026-08-16T10:12:12.125944+00:00'
-wall_clock_s: 3478.8336565494537

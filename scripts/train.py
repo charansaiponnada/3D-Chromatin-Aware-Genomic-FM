@@ -61,11 +61,16 @@ import platform
 import subprocess
 import sys
 import time
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import torch
+# torch.utils.checkpoint is NOT auto-imported by `import torch` in this
+# build; CheckpointedLM.forward calls it directly and raised AttributeError
+# the first time --grad-checkpoint was ever exercised (2026-08-17).
+import torch.utils.checkpoint  # noqa: F401
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn.functional as F
@@ -611,6 +616,42 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
         structural=args.structural,
     )
     model = BiMambaLM(cfg).to(device)
+
+    # PAIRED INITS (2026-08-17). torch.manual_seed above is not enough to
+    # make the two arms share an init: the structural model instantiates
+    # struct_encoder, W_dstruct and w_gate, drawing RNG the baseline never
+    # draws, so every SHARED parameter constructed afterwards diverges. The
+    # comparison was therefore unpaired -- reviewer weakness #3 -- which throws
+    # away real statistical power for nothing.
+    #
+    # The fix is to build a BASELINE-config reference model from the same seed
+    # and copy its parameters into whichever arm is actually training. The
+    # reference is built identically in both processes -- same config, same
+    # seed, same draw order -- so every shared tensor is bitwise equal across
+    # arms by construction. Deriving a distribution per parameter instead does
+    # NOT work: any statistic read off the already-constructed tensor is itself
+    # arm-dependent, which was measured (90/275 tensors matched) before this
+    # was replaced.
+    #
+    # Structural-only parameters keep their own init. W_dstruct is zero-init by
+    # design and is untouched, so the arms remain numerically identical at
+    # step 0 (the Phase 4 wiring gate depends on this).
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    _ref = BiMambaLM(ModelConfig(
+        d_model=args.d_model, n_layer=args.n_layer, d_state=args.d_state,
+        d_conv=args.d_conv, expand=args.expand, vocab_size=args.vocab_size,
+        structural=False,
+    ))
+    _ref_sd = _ref.state_dict()
+    with torch.no_grad():
+        _shared = 0
+        for name, prm in model.named_parameters():
+            if name in _ref_sd and _ref_sd[name].shape == prm.shape:
+                prm.copy_(_ref_sd[name].to(prm.device, prm.dtype))
+                _shared += 1
+    del _ref, _ref_sd
+
     n_params = model.n_params()
     tau_init = model.tau_stats()
 
@@ -861,6 +902,15 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
         if is_main and (step % args.ckpt_every == 0 or step == args.steps):
             save_ckpt(ckpt_path, ddp_model, opt, sched, step, args, metrics,
                       train_gen.get_state())
+            # RETENTION (2026-08-17). checkpoint.pt is overwritten every save,
+            # so D1/D3 could only ever be read at the endpoint -- which is why
+            # "the pathway is live only in layers 12-15" could not be separated
+            # from "late layers simply converge first". Keeping a stamped copy
+            # every args.keep_every steps gives those diagnostics a trajectory.
+            if args.keep_every and step % args.keep_every == 0:
+                save_ckpt(run_dir / f"checkpoint_step{step:06d}.pt", ddp_model,
+                          opt, sched, step, args, metrics,
+                          train_gen.get_state())
 
     if is_main:
         cfg_path = run_dir / "run_config.yaml"
@@ -910,6 +960,9 @@ def parse() -> argparse.Namespace:
     p.add_argument("--eval-every", type=int, default=500)
     p.add_argument("--tau-every", type=int, default=500)
     p.add_argument("--ckpt-every", type=int, default=500)
+    p.add_argument("--keep-every", type=int, default=1000,
+                   help="also keep a step-stamped checkpoint every N "
+                        "steps (0 disables); gives D1/D3 a trajectory")
     p.add_argument("--log-every", type=int, default=25)
     p.add_argument("--eval-seed", type=int, default=1234)
     p.add_argument("--num-workers", type=int, default=0)

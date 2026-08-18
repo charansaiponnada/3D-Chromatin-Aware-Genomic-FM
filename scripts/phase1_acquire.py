@@ -56,7 +56,10 @@ FILES = {
 # Files small enough to mirror locally. The mcool is deliberately excluded.
 DOWNLOAD = ["4DNFIVK5JOFU", "4DNFIBMOGOZC", "4DNFILYQ1PAY"]
 
-CHROM = "chr9"          # CHROME holds chr9 out as test; matching keeps us comparable
+# Rebound by --chrom in main(). chr9 stays the default and, in the
+# multi-chromosome build, stays the TEST split: CHROME holds chr9 out as test
+# and matching that keeps the two comparable.
+CHROM = "chr9"
 RESOLUTION = 5_000      # matches CHROME's 5 kb bulk Hi-C
 BAND_BP = 2_000_000     # +/- 2 Mb around the diagonal
 TILE_BP = 10_000_000    # tile size for the banded fetch
@@ -64,10 +67,16 @@ COARSE_RESOLUTION = 250_000   # for compartment calling
 
 # Ensembl uses '9', GENCODE and 4DN use 'chr9'. We normalise Ensembl -> chr9
 # on write; this is recorded in the manifest and must appear in the data card.
-FASTA_URL = (
-    "https://ftp.ensembl.org/pub/release-113/fasta/homo_sapiens/dna/"
-    "Homo_sapiens.GRCh38.dna.chromosome.9.fa.gz"
-)
+def fasta_url(chrom: str) -> str:
+    """Ensembl per-chromosome FASTA. Ensembl names it '9', 4DN/GENCODE 'chr9';
+    the header is normalised to the 'chr' form on write (see fetch_fasta), and
+    coordinates are unchanged because both are GRCh38."""
+    return ("https://ftp.ensembl.org/pub/release-113/fasta/homo_sapiens/dna/"
+            f"Homo_sapiens.GRCh38.dna.chromosome.{chrom.removeprefix('chr')}"
+            ".fa.gz")
+
+
+FASTA_URL = fasta_url(CHROM)
 GTF_URL = (
     "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/"
     "release_47/gencode.v47.annotation.gtf.gz"

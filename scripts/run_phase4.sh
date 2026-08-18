@@ -90,7 +90,7 @@ for S in $SEEDS; do
         # idle culler fires every 15-20 minutes and a 200-step interval loses
         # more work than it saves.
         "$PY" -u scripts/train.py --seed "$S" --resume --run-name "$PREFIX$S" \
-            --out-dir "$OUT" --structural $CONTROL_ARGS \
+            --out-dir "$OUT" --structural --grad-checkpoint $CONTROL_ARGS \
             --steps 2000 --batch-size 2 --grad-accum 2 \
             --warmup-steps 150 --eval-every 200 --tau-every 200 --ckpt-every 120 \
             --log-every 50 2>&1 | grep --line-buffered -v "Can't initialize NVML"

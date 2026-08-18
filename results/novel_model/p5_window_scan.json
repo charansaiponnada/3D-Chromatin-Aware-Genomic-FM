@@ -1,0 +1,116 @@
+{
+  "widths": {
+    "8192": {
+      "keep": 0.009208697288485126,
+      "n_windows": 300,
+      "bins_spanned": 1.6384,
+      "per_feature_keep": {
+        "insulation_100kb": 0.0031537231919827914,
+        "insulation_250kb": 0.0009434417763571237,
+        "insulation_500kb": 0.0003763434522193725,
+        "directionality_2Mb": 0.015864953409730223,
+        "log_contact_density": 0.029582146196148094,
+        "upstream_mass_frac": 0.010260476095982917,
+        "short_long_ratio": 0.013305249078682555,
+        "compartment_pc1": 0.00018324510677793587
+      }
+    },
+    "16384": {
+      "keep": 0.031810344448482034,
+      "n_windows": 300,
+      "bins_spanned": 3.2768,
+      "per_feature_keep": {
+        "insulation_100kb": 0.011688076321283263,
+        "insulation_250kb": 0.0042497815417575505,
+        "insulation_500kb": 0.0015535413435541147,
+        "directionality_2Mb": 0.05961601415666156,
+        "log_contact_density": 0.12423736663757519,
+        "upstream_mass_frac": 0.02791924367575154,
+        "short_long_ratio": 0.024787001224880315,
+        "compartment_pc1": 0.0004317306863927105
+      }
+    },
+    "32768": {
+      "keep": 0.04902288827441226,
+      "n_windows": 300,
+      "bins_spanned": 6.5536,
+      "per_feature_keep": {
+        "insulation_100kb": 0.04130358513458271,
+        "insulation_250kb": 0.01463063836709593,
+        "insulation_500kb": 0.005999638406266153,
+        "directionality_2Mb": 0.09218651368863505,
+        "log_contact_density": 0.11524064797296656,
+        "upstream_mass_frac": 0.07014909499961233,
+        "short_long_ratio": 0.05061351669216506,
+        "compartment_pc1": 0.002059470933974272
+      }
+    },
+    "65536": {
+      "keep": 0.10987855250629788,
+      "n_windows": 300,
+      "bins_spanned": 13.1072,
+      "per_feature_keep": {
+        "insulation_100kb": 0.14959598477790817,
+        "insulation_250kb": 0.05609141186282372,
+        "insulation_500kb": 0.02239721347554982,
+        "directionality_2Mb": 0.25191566811528293,
+        "log_contact_density": 0.14566012935600728,
+        "upstream_mass_frac": 0.1395231301067991,
+        "short_long_ratio": 0.10311490007510707,
+        "compartment_pc1": 0.010729982280904977
+      }
+    },
+    "131072": {
+      "keep": 0.21169458739353247,
+      "n_windows": 300,
+      "bins_spanned": 26.2144,
+      "per_feature_keep": {
+        "insulation_100kb": 0.36456266648740704,
+        "insulation_250kb": 0.17637469058793218,
+        "insulation_500kb": 0.08131618151195028,
+        "directionality_2Mb": 0.38590217841841284,
+        "log_contact_density": 0.21638520358628896,
+        "upstream_mass_frac": 0.26568235876916485,
+        "short_long_ratio": 0.19450304522920994,
+        "compartment_pc1": 0.00883037455789385
+      }
+    },
+    "262144": {
+      "keep": 0.3499219229997751,
+      "n_windows": 300,
+      "bins_spanned": 52.4288,
+      "per_feature_keep": {
+        "insulation_100kb": 0.5619928241701261,
+        "insulation_250kb": 0.39059252505609127,
+        "insulation_500kb": 0.20104271275189894,
+        "directionality_2Mb": 0.5162735335841228,
+        "log_contact_density": 0.2837818694959425,
+        "upstream_mass_frac": 0.45025312767228914,
+        "short_long_ratio": 0.369775581095012,
+        "compartment_pc1": 0.025663210172718144
+      }
+    },
+    "524288": {
+      "keep": 0.4931973226482546,
+      "n_windows": 300,
+      "bins_spanned": 104.8576,
+      "per_feature_keep": {
+        "insulation_100kb": 0.6344809645129021,
+        "insulation_250kb": 0.6545932005736353,
+        "insulation_500kb": 0.4897194591971105,
+        "directionality_2Mb": 0.6412896734463283,
+        "log_contact_density": 0.34417632670078335,
+        "upstream_mass_frac": 0.602543075837937,
+        "short_long_ratio": 0.5196993916415604,
+        "compartment_pc1": 0.05907648927577954
+      }
+    }
+  },
+  "config": {
+    "n_windows": 300,
+    "seed": 20260817,
+    "res": 5000,
+    "chrom": "chr9",
+    "min_struct_frac": 0.5
+  }
+}

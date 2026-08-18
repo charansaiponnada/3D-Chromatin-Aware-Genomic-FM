@@ -510,6 +510,317 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-18 --- SCOPE CORRECTION: widening the window is a partial
+mitigation, not a fix; three defects fixed before launch; staged pretraining
+proposed}
+
+No training ran. This entry records a correction to how the 2026-08-17 result
+is being described, three code defects found while preparing the launch, and
+two proposals that are \textbf{not} yet decisions.
+
+\begin{itemize}
+
+\item \textbf{SCOPE CORRECTION: $\mathrm{keep}(\varphi)$ is an upper bound, and
+widening the window does not remove the constraint it identifies.} The
+2026-08-17 entry established $\mathrm{keep}(\varphi) = 0.0573$ at 32{,}768\,bp
+as a sufficient account of the Phase 4 null. That stands. What must not be
+written on top of it is ``the window was too small and widening fixes it.''
+From \code{p5\_window\_scan.json}:
+
+\begin{center}
+\begin{tabular}{rrrr}
+\toprule
+window (bp) & bins & $\mathrm{keep}(\varphi)$ & between-window \\
+\midrule
+8{,}192   &   1.6 & 0.0092 & 99.1\% \\
+16{,}384  &   3.3 & 0.0318 & 96.8\% \\
+32{,}768  &   6.6 & 0.0490 & 95.1\% \\
+65{,}536  &  13.1 & 0.1099 & 89.0\% \\
+131{,}072 &  26.2 & 0.2117 & 78.8\% \\
+262{,}144 &  52.4 & 0.3499 & 65.0\% \\
+524{,}288 & 104.9 & 0.4932 & 50.7\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+At the adopted 65{,}536\,bp window, \textbf{89.0\% of $\varphi$'s variance is
+still between windows}. At 131{,}072 it is 78.8\%. Even at 524{,}288\,bp ---
+16$\times$ the original window, far beyond what fits in memory --- half the
+variance is still between-window. Widening moves the mechanism from
+``almost nothing to act on'' to ``a little to act on.'' Any claim that the
+window was the fault, stated without this table beside it, overstates what was
+measured.
+
+\item \textbf{Consequence, and a PROPOSAL not a decision: per-window
+conditioning.} If ${\sim}90\%$ of the structural variance is between windows at
+every width that fits in memory, then a \emph{per-position} $\Delta$ bias
+addresses the smaller share \emph{by construction}, and does so at every window
+width reachable on this hardware. The complementary arm --- one structural
+embedding of the window's $\varphi$, injected once per window rather than per
+position --- has access to the between-window share the current mechanism
+cannot reach. This is an addition to the arm set and therefore a
+\S4.1.3 change: \textbf{PI decision, not adopted here.} It is recorded now
+because it follows directly from a measurement already in the record, and
+because it is cheap relative to the runs currently scheduled.
+
+\item \textbf{Window widened, index rebuilt.} \code{WINDOW} 32{,}768 $\to$
+65{,}536, \code{STRIDE\_TRAIN} 32{,}768 (50\% overlap), \code{STRIDE\_EVAL}
+65{,}536. Rebuilt index: \textbf{2{,}713 train / 137 val / 122 test}, 13.1
+bins of $\varphi$ per window. The 32{,}768 index is preserved as
+\code{data/processed/dataset\_index\_w32768.npz} and the 32{,}768 checkpoints
+and console logs under \code{results/\{novel\_model,baselines\}/w32768/}. The
+32\,kb and 65\,kb runs are \textbf{different datasets and must not be pooled},
+for the same reason v1 and v2 baselines must not be.
+
+\item \textbf{DEFECT: \code{--grad-checkpoint} had never worked.}
+\code{train.py} called \code{torch.utils.checkpoint.checkpoint()} without
+importing that submodule --- \code{import torch} does not bind it --- so the
+flag raised \code{AttributeError} on first use. It defaults to off, so no run
+had ever exercised it and the fault was invisible for the whole project. Fixed
+by an explicit \code{import torch.utils.checkpoint} (\code{train.py}:73).
+\code{run\_phase4.sh}:93 now passes \code{--grad-checkpoint}; the 65\,kb window
+is the first configuration that needs it.
+
+\item \textbf{DEFECT FIXED: the arms now share an initialisation} (known
+weakness 3). The structural model instantiates extra modules, consuming RNG, so
+\code{structural\_seedN} and \code{baseline\_v2\_seedN} did not share an init
+despite sharing a seed label. \code{train.py} now constructs a reference
+\code{BiMambaLM(ModelConfig(structural=False))} under the same seed and copies
+its parameters into every shape-matching tensor of the structural model.
+Verified \textbf{275/275 tensors bitwise identical}, with $W_{\Delta s}$ still
+exactly zero. An earlier attempt --- reseeding per parameter from a name hash
+--- was \textbf{caught before launch and discarded}: it derived each std from
+the already-constructed tensor, which is itself arm-dependent, and used
+\code{hash()}, which Python salts per process, so two arms in separate
+processes would have diverged regardless. It verified at 90/275.
+
+\item \textbf{Checkpoint retention.} New \code{--keep-every} (default 1{,}000):
+retained checkpoints at fixed step intervals, so any later diagnostic gets a
+trajectory rather than a single endpoint.
+
+\item \textbf{OPERATIONAL: \code{phase4\_guard.sh} reports false completion
+across configurations.} Line 33 greps
+\code{results/novel\_model/train\_console.log} for \verb|^ALL SEEDS DONE|. The
+32\,kb log satisfied that string, so the guard exited immediately on every
+65\,kb launch while appearing to have run. Archiving the logs to
+\code{w32768/} cleared it. The guard has no notion of which configuration a
+log belongs to; this will recur at the next width change.
+
+\item \textbf{Launch is blocked by GPU contention, not by this repository.}
+Every 65\,kb launch attempt failed with
+\code{NVML\_SUCCESS == DriverAPI::get()->nvmlInit\_v2\_() INTERNAL ASSERT
+FAILED at CUDACachingAllocator.cpp:983}, under concurrent load from an
+unrelated project on both devices. Consistent with \S3: NVML is broken on this
+box, and the allocator's NVML path is reached under memory pressure. Falling
+back to single-GPU is the untried mitigation.
+
+\item \textbf{PROPOSAL, not a decision: staged pretraining (warm start).} The
+32\,kb checkpoints are 2{,}000 steps of trained DNA representation, and a
+Mamba SSM has no positional embeddings, so those weights load into a 65{,}536
+window unchanged. Continuing from them rather than restarting would address
+known weakness 1 (not converged --- val loss still descending at step 2{,}000)
+and the window question with one budget instead of two. The cost is that the
+32\,kb checkpoints were trained \emph{before} the paired-init fix above, so
+warm-starting carries weakness 3 forward unrepaired. Fresh training at
+65{,}536 is the only route that gets both. This is a PI decision and is
+recorded unresolved.
+
+\item \textbf{Outstanding measurement.} Forward+backward memory and step time
+at 32{,}768 / 65{,}536 / 131{,}072 were measured on 2026-08-17 with
+\code{scripts/phase5\_memcheck.py}, but the console output was not persisted
+and no numbers from it are quoted here or anywhere else in this document. Any schedule must not be built on them until that run is repeated with its
+output written to disk.
+
+\end{itemize}
+\subsection*{2026-08-17 --- RETRACTION: the D1 depth profile is a denominator
+artifact, and the binding constraint is measured to be the window, not the
+mechanism}
+
+Three analyses were run on the finished Phase 4 checkpoints. Inference only; no
+training, no checkpoint written. One of them retracts a conclusion recorded in
+the 2026-08-16 (third entry) above, so that is stated first and in full.
+
+\begin{itemize}
+
+\item \textbf{RETRACTED: ``the pathway is inert through the encoder and live
+only next to the output head.''} D1 is a ratio,
+$\mathrm{Var}_t(W_{\Delta s}s)\,/\,\mathrm{Var}_t(\mathrm{dt\_proj}\,\delta')$.
+Decomposing the stored per-direction numerator and denominator in
+\code{d1\_diagnostic.json} by depth band gives medians:
+
+\begin{center}
+\begin{tabular}{llrrr}
+\toprule
+seed & band & $\mathrm{Var}_t(W_{\Delta s}s)$ & $\mathrm{Var}_t(\mathrm{dt})$ & D1 \\
+\midrule
+0 & L00--L11 & 1.1060e-06 & 2.2285e-02 & 0.0001 \\
+0 & L12--L15 & 2.7630e-07 & 1.4347e-06 & 0.1671 \\
+1 & L00--L11 & 3.8980e-07 & 2.5165e-02 & 0.0000 \\
+1 & L12--L15 & 1.8843e-07 & 3.4627e-03 & 0.0002 \\
+2 & L00--L11 & 1.6919e-07 & 2.5406e-02 & 0.0000 \\
+2 & L12--L15 & 6.6493e-08 & 2.3558e-06 & 0.0280 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Late/early ratios: the structural numerator \textbf{falls} ($\times0.25$,
+$\times0.48$, $\times0.39$) while the sequence-driven denominator
+\textbf{collapses} ($\times6$e-5, $\times0.1376$, $\times9$e-5). D1 rises in
+layers 12--15 because what it divides by falls away, not because the structural
+pathway becomes more active there --- in absolute terms that pathway is
+$2$--$4\times$ \emph{weaker} in the ``live'' band than in the ``dead'' one. The
+claim that the mechanism degenerated into a late readout correction, which was
+this project's sharpest self-criticism, is \textbf{not supported by its own
+stored measurements}.
+
+\item \textbf{RETRACTED: ``what they produce is near-constant across positions
+--- F1 confirmed by measurement.''} A scale-free measure of positional
+variation, $\mathrm{keep}(x) = \overline{\mathrm{Var}_t(x)} /
+\mathrm{Var}_{\text{global}}(x)$, was computed per direction on all 274 val
+windows (\code{scripts/phase5\_vars\_diagnostic.py},
+\code{p5\_vars\_diagnostic.json}). Medians for $W_{\Delta s}s$, L00--L11 vs
+L12--L15: $0.1945$ vs $0.1952$ (seed 0), $0.1195$ vs $0.1169$ (seed 1),
+$0.0794$ vs $0.0752$ (seed 2). The early layers vary with position
+\emph{indistinguishably as much}, proportionally, as the live ones. They are
+producing a small position-varying signal, not a bias.
+
+\item \textbf{The encoder is exonerated; the \code{d\_struct=8} ablation is
+withdrawn.} $\mathrm{keep}(s)/\mathrm{keep}(\varphi) = 2.2074 / 2.3464 /
+1.2014$, mean $1.9184$. The encoder \emph{increases} the within-window variance
+fraction of what passes through it. \S4.2bis's recommendation to drop the
+encoder was predicated on it being the bottleneck; on this measurement it is
+not, and running it would cost ${\sim}9$ GPU-h to confirm nothing.
+
+\item \textbf{The measured binding constraint: $\mathrm{keep}(\varphi) =
+0.0573$.} Only $5.7\%$ of $\varphi$'s variance lies \emph{within} a 32{,}768\,bp
+window; $94\%$ is between windows. $\varphi$ is defined on 5\,kb bins, so a
+window spans ${\sim}6.5$ bins. The mechanism biases $\Delta$ \emph{per
+position}, and within a window its input is close to constant \emph{by
+construction of the window size}. This is a sufficient account of the Phase 4
+null that does not require the mechanism to be wrong, and it makes the window
+--- not \code{d\_struct} --- the next thing to change.
+
+\item \textbf{Transfer probe (\code{scripts/phase5\_structure\_probe.py},
+\code{p5\_structure\_probe.json}).} Ridge on the mean-pooled final hidden state,
+1{,}200 train / 274 val windows, $\alpha$ by LOO-GCV inside train only.
+$\varphi$ is \textbf{withheld} from the model at probe time (S0 zeros) and used
+only as the target, so the structural arm cannot copy its own input. Val
+Pearson $r$, mean\,$\pm$\,sd over 3 seeds:
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+target & GC/dinuc floor & structural & baseline\_v2 \\
+\midrule
+insulation\_100kb   & $+0.1905$ & $+0.1208 \pm 0.0283$ & $+0.0832 \pm 0.0612$ \\
+directionality\_2Mb & $+0.0918$ & $-0.0093 \pm 0.0359$ & $-0.0381 \pm 0.0032$ \\
+compartment\_pc1    & $+0.4511$ & $+0.5205 \pm 0.0167$ & $+0.4896 \pm 0.0179$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The structural arm is ahead on 3/3 targets --- the first consistent signal in
+its favour anywhere in this project. Two caveats that must travel with it.
+First, on insulation and directionality \emph{both} arms fall below a floor
+built from GC and dinucleotide content alone, so neither has demonstrated
+absolute competence on the two targets that most directly test 3D knowledge;
+the directionality row compares two negative correlations and is a difference
+between two nulls. Only \code{compartment\_pc1} has both arms above floor, and
+it is the target most confounded with GC. Second, $n=3$ per arm: the minimum
+attainable two-sided permutation $p$ is $0.1000$, so nothing here reaches
+significance and nothing here can.
+
+\item \textbf{Positional probe (\code{scripts/phase5\_positional\_probe.py},
+\code{p5\_positional\_probe.json}).} 500 train / 274 val windows, positions
+sampled every 512\,bp (64 rows per window; 32{,}000 train and 17{,}536 val
+rows), $\varphi$ withheld as before. Floor is GC + dinucleotide composition in a
+$\pm2{,}560$\,bp neighbourhood of each sampled position, put through the
+identical ridge and identical centring. Two forms: \textbf{A} predicts
+$\varphi_t$ from $h_t$; \textbf{B} predicts $\varphi_t - \overline{\varphi}_w$
+from $h_t - \overline{h}_w$, removing window identity --- which
+$\mathrm{keep}(\varphi)=0.0573$ says is $94\%$ of the variance --- and leaving
+exactly the component the $\Delta$-bias mechanism was designed to act on.
+
+\begin{center}
+\begin{tabular}{llrrr}
+\toprule
+target & probe & floor & structural & baseline\_v2 \\
+\midrule
+insulation\_100kb   & A & $+0.1207$ & $+0.0644 \pm 0.0065$ & $+0.0683 \pm 0.0061$ \\
+insulation\_100kb   & B & $+0.0802$ & $+0.0271 \pm 0.0028$ & $+0.0167 \pm 0.0047$ \\
+directionality\_2Mb & A & $-0.0191$ & $-0.0210 \pm 0.0065$ & $-0.0212 \pm 0.0039$ \\
+directionality\_2Mb & B & $+0.0170$ & $-0.0049 \pm 0.0015$ & $-0.0027 \pm 0.0036$ \\
+compartment\_pc1    & A & $+0.3396$ & $+0.1819 \pm 0.0033$ & $+0.2283 \pm 0.0237$ \\
+compartment\_pc1    & B & $+0.0519$ & $+0.0089 \pm 0.0047$ & $+0.0032 \pm 0.0052$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{The one clean arm separation in this project to date is probe~B on
+insulation.} Per seed, structural $+0.0254 / +0.0303 / +0.0255$ against baseline
+$+0.0134 / +0.0146 / +0.0221$: every structural seed exceeds every baseline
+seed. That is the maximally extreme arrangement at 3~vs~3 and therefore attains
+the floor of the exact two-sided permutation test, $p = 0.1000$. It is on
+precisely the quantity the mechanism was built to move, and it is reproducible
+across seeds.
+
+Two caveats carried in the same breath. First, \textbf{both arms sit below the
+composition floor} on B ($+0.0802$): local GC predicts within-window insulation
+better than either trained model does, so the arm contrast is a comparison
+between two incompetent predictors and demonstrates relative, not absolute,
+structural sensitivity. Second, the other two targets give nothing --- B
+directionality is negative for every run, and B compartment overlaps between
+arms (structural min $+0.0036$ vs baseline max $+0.0082$).
+
+\item \textbf{The pooling hypothesis was wrong, and is recorded as wrong.} The
+positional probe was run because mean-pooling over 32{,}768 positions was
+suspected of hiding local insulation structure. It did not: probe~A is
+\emph{lower} than the pooled probe throughout (compartment $+0.1819/+0.2283$
+against $+0.5205/+0.4896$ pooled), and on A compartment the baseline arm leads.
+Pooling was denoising a window-level target, not destroying a local one. The
+result that survived came from probe~B, which was included for a different
+reason.
+
+\item \textbf{What a wider window would buy, measured
+(\code{scripts/phase5\_window\_scan.py}, \code{p5\_window\_scan.json}).} No
+model is involved: $\mathrm{keep}(\varphi, W)$ is computed from $\varphi$ alone,
+interpolated to token resolution as the model receives it, 300 windows per width
+each required $\ge$ \code{MIN\_STRUCT\_FRAC} valid.
+
+\begin{center}
+\begin{tabular}{rrrrr}
+\toprule
+window (bp) & bins spanned & $\mathrm{keep}(\varphi)$ & vs 32{,}768 & signal/compute \\
+\midrule
+8{,}192   &   1.6 & 0.0092 & --- & --- \\
+16{,}384  &   3.3 & 0.0318 & --- & --- \\
+32{,}768  &   6.6 & 0.0490 & $1.00\times$ & --- \\
+65{,}536  &  13.1 & 0.1099 & $2.24\times$ & 1.12 \\
+131{,}072 &  26.2 & 0.2117 & $4.32\times$ & 1.08 \\
+262{,}144 &  52.4 & 0.3499 & $7.14\times$ & 0.89 \\
+524{,}288 & 104.9 & 0.4932 & $10.06\times$ & 0.63 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The scan gives $0.0490$ at the current width against D4's $0.0573$ on the 274
+val windows --- different samples of the same quantity, consistent. Widening
+returns slightly more signal than it costs in compute up to $131{,}072$\,bp
+($4.32\times$ signal for $4\times$ step time) and turns sublinear beyond it
+($7.14\times$ for $8\times$). \textbf{131{,}072\,bp is therefore the indicated
+target}, with $65{,}536$ as the cheaper derisking run. This is an upper bound on
+what a wider window can hand the mechanism, not a prediction that the model will
+use it.
+
+\end{itemize}
+
+\textbf{Status of these findings.} Three seeds, one chromosome, models not
+trained to convergence, and the two retractions are a re-analysis of stored
+numbers rather than a new measurement of the trained system. They are recorded
+here because they change what should be run next, and because the retracted
+claims were load-bearing for the Phase 4 verdict. They warrant independent
+checking before they are carried into a manuscript.
+
 \subsection*{2026-08-16 (third entry) --- PHASE 4 COMPLETE: the benefit is null,
 the pathway is live only in the top four layers, and the permeability gate never
 moved}

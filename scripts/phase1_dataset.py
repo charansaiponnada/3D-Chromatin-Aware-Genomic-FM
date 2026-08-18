@@ -40,9 +40,15 @@ RES = 5_000
 # Window length. The F4 analysis puts the 16-layer relayed horizon near 16,000
 # tokens, so 32,768 already exceeds what the stack can span -- going longer buys
 # context the architecture cannot use while costing memory linearly.
-WINDOW = 32_768
-STRIDE_TRAIN = 16_384          # 50% overlap for training coverage
-STRIDE_EVAL = 32_768           # no overlap in val/test
+# 2026-08-17: widened 32,768 -> 65,536. keep(phi) measured 0.0490 at 32,768 vs
+# 0.1099 at 65,536 (p5_window_scan.json), i.e. 2.24x the within-window
+# structural signal the delta-bias mechanism can act on, at a measured 2.08x
+# step cost (phase5_memcheck.py, 7.5 of 44.39 GiB peak). The 32,768 index is
+# preserved as dataset_index_w32768.npz -- every Phase 3/4/P5 number was
+# measured against that file and must not be re-derived against this one.
+WINDOW = 65_536
+STRIDE_TRAIN = 32_768          # 50% overlap for training coverage
+STRIDE_EVAL = 65_536           # no overlap in val/test
 
 MAX_N_FRAC = 0.10              # drop a window if >10% of its sequence is N
 MIN_STRUCT_FRAC = 0.50         # drop a window if <50% of positions have usable phi
