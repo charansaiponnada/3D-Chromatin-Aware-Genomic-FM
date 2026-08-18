@@ -510,6 +510,61 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-18 (second entry) --- the 65\,kb run launched, was culled
+at step 100, and the working tree was re-nested by a file-browser drag}
+
+\begin{itemize}
+
+\item \textbf{Measured step time at 65{,}536\,bp: 12.69\,s/step} (2$\times$L40S,
+gloo DDP, batch 2, grad-accum 2, gradient checkpointing on, baseline arm). The
+32{,}768 baseline was 5.30\,s/step, so the observed ratio is
+$\mathbf{2.39\times}$ for a $2\times$ window. Cost is therefore
+\emph{super}-linear in window length, not linear: the projection used while
+scheduling this run assumed 11.0\,s/step and was optimistic by 15\%. One arm of
+1{,}000 steps is ${\sim}3.5$\,h wall, ${\sim}7$\,GPU-h; both arms
+${\sim}7$\,h wall, ${\sim}14$\,GPU-h.
+
+\item \textbf{Warm start verified in the run's own log:} 274 tensors loaded
+from \code{baseline\_v2\_seed0/checkpoint.pt} at source step 2{,}000, 0 left at
+init. \code{run\_config.yaml} records
+\code{init: warm start -- staged pretraining, NOT paired}, as designed --- the
+32\,kb checkpoints predate the paired-init fix and the file says so rather than
+letting a later reader assume the arms were paired.
+
+\item \textbf{First attempt was killed at step ${\sim}100$ of 1{,}000}
+(\code{Terminated}, i.e. SIGTERM, ${\sim}25$ minutes in). \code{--ckpt-every
+120} means no checkpoint had been written, so the attempt was lost entirely and
+restarted from the warm start. This is the idle culler behaving exactly as
+\S3 describes. \textbf{At 12.69\,s/step a 120-step checkpoint interval is
+${\sim}25$ minutes, which is longer than the culler's window} --- the interval
+was chosen at 5.30\,s/step, where it was ${\sim}11$ minutes. It has not been
+changed mid-sweep (\S12), but it is now mis-sized for this width and the next
+run at this window should set it lower.
+
+\item \textbf{INCIDENT: the working tree was re-nested at 11:16:01 UTC.}
+\code{results/} was moved inside \code{src/}, a partial copy of \code{src/} was
+placed inside \code{results/}, and \code{project-docs/} was moved inside
+\code{presentations/}. Every affected directory carries an mtime inside a
+one-second window, which is a file-browser drag, not a script. Consequences:
+three partial copies of the results tree existed simultaneously, and
+\code{project-docs/} --- which \S2 rule 4 requires to hold exactly
+\code{project.tex} and \code{project.pdf} --- did not exist at its own path.
+
+\textbf{Repaired by moving, never deleting.} The two partial copies are
+quarantined under \code{\_misplaced\_20260818/} (1.2\,GB) pending inspection;
+the complete tree was restored from \code{src/results/}. After repair
+\code{git status} showed only the quarantine directory and the new 65\,kb run
+directory as untracked, i.e. every tracked path was back where it belongs.
+
+\textbf{What this exposed: the trained checkpoints are not in version
+control.} \code{git ls-tree} finds exactly one \code{checkpoint.pt} under
+\code{results/} (\code{smoke\_seed0}). The six 88--89\,MB Phase 3/4 checkpoints
+exist on disk and nowhere else, and reproducing them costs ${\sim}40$
+GPU-hours. They survived this incident by luck --- the drag happened to move
+them rather than overwrite them. Nothing in the repository currently protects
+them from a second one.
+
+\end{itemize}
 \subsection*{2026-08-18 --- SCOPE CORRECTION: widening the window is a partial
 mitigation, not a fix; three defects fixed before launch; staged pretraining
 proposed}
