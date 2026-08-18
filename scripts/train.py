@@ -84,7 +84,8 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from chromfm.model import BiMambaLM, ModelConfig, use_scan   # noqa: E402
 from phase1_dataset import (WindowDataset, PHI_CONTROLS,     # noqa: E402
-                            PHI_CONTROL_SEED, S2_SHIFT_BP)
+                            PHI_CONTROL_SEED, S2_SHIFT_BP,
+                            WINDOW as DATASET_WINDOW)
 
 # One line each, written into run_config.yaml so a run states what it is without
 # needing the spec open. Full definitions: architecture_spec.md 4.1.3.
@@ -652,6 +653,54 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
                 _shared += 1
     del _ref, _ref_sd
 
+    # WARM START / STAGED PRETRAINING (2026-08-18). --init-from loads the
+    # weights of a finished shorter-window run and trains on from step 0 at the
+    # current window. A Mamba SSM has no positional embeddings, so every
+    # parameter is window-independent by construction: the tensors transfer
+    # unchanged and only the data pipeline changes.
+    #
+    # Weights ONLY. Optimiser state, LR schedule and step counter are not
+    # restored -- this is a new run at a new width with its own warmup, not a
+    # resume. --resume remains the mechanism for continuing an interrupted run
+    # and the two are independent.
+    #
+    # This OVERWRITES the paired init above, and that is a real cost, not an
+    # oversight: a warm-started pair is only as paired as the checkpoints it
+    # starts from, and the 32,768 checkpoints predate the paired-init fix. A
+    # run using --init-from therefore still carries reviewer weakness #3.
+    # run_config.yaml records which of the two is in effect.
+    if args.init_from:
+        _src = Path(args.init_from)
+        if not _src.exists():
+            raise FileNotFoundError(f"--init-from: no checkpoint at {_src}")
+        _ck = torch.load(_src, map_location=device, weights_only=False)
+        _sd = _ck["model"]
+        _loaded, _skipped = [], []
+        with torch.no_grad():
+            for name, prm in model.named_parameters():
+                if name in _sd and _sd[name].shape == prm.shape:
+                    prm.copy_(_sd[name].to(prm.device, prm.dtype))
+                    _loaded.append(name)
+                else:
+                    _skipped.append(name)
+        if not _loaded:
+            raise RuntimeError(
+                f"--init-from: {_src} shares no parameter with this model. "
+                "Wrong arm or wrong architecture -- refusing to train from an "
+                "init that silently did nothing.")
+        if is_main:
+            print(f"[rank0] WARM START from {_src} (source step "
+                  f"{_ck.get('step')}): {len(_loaded)} tensors loaded, "
+                  f"{len(_skipped)} left at init")
+            if _skipped:
+                print(f"[rank0]   left at init: {_skipped[:8]}"
+                      f"{' ...' if len(_skipped) > 8 else ''}")
+        _warm = {"init_from": str(_src), "source_step": _ck.get("step"),
+                 "tensors_loaded": len(_loaded), "tensors_at_init": len(_skipped)}
+        del _ck, _sd
+    else:
+        _warm = None
+
     n_params = model.n_params()
     tau_init = model.tau_stats()
 
@@ -701,6 +750,11 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
             "phi_control": args.phi_control,
             "phi_control_meaning": PHI_CONTROL_DOC[args.phi_control],
             "seed": args.seed,
+            "init": ("warm start -- staged pretraining, NOT paired "
+                     "(inherits the source checkpoint's init)" if _warm
+                     else "fresh, paired against a baseline-config "
+                          "reference model at the same seed"),
+            "warm_start": _warm,
             "hyperparameters": {
                 k: getattr(args, k) for k in (
                     "steps", "batch_size", "grad_accum", "eval_batch_size",
@@ -956,7 +1010,9 @@ def parse() -> argparse.Namespace:
     p.add_argument("--d-conv", type=int, default=4)
     p.add_argument("--expand", type=int, default=2)
     p.add_argument("--vocab-size", type=int, default=16)
-    p.add_argument("--window", type=int, default=32768)
+    p.add_argument("--window", type=int, default=DATASET_WINDOW,
+                   help="reporting only; defaults to phase1_dataset.WINDOW "
+                        "so run_config.yaml cannot state a stale width")
     p.add_argument("--eval-every", type=int, default=500)
     p.add_argument("--tau-every", type=int, default=500)
     p.add_argument("--ckpt-every", type=int, default=500)
@@ -970,6 +1026,12 @@ def parse() -> argparse.Namespace:
     p.add_argument("--backend", choices=("auto", "nccl", "gloo"), default="auto")
     p.add_argument("--grad-checkpoint", action="store_true", default=False)
     p.add_argument("--port", type=int, default=29511)
+    p.add_argument("--init-from", type=str, default="",
+                   help="warm start: load model weights from this "
+                        "checkpoint and train from step 0. Weights only "
+                        "-- not optimiser, schedule or step. Use for "
+                        "staged pretraining across window widths; use "
+                        "--resume to continue an interrupted run.")
     p.add_argument("--resume", action="store_true", default=True)
     p.add_argument("--no-resume", dest="resume", action="store_false")
     p.add_argument("--out-dir", type=str, default=str(RESULTS),
