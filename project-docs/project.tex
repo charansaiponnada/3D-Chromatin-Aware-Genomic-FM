@@ -510,6 +510,158 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+
+\subsection*{2026-08-25 (second entry) --- work plan written: the two blockers
+on a positive result are statistical power and $\varphi$ resolution, and
+neither needs a GPU}
+
+No training ran and no new measurement was taken. This entry records an
+analysis of the existing record and the task ordering that follows from it,
+written to \code{docs/WORKPLAN\_2026-08-25.md} and cross-referenced from
+\code{CLAUDE.md} \S1/\S11 and from the head of \code{docs/NEXT\_SESSION.md}.
+
+\begin{itemize}
+
+\item \textbf{The design cannot express a positive result.} At 3 versus 3 the
+exact two-sided permutation test has $\binom{6}{3} = 20$ arrangements, so the
+minimum attainable $p$ is $2/20 = 0.100$. This was already recorded for the
+P1 gate, but its consequence was not: \emph{every} GPU-hour spent at $n=3$ buys
+an experiment pre-committed to non-significance, whatever the mechanism does.
+Minimum designs that permit $p < 0.05$: \textbf{6 paired seeds}
+($2/2^6 = 0.031$) or \textbf{5 per arm unpaired} ($2/\binom{10}{5} = 0.008$).
+Recorded with a trap that is easy to get backwards: pairing reduces variance but
+\emph{shrinks} the permutation space, so at $n=3$ a paired sign-flip test
+($2/2^3 = 0.250$) is \emph{worse} than the unpaired test already run. Pairing
+buys power only from $n=6$ up.
+
+\item \textbf{A route to significance that costs no compute.} The seed need not
+be the unit of analysis. \code{p5\_positional\_probe.json} covers 274 val
+windows at 512\,bp spacing (17{,}536 val rows). A per-window arm difference
+tested with a \emph{block} bootstrap --- blocks sized to Hi-C autocorrelation,
+which runs over megabases --- gives $n$ in the hundreds on checkpoints that
+already exist. Both tests must be reported: they answer ``does this reproduce
+across training runs'' and ``does this hold across the genome'' respectively,
+and are not substitutes. Recorded with the warning that i.i.d.\ resampling of
+windows is invalid here for exactly the reason known weakness~5 is a problem.
+
+\item \textbf{$\varphi$ resolution is an untried lever, and it is independent of
+window width.} \code{resolution\_bp: 5000} is a configuration choice, not a
+property of the data: \code{data/pilot\_manifest.json} records the source as a
+multi-resolution \code{.mcool} and \code{phase1\_acquire.py}:159 opens it as
+\code{cooler.Cooler(h5[f"resolutions/\{RESOLUTION\}"])}. $\mathrm{keep}(\varphi)$
+is low partly because $\varphi$ is a step function on 5\,kb bins spanned $6.6$
+times (32\,kb) or $13.1$ times (65\,kb) per window. Finer bins raise
+within-window structural variance \emph{without} touching window size, memory or
+step time. The two levers are independent and only one has been tried. Three
+module globals carry the resolution: \code{phase1\_acquire.py}:63,
+\code{phase1\_features.py}:41, \code{phase1\_dataset.py}:38; outputs are already
+templated on \code{RES}, so builds at two resolutions coexist without collision
+and must not be pooled.
+
+\item \textbf{Staged, with a gate, because the risks are real and unmeasured.}
+Balanced weights degrade at fine resolution and \code{MIN\_STRUCT\_FRAC} = 0.50
+may drop a large share of windows; the band scales as
+$n_{\text{bins}} \times \text{band bins}$, i.e.\ $(5000/1000)^2 = 25\times$ at
+1\,kb --- \textbf{a projection from the measured 7{,}108{,}483 entries, not a
+measurement}. The plan therefore fetches one 10\,Mb tile first and gates on
+three measured numbers (usable-bin fraction against 77.7\%,
+$\mathrm{keep}(\varphi)$ against 0.0490/0.1099, and wall time) before any
+full-chromosome fetch. A negative outcome at the gate is itself publishable: it
+would show the constraint is intrinsic to Hi-C's spatial autocorrelation rather
+than an artefact of binning.
+
+\item \textbf{CORRECTION to an earlier reading of D2.} The permeability gate
+bias \code{b\_g = -4.0} (\code{model.py}:160) was described in discussion as an
+oversight. It is not: the comment at \code{model.py}:154--159 records it as a
+deliberate tradeoff, since the gradient through softplus is
+$\mathrm{sigmoid}(b_g)$ and $b_g = -8$ attenuates learning ${\sim}3000\times$.
+The correct statement is that \textbf{the tradeoff was measured and it lost} ---
+$53\times$ more gradient than $b_g = -8$ still left $p_t$ immobile across
+287{,}309{,}824 evaluations. Any change here trades away the step-0 identity
+with the baseline and is therefore a \S7 decision, not an implementation
+detail.
+
+\item \textbf{Endpoint.} Val bits/nt on masked nucleotide prediction is
+dominated by local $k$-mer statistics and is the metric least likely to move
+under structural conditioning. The plan proposes pre-registering the probe
+metrics as primary and loss as a secondary ``no cost to sequence modelling''
+result --- \textbf{recorded before the runs, in \code{architecture\_spec.md},
+not after seeing numbers}. This is a \S4.1.3 change and is listed as a PI
+decision.
+
+\item \textbf{Recorded as a standing constraint: the baseline is not to be
+weakened.} It is matched-parameter, matched-compute and now paired-init, and
+that is precisely what would make any separation worth reporting. The plan adds
+a \emph{stronger} arm instead --- a tuned one-hot/GC model --- since probe~B
+already places both current arms below the GC composition floor $(+0.0802)$.
+
+\end{itemize}
+
+Seven items are listed in the plan as requiring a PI decision before
+implementation. None has been implemented.
+
+\subsection*{2026-08-25 --- \code{CLAUDE.md} brought in line with the
+2026-08-17 retractions and the 2026-08-18 scope correction; two provenance
+defects recorded}
+
+No training ran, no model was touched, and no new measurement was taken. This
+entry records a documentation correction and two defects found while auditing
+the repository against this log.
+
+\begin{itemize}
+
+\item \textbf{\code{CLAUDE.md} was two change log entries behind and stated
+retracted conclusions as fact.} It was last updated 2026-08-16 and is the file
+every working session reads first. It carried, as current: ``every live
+direction, in every seed, is in layers 12--15'' and ``functionally a late
+readout correction''; ``what they produce is near-constant across positions ---
+F1 confirmed by measurement''; and, as the recommended next experiment,
+``one re-run, no encoder, \code{d\_struct=8}, ${\sim}6$ GPU-h''. All three were
+withdrawn by the 2026-08-17 entry above. A session starting from that file would
+have re-derived a retracted conclusion, or spent ${\sim}9$ GPU-h on an ablation
+this record had already withdrawn.
+
+\item \textbf{What was changed.} Both retractions are now reproduced in
+\code{CLAUDE.md} \S4 as marked block quotes with the decomposition table that
+justifies each, rather than deleted --- the retracted text remains visible so a
+reader carrying the old version recognises it. The \code{d\_struct=8} ablation
+is marked withdrawn in three places (\S4, \S6, \S12). Added: the
+$\mathrm{keep}(\varphi) = 0.0573$ binding constraint, the window scan with its
+between-window column, the probe~B arm separation with both of its caveats
+attached, and the two-index table. \S6 was rewritten from ``what to do with a
+weak pass'' to ``what to run at 65{,}536''. A banner at the head of the file
+names both retracted claims so a stale summary is recognisable on sight. Numbers
+transcribed into \code{CLAUDE.md} were re-derived from
+\code{d1\_diagnostic.json} and \code{p5\_vars\_diagnostic.json} rather than
+copied from prose; the D1 band medians and $\mathrm{keep}$ ratios reproduce this
+log's tables exactly.
+
+\item \textbf{DEFECT, found not fixed: \code{train.py} records the wrong window
+and half the token count at 65{,}536.} \code{--window} defaults to 32768
+(\code{train.py}:959) and \code{run\_phase4.sh} never passes it. \code{args.window}
+is read at exactly two places --- \code{train.py}:769, the \code{run\_config.yaml}
+dump, and \code{train.py}:718, \code{windows\_per\_optimizer\_step} --- while the
+true window length reaches the model from the index. Training is therefore
+correct and \emph{the record of it is not}. The aborted 2026-08-17 launch already
+demonstrates this: \code{results/novel\_model/structural\_seed0/run\_config.yaml}
+records \code{window: 32768} beside \code{n\_train\_windows: 2713}, which is the
+65\,kb index. Since matching between arms is on steps \emph{and tokens}, this
+corrupts the one artefact whose purpose is provenance. Fix before launch, by
+passing \code{--window 65536} or changing the default.
+
+\item \textbf{OPERATIONAL, recorded in \code{CLAUDE.md} \S9: the
+\code{phase4\_guard.sh} false-completion fault will recur.} Noted in the
+2026-08-18 entry above and cleared for the current width by archiving the logs;
+the guard still has no notion of which configuration a console log belongs to,
+so the next width change reproduces it.
+
+\item \textbf{Unpersisted measurement, now flagged at the point of use.} The
+2026-08-18 entry recorded that \code{phase5\_memcheck.py} output was never
+written to disk. \code{CLAUDE.md} \S4 now says so directly under the throughput
+figures, where a schedule would be built from them.
+
+\end{itemize}
+
 \subsection*{2026-08-18 --- SCOPE CORRECTION: widening the window is a partial
 mitigation, not a fix; three defects fixed before launch; staged pretraining
 proposed}

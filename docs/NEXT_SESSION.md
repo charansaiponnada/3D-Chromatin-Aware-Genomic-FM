@@ -1,3 +1,10 @@
+> **SUPERSEDED for task ordering by `docs/WORKPLAN_2026-08-25.md`.** This file
+> is still the reference for the multi-chromosome implementation notes (§5.1)
+> and the 2026-08-17 measurements. Two items below were overtaken: the memcheck
+> numbers in §3 were never persisted to disk and must not be used for
+> scheduling, and §4's plan predates the resolution and power analysis in the
+> new workplan.
+
 # Handoff — 2026-08-17
 
 ## !! STATE CHANGE AT END OF SESSION — READ FIRST
