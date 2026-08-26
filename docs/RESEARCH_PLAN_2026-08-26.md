@@ -156,3 +156,40 @@ PHASE F -- write up.
   262,144 = ~0.52B here. Same architecture, about 100x less pretraining. State
   both halves every time; the first half alone is a claim the work does not
   support.
+
+================================================================================
+STATUS -- appended after execution, plan text above is unmodified
+================================================================================
+
+**A1, run 2026-08-26 (`scripts/phase5_common_alpha.py`,
+`results/novel_model/p5_common_alpha.json`): GATE FAILS.**
+
+Refit all six probe-B runs at a single shared ridge alpha (no per-run
+LOO-GCV), swept at the geometric mean of the six originally-selected alphas
+(1.0926e6) and one decade either side:
+
+| alpha | Q1 mean d_w | frac>0 by quartile | monotone? | rho | gate |
+|---|---|---|---|---|---|
+| 1.093e5 (geo/10) | -0.0208 | .377 .603 .574 .507 | no | +0.1137 | fail |
+| 1.093e6 (geo)    | -0.0111 | .464 .529 .603 .594 | no | +0.1183 | fail |
+| 1.093e7 (geo*10) | -0.0066 | .478 .559 .588 .609 | yes | +0.1116 | pass |
+
+Q1 stays negative at all three, and rho stays in a tight band (+0.112 to
++0.118) next to the original per-run-alpha value +0.1210 -- the alpha
+confound does not explain rho away. But the frac>0 monotone trend, the half
+of the finding pitched as clean and assumption-free, is monotone at only one
+of the three shared-alpha settings. The plan's gate is conjunctive (Q1
+negative AND frac>0 monotone), so **A1 fails**.
+
+Per A2's failure branch: **not pre-registered in architecture_spec.md §7.**
+Recorded in project-docs/project.tex, 2026-08-26 (third entry), as a lead
+proposed, tested against its own alpha confound, and killed. Component 3
+("keep(phi) made a prediction and it held") is dropped from the claim at the
+top of this file; the project proceeds on the remaining three components.
+The stratification stays a candidate for the multi-chromosome build (B1) to
+confirm or kill on genome large enough to make blocks >= 1 Mb and >= 20 of
+them simultaneously satisfiable -- unreachable on 8.98 Mb of chr9 val at any
+alpha tested here.
+
+Phase B, C, D are unauthorized until picked up in a session with PI sign-off;
+this session did not touch the GPU and stops here per its own instructions.

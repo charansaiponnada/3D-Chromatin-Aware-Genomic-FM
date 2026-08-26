@@ -510,6 +510,69 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-26 (third entry) --- Phase A1: the phi-variance
+stratification is a lead proposed, tested against its own alpha confound, and
+killed}
+
+\code{docs/RESEARCH\_PLAN\_2026-08-26.md} written first, committed, so the
+phase list survives a culler kill. Phase A1 is the first item on it: the
+stratification result two entries below (Spearman
+$\rho(\varphi\text{ variance}, d_w) = +0.1210$, fraction-positive monotone
+across quartiles) was computed with each of the six runs fitted at its OWN
+LOO-GCV-selected ridge $\alpha$. Those six $\alpha$s are not equal across
+arms --- structural seeds all select $3.455\times10^{5}$; baseline seeds 0/1
+select $2.031\times10^{5}$; baseline seed 2 rails to the grid maximum,
+$10^{9}$. A probe regularised differently per arm can move ``who wins where''
+for reasons that have nothing to do with structure, so before this result is
+pre-registered its dependence on that asymmetry has to be measured, not
+assumed away. No GPU; new script \code{scripts/phase5\_common\_alpha.py},
+output \code{results/novel\_model/p5\_common\_alpha.json}.
+
+\textbf{Method.} All six runs refitted at a single SHARED $\alpha$ (no
+per-run LOO-GCV), swept over the geometric mean of the six selected values,
+$1.0926\times10^{6}$, and one decade either side. Quartile table, frac$>0$
+trend and the Spearman block-bootstrap sweep recomputed identically at each.
+
+\begin{center}
+\begin{tabular}{lrrrrl}
+\toprule
+$\alpha$ & Q1 mean $d_w$ & frac$>0$ by quartile & monotone? & $\rho$ & gate \\
+\midrule
+$1.093\times10^{5}$ (geo/10)  & $-0.0208$ & 0.377, 0.603, 0.574, 0.507 & \textbf{no} & $+0.1137$ & fail \\
+$1.093\times10^{6}$ (geo)     & $-0.0111$ & 0.464, 0.529, 0.603, 0.594 & \textbf{no} & $+0.1183$ & fail \\
+$1.093\times10^{7}$ (geo*10)  & $-0.0066$ & 0.478, 0.559, 0.588, 0.609 & yes         & $+0.1116$ & pass \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Q1 stays negative at all three $\alpha$s, and $\rho$ stays in a tight
+band, $+0.112$ to $+0.118$, next to the original per-run-alpha value
+$+0.1210$} --- the alpha confound does \emph{not} explain $\rho$ away, which is
+itself informative. \textbf{But the fraction-positive trend, pitched as the
+monotone, assumption-free half of the finding, is monotone at only one of the
+three shared-alpha settings tested} (it breaks between Q3 and Q4 at the
+geometric mean itself, $0.603 \to 0.594$, and between Q2 and Q3 at geo/10,
+$0.603 \to 0.574$). The pre-specified gate in
+\code{docs/RESEARCH\_PLAN\_2026-08-26.md} is conjunctive --- Q1 negative
+\textbf{and} frac$>0$ monotone --- and the second half does not clear it at
+2 of 3 alpha settings. The block-length disjointness reported in the entry
+below (reliable blocks $\leq 0.262$ Mb; Hi-C-valid blocks $\geq 1$ Mb have
+$\leq 9$, below \code{MIN\_BLOCKS = 20}) reproduces identically at every
+$\alpha$ in this sweep and is not resolved by this check either way.
+
+\textbf{Verdict: A1 FAILS the pre-registered gate.} Per
+\code{docs/RESEARCH\_PLAN\_2026-08-26.md} Phase A2's failure branch: this is
+not pre-registered in \S7. \textbf{Component 3 of the four-part claim
+(``keep($\varphi$) made a prediction and it held'') is retracted before it was
+ever written into an architecture-spec decision, and the project proceeds on
+three components}: the mechanism is novel, the F4 finding generalises, and the
+null is diagnosed (keep($\varphi$) leaves 89\% of $\varphi$'s variance between
+windows even at 65,536).
+The stratification remains recorded as a lead for the multi-chromosome build
+(Phase B1) to confirm or kill on genome large enough to make blocks
+$\geq 1$ Mb \textbf{and} $\geq 20$ of them simultaneously satisfiable, which
+8.98 Mb of chr9 val cannot do at any $\alpha$.
+
 \subsection*{2026-08-26 (second entry) --- T2 hardened: a ridge boundary hit
 corrected, a flat sign test added, and keep($\varphi$) turned from an
 explanation into a tested prediction}
