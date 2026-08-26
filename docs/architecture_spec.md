@@ -606,6 +606,34 @@ Taken 2026-08-07 under explicit delegation from the PI ("you take everything"). 
 | 4 | Cross-species scope | **Out of scope for this paper** | Evo2HiC uses 177 DNA Zoo species, HiCFoundation 316 (§H3, §B1). Entering that lane against two better-resourced groups splits compute and weakens the single-chromosome pilot's already-narrow claim. Keep as future work. | Low — additive, not structural. |
 | 5 | **P1 gate metric** (2026-08-16) | **Reliance measured as prediction divergence D_S1, separately from benefit Δ_S1** | §4.1.3 Amendment. A loss delta alone cannot separate "inert" from "used but not expressible in MLM", and assigns both the verdict that stops the study before Phase 5 — where the hypothesis lives. Evidence the metric lacks power: a 30× memory-horizon change moved val loss 0.0013 bits (§4.1.4). Recorded before any swap was executed; seed 0 complete, seed 1 mid-run, no control yet fed to any model. **Floor definition corrected the same day** — see the correction under the §4.1.3 amendment: the original bar (exceed the different-masking-seed divergence) is withdrawn as mismatched in magnitude and unnecessary. The bar is the kernel floor, measured at exactly 0.0 by a dry run on an untrained model. | Low — inference-only on existing checkpoints. Does not touch the model, the data, or any completed run. |
 | 6 | **Control set** (2026-08-16) | **S4 `SEQUENCE-MATCHED` added to S1–S3** | §4.1.3. `compartment_pc1` correlates strongly with GC content and gene density, both computable from sequence alone, so without an *aligned* 1D control a positive result reads as "you handed it a GC proxy". S2 does not cover this — it destroys the alignment the objection depends on. S3 and S4 together remove the two benign explanations: genomic distance, and sequence composition. | Low — CPU-only feature build plus an inference swap. No retraining. |
+| 7 | **φ-variance stratification, pre-registered** (2026-08-26) | **rho(within-window φ variance, d_w) > 0 on held-out chromosomes, single test, no secondary** | See the verbatim pre-registration immediately below. Supersedes the chr9-only exploratory version, which failed its own (poorly specified, conjunctive) gate on 2026-08-26 and was not pre-registered. | Low — a read on held-out-chromosome checkpoints once they exist; does not touch the model or any completed run. |
+
+#### Pre-registration — φ-variance stratification (2026-08-26)
+
+> Pre-registered 2026-08-26, superseding the withdrawn chr9 version.
+>
+> HYPOTHESIS. The structural arm's probe-B advantage concentrates in windows
+> where phi varies within the window.
+>
+> PRIMARY AND ONLY TEST. Spearman rho(within-window phi variance, d_w) > 0 on
+> held-out chromosomes, moving block bootstrap, blocks >= 1 Mb AND >= 20
+> blocks. Both conditions are satisfiable only above ~40 Mb of evaluation
+> genome; on chr9's 8.98 Mb they are mutually exclusive, which is why chr9
+> could not test this in either direction.
+>
+> NO SECONDARY. The previous version paired rho with a requirement that the
+> quartile frac>0 sequence be exactly monotone. That was a four-bin
+> descriptive display of the same trend, not an independent test, and it is
+> not repeated.
+>
+> PRIOR RESULT, DISCLOSED. On chr9 this failed its conjunctive gate on
+> 2026-08-26: rho was stable at +0.112 to +0.118 under shared-alpha
+> refitting against +0.1210 originally, and Q1 remained negative, but the
+> quartile monotonicity held at only 1 of 3 alpha settings. The alpha
+> confound was ruled out; the trend was not established.
+>
+> DISCONFIRMING OUTCOME. rho CI includes zero under the stated block
+> conditions.
 
 **Consequential update from §I3.** Adopt **DNALongBench** (`related_work.md` §I2) as the Phase 5 evaluation suite rather than assembling tasks ad hoc, and add **Lee's perturbation-sensitivity protocol** as a head-to-head evaluation: does our structurally-conditioned model penalise TAD boundary deletions and CTCF inversions more than matched controls, where Evo2-7B does not? That is a direct quantitative claim against a published negative result, and a stronger contribution than another benchmark table.
 

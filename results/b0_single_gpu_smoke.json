@@ -1,0 +1,16 @@
+{
+  "purpose": "B0(a) single-GPU allocator smoke test, RESEARCH_PLAN_2026-08-26 Phase B0",
+  "cuda_visible_devices": "0",
+  "window_bp": 65536,
+  "batch": 2,
+  "n_steps": 5,
+  "n_visible_devices": 1,
+  "mem_get_info_before": {
+    "free_gib": 43.96807861328125,
+    "total_gib": 44.39215087890625
+  },
+  "model_build_s": 0.6661205291748047,
+  "outcome": "RUNTIME_ERROR",
+  "error": "NVML_SUCCESS == DriverAPI::get()->nvmlInit_v2_() INTERNAL ASSERT FAILED at \"/pytorch/c10/cuda/CUDACachingAllocator.cpp\":983, please report a bug to PyTorch. ",
+  "is_nvml_assertion": true
+}

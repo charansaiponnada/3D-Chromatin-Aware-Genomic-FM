@@ -510,6 +510,119 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-26 (fifth entry) --- Component 3 amended, not deleted: the
+alpha confound is ruled out and kept as a negative control; the superseding
+stratification test is pre-registered in \S7}
+
+Two corrections to how the previous entry is read, both from the PI, before
+Phase B started.
+
+\begin{itemize}
+\item \textbf{The alpha-confound result is a negative control, not support for
+the dropped claim.} A1 ruled out one specific alternative explanation for
+$\rho = +0.1210$ --- that it was an artifact of fitting each arm's ridge probe
+at its own LOO-GCV-selected $\alpha$. $\rho$ stayed in $[+0.112, +0.118]$ under
+a shared $\alpha$, and Q1 stayed negative. That is recorded as what it is: one
+confound eliminated, not evidence for the stratification.
+\item \textbf{The A1 gate was mis-specified, and the mistake is recorded so it
+is not repeated, not to reopen the chr9 verdict.} The gate paired Spearman
+$\rho$ with a requirement that a four-bin quartile frac$>0$ sequence be
+\emph{exactly} monotone. That second condition was a descriptive display of
+the same trend as $\rho$, not an independent test, so failing it added no
+real information beyond what $\rho$ itself already said. \textbf{The chr9
+verdict stands}: component 3 is still dropped from the four-part claim on
+chr9's 8.98 Mb, where the block-length conditions needed to test $\rho$
+properly (\S7 below) are DISJOINT and cannot both be satisfied. Nothing about
+chr9 is re-scored.
+\end{itemize}
+
+\textbf{Superseding pre-registration written into \code{docs/architecture\_spec.md}
+\S7 (Decision 7) verbatim}, before any multi-chromosome data exists:
+
+\begin{quote}\small
+Pre-registered 2026-08-26, superseding the withdrawn chr9 version.
+
+HYPOTHESIS. The structural arm's probe-B advantage concentrates in windows
+where phi varies within the window.
+
+PRIMARY AND ONLY TEST. Spearman rho(within-window phi variance, d\_w) $>$ 0 on
+held-out chromosomes, moving block bootstrap, blocks $\geq$ 1 Mb AND $\geq$ 20
+blocks. Both conditions are satisfiable only above $\sim$40 Mb of evaluation
+genome; on chr9's 8.98 Mb they are mutually exclusive, which is why chr9 could
+not test this in either direction.
+
+NO SECONDARY. The previous version paired rho with a requirement that the
+quartile frac$>$0 sequence be exactly monotone. That was a four-bin
+descriptive display of the same trend, not an independent test, and it is not
+repeated.
+
+PRIOR RESULT, DISCLOSED. On chr9 this failed its conjunctive gate on
+2026-08-26: rho was stable at +0.112 to +0.118 under shared-alpha refitting
+against +0.1210 originally, and Q1 remained negative, but the quartile
+monotonicity held at only 1 of 3 alpha settings. The alpha confound was ruled
+out; the trend was not established.
+
+DISCONFIRMING OUTCOME. rho CI includes zero under the stated block
+conditions.
+\end{quote}
+
+This test becomes runnable for the first time once the multi-chromosome build
+(\code{docs/RESEARCH\_PLAN\_2026-08-26.md} Phase B1, below) provides enough
+evaluation genome to satisfy both block conditions simultaneously.
+
+\subsection*{2026-08-26 (fourth entry) --- B0(a): the single-GPU allocator
+smoke test, and a correction to what was blocking 65,536 bp launches}
+
+No training. \code{scripts/b0\_single\_gpu\_smoke.py}, a few forward/backward/
+optimizer steps only, output written to
+\code{results/b0\_single\_gpu\_smoke\_*.json}. This was the untried mitigation
+flagged in \S6 for over a week: does the
+\code{NVML\_SUCCESS == DriverAPI::get()->nvmlInit\_v2\_()} assertion at
+\code{CUDACachingAllocator.cpp:983} still fire with only one device visible to
+the process (\code{CUDA\_VISIBLE\_DEVICES=0}, no DDP, no gloo)?
+
+\textbf{Result: it still fires, at 65,536 bp, on one GPU, with no other process
+using either device} (\code{mem\_get\_info} showed 43.97/44.39 GiB free before
+the model was even built). \textbf{Single-GPU alone is not the fix.} But two
+further runs isolate why:
+
+\begin{center}
+\begin{tabular}{lrrrl}
+\toprule
+window & grad-checkpoint & peak (GiB) & s/step & outcome \\
+\midrule
+65,536 & off & --- & --- & nvmlInit\_v2\_ assertion \\
+32,768 & off & 37.23 & $\sim$3.0 & OK \\
+65,536 & \textbf{on} & \textbf{7.51} & $\sim$7.16 & \textbf{OK} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+37.23 of 44.39 GiB at 32,768 without checkpointing is already 84\% of the
+device; activation memory in the scan is documented to grow roughly linearly
+in window length (\code{phase5\_memcheck.py}), so 65,536 without checkpointing
+would need on the order of 70+ GiB --- over the 44.39 GiB card, on ONE GPU,
+with nothing else running. \textbf{This reproduces the exact assertion text
+previously attributed to ``concurrent load from an unrelated project on both
+devices,'' with no unrelated project and no second device involved.} The
+2026-08-10 entry already recorded that this box's caching allocator disguises
+an out-of-memory condition as an NVML assertion; every prior 65,536 bp launch
+attempt combined that pre-existing box quirk with a request that could not
+have fit in either GPU regardless of contention, because \code{--grad-checkpoint}
+defaults off and \code{run\_phase4.sh} never passes it.
+
+\textbf{The fix was already built and sitting unused.} \code{--grad-checkpoint}
+(fixed 2026-08-18, CLAUDE.md \S6) makes 65,536 bp fit in 7.51 GiB on one GPU at
+$\sim$7.16 s/step, measured over 5 steps just now. This is not the official
+D2 memcheck run --- that still needs \code{phase5\_memcheck.py} re-run in full
+with its output persisted, per the workplan --- but it is a real, disk-backed
+number for this one configuration, and it changes the D3 launch plan:
+\textbf{\code{--grad-checkpoint} must be passed at 65,536 bp; it is not
+optional the way the 32,768 bp entry (2026-08-10, second entry) found it to
+be.} Whether DDP across both GPUs together also needs it, and at what batch
+size, is not yet measured and is explicitly out of scope for this narrow
+smoke test.
+
 \subsection*{2026-08-26 (third entry) --- Phase A1: the phi-variance
 stratification is a lead proposed, tested against its own alpha confound, and
 killed}

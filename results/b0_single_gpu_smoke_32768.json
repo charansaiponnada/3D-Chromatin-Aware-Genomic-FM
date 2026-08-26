@@ -1,0 +1,26 @@
+{
+  "purpose": "B0(a) single-GPU allocator smoke test, RESEARCH_PLAN_2026-08-26 Phase B0",
+  "cuda_visible_devices": "0",
+  "window_bp": 32768,
+  "batch": 2,
+  "n_steps": 5,
+  "n_visible_devices": 1,
+  "mem_get_info_before": {
+    "free_gib": 43.96807861328125,
+    "total_gib": 44.39215087890625
+  },
+  "model_build_s": 0.6520335674285889,
+  "step_times_s": [
+    3.573657989501953,
+    3.0420286655426025,
+    2.9948275089263916,
+    3.037137985229492,
+    2.9948713779449463
+  ],
+  "peak_gib": 37.22552251815796,
+  "outcome": "OK",
+  "mem_get_info_after_free": {
+    "free_gib": 43.69073486328125,
+    "total_gib": 44.39215087890625
+  }
+}
