@@ -63,7 +63,7 @@ from chromfm.model import use_scan                           # noqa: E402
 from phase1_dataset import WindowDataset                     # noqa: E402
 from train import collate                                    # noqa: E402
 from phase5_structure_probe import (                         # noqa: E402
-    load_any, ridge_fit_eval, TARGETS, EXPECTED_NAMES, PROBE_SEED)
+    load_any, ridge_fit_eval, TARGETS, EXPECTED_NAMES, PROBE_SEED, find_runs)
 
 NOVEL = REPO / "results" / "novel_model"
 BASE = REPO / "results" / "baselines"
@@ -223,10 +223,9 @@ def main() -> int:
     run_pair(ctr, cva, "composition_floor", results["targets"])
     print()
 
-    runs = [("structural", d) for d in sorted(NOVEL.glob("structural_seed*"))
-            if (d / "checkpoint.pt").exists()]
-    runs += [("baseline_v2", d) for d in sorted(BASE.glob("baseline_v2_seed*"))
-             if (d / "checkpoint.pt").exists()]
+    # w32768/, not the repository root -- see find_runs() for why the top-level
+    # glob was both empty and unsafe.
+    runs = find_runs()
 
     CACHE.mkdir(parents=True, exist_ok=True)
     per_run = {}

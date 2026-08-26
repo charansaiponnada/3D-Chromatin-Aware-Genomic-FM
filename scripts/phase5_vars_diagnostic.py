@@ -68,7 +68,8 @@ sys.path.insert(0, str(REPO / "scripts"))
 from chromfm.model import BiMambaLM, ModelConfig, use_scan   # noqa: E402
 from phase1_dataset import WindowDataset                     # noqa: E402
 from train import collate                                    # noqa: E402
-from phase5_structure_probe import load_any                  # noqa: E402
+from phase5_structure_probe import (                         # noqa: E402
+    load_any, NOVEL_RUNS)
 
 NOVEL = REPO / "results" / "novel_model"
 OUT = NOVEL / "p5_vars_diagnostic.json"
@@ -182,7 +183,7 @@ def main() -> int:
 
     out = {"runs": {}, "config": {"n_windows": args.n_windows,
                                   "d1_inert_threshold": D1_INERT}}
-    for d in sorted(NOVEL.glob("structural_seed*")):
+    for d in sorted(NOVEL_RUNS.glob("structural_seed*")):
         if not (d / "checkpoint.pt").exists():
             continue
         t0 = time.time()

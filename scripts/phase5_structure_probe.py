@@ -72,6 +72,47 @@ from train import collate                                    # noqa: E402
 
 NOVEL = REPO / "results" / "novel_model"
 BASE = REPO / "results" / "baselines"
+
+# WHICH RUNS THE P5 PROBES ANALYSE (fixed 2026-08-26).
+#
+# Every P5 result was computed on the 32,768 bp Phase 3/4 runs. Those runs were
+# moved to results/{novel_model,baselines}/w32768/ on 2026-08-18 when the window
+# was widened, so the original top-level globs found NOTHING and any re-run
+# would have reported the composition floor alone with no error.
+#
+# Pointing them at w32768/ is not merely cosmetic. An UNFINISHED 65,536 bp
+# structural run sits at results/novel_model/structural_seed0 (status
+# "STARTED -- no metrics yet", n_train_windows 2713 = the 65 kb index) and the
+# top-level glob matches its name exactly. Left as it was, a P5 re-run would
+# have silently mixed one partial 65 kb run into a 32 kb analysis and reported
+# it as a Phase 4 seed.
+#
+# 32 kb and 65 kb are different datasets and must not be pooled, so the width is
+# named here rather than inferred.
+RUN_WINDOW = 32_768
+NOVEL_RUNS = NOVEL / f"w{RUN_WINDOW}"
+BASE_RUNS = BASE / f"w{RUN_WINDOW}"
+
+
+def find_runs():
+    """The (arm, dir) pairs the P5 probes analyse, or raise saying why not.
+
+    Raises rather than returning empty: a probe that silently analyses zero
+    models still prints a floor and writes a JSON file, which is how a moved
+    directory turns into a plausible-looking result with no models in it.
+    """
+    runs = [("structural", d) for d in sorted(NOVEL_RUNS.glob("structural_seed*"))
+            if (d / "checkpoint.pt").exists()]
+    runs += [("baseline_v2", d) for d in sorted(BASE_RUNS.glob("baseline_v2_seed*"))
+             if (d / "checkpoint.pt").exists()]
+    if not runs:
+        raise FileNotFoundError(
+            f"no checkpoints under {NOVEL_RUNS} or {BASE_RUNS}. The P5 probes "
+            f"analyse the {RUN_WINDOW:,} bp runs; if those moved again, update "
+            f"RUN_WINDOW/NOVEL_RUNS/BASE_RUNS in phase5_structure_probe.py "
+            f"rather than pointing a glob at the repository root, which also "
+            f"matches unfinished runs at other window widths.")
+    return runs
 OUT = NOVEL / "p5_structure_probe.json"
 
 # The JupyterHub idle culler kills the whole user cgroup after 10 minutes with
@@ -214,7 +255,7 @@ def targets(ds, idx):
 
 # ------------------------------------------------------------------- the ridge
 
-def ridge_fit_eval(Xtr, ytr, Xva, yva):
+def ridge_fit_eval(Xtr, ytr, Xva, yva, with_pred=False):
     """Ridge with alpha chosen by leave-one-out GCV inside train only.
 
     Closed form via SVD: for each alpha, LOO residual is
@@ -252,7 +293,13 @@ def ridge_fit_eval(Xtr, ytr, Xva, yva):
         r = float("nan")
     else:
         r = float(np.corrcoef(pred, yva)[0, 1])
-    return {"r": r, "r2": r2, "alpha": float(alpha), "loo_mse": float(best[0])}
+    out = {"r": r, "r2": r2, "alpha": float(alpha), "loo_mse": float(best[0])}
+    if with_pred:
+        # per-row predictions, for tests whose unit of analysis is the
+        # window rather than the run (phase5_repower.py). Kept behind a
+        # flag so the JSON these probes write does not grow by 17k floats.
+        out["pred"] = pred
+    return out
 
 
 # ------------------------------------------------------------------------ main
@@ -329,16 +376,7 @@ def main() -> int:
     print()
 
     # ---- both arms
-    runs = []
-    for d in sorted(NOVEL.glob("structural_seed*")):
-        if (d / "checkpoint.pt").exists():
-            runs.append(("structural", d))
-    for d in sorted(BASE.glob("baseline_v2_seed*")):
-        if (d / "checkpoint.pt").exists():
-            runs.append(("baseline_v2", d))
-    if not runs:
-        print("no checkpoints found")
-        return 2
+    runs = find_runs()
 
     CACHE.mkdir(parents=True, exist_ok=True)
     per_run = {}
