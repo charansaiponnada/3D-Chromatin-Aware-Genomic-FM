@@ -13,6 +13,11 @@ reflects it through the 2026-08-18 entry.
 `docs/WORKPLAN_2026-08-25.md`.** T1-T4 there need no GPU and are not blocked by
 the culler.
 
+**A newer, phase-lettered plan supersedes the task-list framing above for
+sequencing purposes: `docs/RESEARCH_PLAN_2026-08-26.md`.** Phase A (close the
+stratification question) is running; do not start Phase B or touch the GPU
+until A is closed and reported.
+
 The original pre-research plan is archived at `docs/original_plan.md`.
 
 ---
@@ -553,6 +558,7 @@ otherwise have looped forever.
 
 | what | where |
 |---|---|
+| **phased plan, current, supersedes the task list for sequencing** | **`docs/RESEARCH_PLAN_2026-08-26.md`** |
 | **ordered task list, current** | **`docs/WORKPLAN_2026-08-25.md`** |
 | handoff notes, 2026-08-17 | `docs/NEXT_SESSION.md` |
 | plain-language project summary | `docs/project_summary_plain.md` |
