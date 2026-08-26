@@ -510,6 +510,127 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-26 (second entry) --- T2 hardened: a ridge boundary hit
+corrected, a flat sign test added, and keep($\varphi$) turned from an
+explanation into a tested prediction}
+
+Four corrections and one new result, all on the same cached representations.
+No GPU. Supersedes nothing in the entry above except the exact $r$ of one run.
+
+\begin{itemize}
+
+\item \textbf{CORRECTED: \code{baseline\_v2\_seed2}'s ridge penalty was clamped,
+not chosen.} \code{ALPHAS = np.logspace(-3, 6, 40)} and that run selected
+$\alpha = 10^{6}$ \emph{exactly} --- the grid maximum. LOO-GCV had railed
+against the boundary, so its regularisation was set by where the grid stopped.
+It is also the strongest baseline seed, the one doing most to close the gap, and
+an under-regularised baseline widens the structural-minus-baseline difference
+\emph{in the direction this project wants}. Grid extended to
+\code{logspace(-3, 9, 53)} and \code{ridge\_fit\_eval} now returns
+\code{alpha\_at\_grid\_edge} rather than letting a boundary hit pass silently.
+
+\textbf{Effect on the result: negligible.} \code{baseline\_v2\_seed2} moves
+$+0.0221 \to +0.0222$ and still selects the new maximum ($10^{9}$), i.e. its
+LOO optimum is effectively unbounded --- as $\alpha \to \infty$ the ridge
+predictor converges to a fixed direction and $r$, being scale-invariant,
+converges with it. The arm difference is $+0.01032$ against $+0.01033$ before.
+The flag was right, the fix was necessary, and the conclusion does not move.
+
+\item \textbf{ADDED: the sign test, and it is flat.} $141/274$ windows favour
+the structural arm --- $51.5\%$, exact binomial $p = \mathbf{0.6725}$. This is
+the most assumption-free statement available: no ridge, no bootstrap, no block
+length, no distributional assumption. It corroborates the honest reading
+($p \approx 0.09$) and contradicts the 9-block artefact ($p = 0.0068$), which is
+exactly why it belongs in the report. The summary now also states that
+$\mathrm{sd}(d_w) = 0.0837$ is \textbf{ten times} the mean of $+0.00835$.
+
+\item \textbf{CORRECTED: the ACF does not decay cleanly.} With $n = 274$ the
+band is $2/\sqrt{274} = 0.1208$. Lags \textbf{1, 8 and 13} exceed it
+($+0.171$, $+0.171$, and one more), i.e. 3 of 60 --- about what noise alone
+gives. Reporting ``first below the band at lag 2'' described the first crossing
+and implied a decay that is not there. Now reported as the full list of
+exceedances.
+
+\item \textbf{STATED: why the 1 Mb floor overrides the measurement.} The
+measured ACF says dependence dies within $0.066$ Mb, and the block length was
+floored at 1 Mb anyway. That looked like an unexplained override. The reason:
+$d_w$ has sd $0.0837$ against a mean of $0.00835$, so it is mostly noise, and
+\textbf{the autocorrelation of a mostly-noise statistic is near zero whatever
+the underlying data do}. Hi-C dependence is a megabase property of the data.
+Letting the short measured lag pick the block size would be letting the noise
+floor pick it, in the anticonservative direction.
+
+\item \textbf{NEW RESULT --- keep($\varphi$) makes a prediction, and it holds.}
+Until now keep($\varphi$) $= 0.0573$ explained an absence, which is the weakest
+kind of claim. It predicts something testable: if it is the true account, the
+structural advantage should concentrate in windows where $\varphi$ actually
+varies \emph{inside} the window. Per-window within-window $\varphi$ variance
+spans $0.0028$ to $13.33$ of the pooled val variance --- nearly four orders of
+magnitude --- so the strata are real.
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+quartile & $\varphi$ variance range & $n$ & mean $d_w$ & fraction $>0$ \\
+\midrule
+Q1 & 0.0028 -- 0.0659 & 69 & $-0.01620$ & 0.420 \\
+Q2 & 0.0673 -- 0.2969 & 68 & $+0.02168$ & 0.500 \\
+Q3 & 0.2987 -- 1.2114 & 68 & $+0.01713$ & 0.559 \\
+Q4 & 1.2228 -- 13.3271 & 69 & $+0.01112$ & 0.580 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Spearman $\rho(\varphi\ \text{variance}, d_w) = \mathbf{+0.1210}$. The naive
+\code{spearmanr} $p = 0.0454$ is \textbf{not used} --- it assumes independent
+observations and these are a contiguous series. Block bootstrapped instead,
+and swept, with the same CI-width diagnostic applied:
+
+\begin{center}
+\begin{tabular}{rrrrr}
+\toprule
+$L$ (win) & blocks & $p$ & 95\% CI & width \\
+\midrule
+1  & 274 & 0.0365 & $[+0.0062, +0.2342]$ & 0.2280 \\
+4  &  69 & 0.0255 & $[+0.0132, +0.2319]$ & 0.2187 \\
+8  &  35 & 0.0230 & $[+0.0190, +0.2192]$ & 0.2001 \\
+15 &  19 & 0.0200 & $[+0.0182, +0.2203]$ & 0.2021 \\
+31 &   9 & 0.0180 & $[+0.0257, +0.2276]$ & 0.2019 \\
+61 &   5 & 0.0005 & $[+0.0523, +0.2306]$ & 0.1783 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The width narrows with $L$ again, so only the $\geq 20$-block rows are usable.
+At the largest reliable setting ($L=8$, 35 blocks) $p = 0.0230$, CI
+$[+0.0190, +0.2192]$. \textbf{Unlike the pooled-$r$ difference, $\rho$'s CI
+excludes zero at every block length tested, including the reliable ones}, so
+this does not rest on the 9-block artefact.
+
+\textbf{Read it carefully.} Mean $d_w$ is \emph{not} monotone --- Q2 is the
+largest, not Q4 --- so this is not a clean dose-response. What \emph{is}
+monotone is the fraction of windows the structural arm wins:
+$0.420 \to 0.500 \to 0.559 \to 0.580$. And Q1 is \textbf{negative}: where
+$\varphi$ barely varies within the window, the structural arm is worse. Caveat
+on that: in Q1 the centred target is close to pure noise, so a per-window $r$
+there estimates almost nothing and its sign is weakly determined.
+
+\textbf{Status: a strong lead, not an established result.} The $0.262$ Mb
+blocks that make the bootstrap reliable are shorter than Hi-C autocorrelation,
+so $p = 0.0230$ is anticonservative, and 8.98 Mb cannot do better. The
+multi-chromosome build should confirm or kill it. If it holds, it converts
+keep($\varphi$) from a post-hoc account of a null into a prediction that was
+made and tested --- a materially better paper than either the null or the
+probe-B positive alone.
+
+\item \textbf{Correction to the record.} T2 was justified on the expectation
+that moving the unit of analysis from the seed to the window would buy power
+``at zero extra compute''. That was wrong, and the entry above already says so:
+274 windows over 8.98 Mb at megabase dependence is single-digit effective
+samples, and the window count was never the binding quantity. T2's value is
+diagnostic, not inferential.
+
+\end{itemize}
 \subsection*{2026-08-26 --- T2: re-powering probe B does not reach $p<0.05$, and
 the reason is the amount of independent genome, not the test}
 

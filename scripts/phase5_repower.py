@@ -187,6 +187,22 @@ def block_resample_windows(n_win, L, n_boot, rng):
             ).reshape(n_boot, -1)[:, :n_win]
 
 
+def sign_test(d):
+    """Exact two-sided binomial sign test on H0: P(d_w > 0) = 0.5.
+
+    The most assumption-free version of "does this hold across the genome":
+    no ridge, no bootstrap, no block length, no distributional assumption. If
+    the effect were a broad genome-wide property, the sign should be positive
+    in well over half of windows regardless of how noisy each one is.
+    """
+    from scipy.stats import binomtest
+    pos = int((d > 0).sum())
+    n = int((d != 0).sum())
+    bt = binomtest(pos, n, 0.5, alternative="two-sided")
+    return {"n_positive": pos, "n": n, "fraction": pos / n,
+            "p_two_sided": float(bt.pvalue)}
+
+
 def exact_permutation_3v3(a, b):
     """Exact two-sided permutation test on 3 vs 3. Minimum attainable p = 0.1."""
     from itertools import combinations
@@ -304,8 +320,15 @@ def main() -> int:
     print("dependence in the per-window statistic (this is what sets block size)")
     print("-" * 74)
     print(f"  ACF lags 1-8: " + " ".join(f"{a[L]:+.3f}" for L in range(1, 9)))
-    print(f"  |ACF| first below 2/sqrt(n) = {thresh:.3f} at lag {first_below} "
-          f"({first_below * WINDOW / 1e6:.3f} Mb)")
+    exceed = [L for L in range(1, nl + 1) if abs(a[L]) >= thresh]
+    print(f"  band = 2/sqrt(n) = {thresh:.4f}")
+    print(f"  lags exceeding the band: {exceed[:10]}"
+          f"{' ...' if len(exceed) > 10 else ''}  "
+          f"({len(exceed)}/{nl} lags)")
+    print(f"  FIRST crossing below the band is lag {first_below}, but that is "
+          f"the first, not the last:")
+    print(f"  the ACF does NOT decay cleanly -- roughly the number of "
+          f"exceedances noise alone would give.")
 
     rng_b = np.random.default_rng(BOOT_SEED)
     # Chosen block length: the measured dependence in d_w, but never shorter
@@ -317,6 +340,15 @@ def main() -> int:
     L_use = max(L_data, L_hic)
     print(f"  block length used: {L_use} windows = {L_use * WINDOW / 1e6:.3f} Mb "
           f"(max of measured lag {L_data} and a 1 Mb Hi-C floor {L_hic})")
+    print()
+    print("  WHY THE 1 Mb FLOOR OVERRIDES THE MEASUREMENT. The measured ACF")
+    print("  says dependence dies within ~0.066 Mb. That is not evidence of")
+    print("  independence: d_w has sd 0.081 against a mean of 0.008, so it is")
+    print("  mostly noise, and the autocorrelation of a mostly-noise statistic")
+    print("  is near zero whatever the underlying data do. Hi-C dependence is a")
+    print("  megabase-scale property of the DATA. Taking the short measured lag")
+    print("  at face value would be letting the noise floor pick the block")
+    print("  size, which is the anticonservative direction.")
     print()
 
     print("-" * 74)
@@ -398,6 +430,148 @@ def main() -> int:
     print("  autocorrelation and enough of them for a valid bootstrap cannot")
     print("  both be had from 8.98 Mb of validation genome.")
 
+    # ---- THE MECHANISTIC PREDICTION
+    #
+    # keep(phi) = 0.0573 was offered as the reason the Phase 4 benefit is null:
+    # the delta-bias mechanism acts per position, so it can only use the share
+    # of phi's variance that lies WITHIN a window, and that share is tiny. So
+    # far that is an explanation for an absence, which is the weakest kind of
+    # claim -- it explains a null without predicting anything.
+    #
+    # It does predict something, and the prediction is testable in data already
+    # cached. If keep(phi) is the true account, the structural advantage should
+    # CONCENTRATE in windows where phi actually varies inside the window, and
+    # vanish in windows where its input is flat. Windows differ a lot in this:
+    # per-window keep is computed below and spans two orders of magnitude.
+    #
+    # A hint that this is real: the pooled r difference (+0.0103) exceeds the
+    # mean of per-window differences (+0.0077), and pooled r implicitly weights
+    # windows by their within-window phi variance.
+    #
+    # This can equally come out flat, which is also worth knowing: it would mean
+    # keep(phi) explains the null but does not predict where the signal lives.
+    wvar = np.array([np.var(ybv[wv == j]) for j in range(n_win)])
+    gvar = float(np.var(ybv))
+    keep_w = wvar / gvar if gvar > 0 else np.full(n_win, np.nan)
+    kk = keep_w[ok]
+    print()
+    print("-" * 74)
+    print("MECHANISTIC TEST -- does the advantage live where phi actually varies?")
+    print("-" * 74)
+    print(f"  per-window within-window phi variance (centred insulation_100kb),")
+    print(f"  as a fraction of the pooled val variance:")
+    print(f"    min {kk.min():.4f}  median {np.median(kk):.4f}  max {kk.max():.4f}")
+    qs = np.quantile(kk, [0.25, 0.5, 0.75])
+    bins = np.digitize(kk, qs)
+    print()
+    print(f"  {'quartile':>10s} {'phi var range':>22s} {'n':>5s} "
+          f"{'mean d_w':>10s} {'frac > 0':>9s}")
+    strat = {}
+    for q in range(4):
+        m = bins == q
+        if m.sum() == 0:
+            continue
+        dq = d[m]
+        lo_, hi_ = kk[m].min(), kk[m].max()
+        strat[f"Q{q + 1}"] = {"n": int(m.sum()),
+                              "phi_var_lo": float(lo_), "phi_var_hi": float(hi_),
+                              "mean_d": float(dq.mean()),
+                              "sd_d": float(dq.std(ddof=1)),
+                              "frac_positive": float((dq > 0).mean())}
+        print(f"  {'Q' + str(q + 1):>10s} {lo_:9.4f} - {hi_:9.4f} {m.sum():5d} "
+              f"{dq.mean():+10.5f} {(dq > 0).mean():9.3f}")
+
+    # Spearman: monotone association between how much phi varies in a window
+    # and how much the structural arm gains there. Rank-based, so it does not
+    # assume the relationship is linear or that d_w is well behaved.
+    from scipy.stats import spearmanr
+    rho, p_rho_naive = spearmanr(kk, d)
+    print()
+    print(f"  Spearman rho(within-window phi variance, d_w) = {rho:+.4f}")
+    print(f"    naive p = {p_rho_naive:.4f}  -- DO NOT USE. spearmanr assumes")
+    print(f"    independent observations, and these 274 windows are a")
+    print(f"    contiguous 8.98 Mb series. Using it here would be the exact")
+    print(f"    error this script exists to avoid.")
+
+    # Same moving block bootstrap, swept over block length, and subject to the
+    # SAME CI-width diagnostic as everything else here -- a rho p-value from 9
+    # blocks is no more trustworthy than a pooled-r one from 9 blocks.
+    n_ok = int(ok.sum())
+    n_boot_rho = 4_000            # spearman per resample is the slow part
+    rho_sweep = {}
+    print(f"    {'L':>4s} {'Mb':>6s} {'blocks':>7s} {'p':>8s} {'95% CI':>20s} "
+          f"{'width':>8s}")
+    for L in (1, 4, 8, 15, L_use, 61):
+        if L > n_ok:
+            continue
+        take = block_resample_windows(n_ok, L, n_boot_rho,
+                                      np.random.default_rng(BOOT_SEED))
+        rb = np.array([spearmanr(kk[s], d[s]).statistic for s in take])
+        lo_, hi_ = np.percentile(rb, [2.5, 97.5])
+        pp = float(min(2.0 * min((rb <= 0).mean(), (rb >= 0).mean()), 1.0))
+        nb = int(np.ceil(n_ok / L))
+        rho_sweep[str(L)] = {"block_len_windows": int(L), "n_blocks": nb,
+                             "p_two_sided": pp, "ci95_lo": float(lo_),
+                             "ci95_hi": float(hi_),
+                             "ci_width": float(hi_ - lo_),
+                             "reliable": bool(nb >= MIN_BLOCKS)}
+        flag = "" if nb >= MIN_BLOCKS else "  too few blocks"
+        print(f"    {L:4d} {L * WINDOW / 1e6:6.3f} {nb:7d} {pp:8.4f} "
+              f"[{lo_:+.4f},{hi_:+.4f}] {hi_ - lo_:8.4f}{flag}")
+
+    ok_rL = [int(k) for k, v in rho_sweep.items() if v["reliable"]]
+    L_rho = max(ok_rL)
+    best_rho = rho_sweep[str(L_rho)]
+    lo_r, hi_r = best_rho["ci95_lo"], best_rho["ci95_hi"]
+    p_rho = best_rho["p_two_sided"]
+    print(f"    width narrows with L again -- so the L >= {MIN_BLOCKS}-block "
+          f"rows are the only usable ones.")
+    print(f"    USING L = {L_rho} ({L_rho * WINDOW / 1e6:.3f} Mb, "
+          f"{best_rho['n_blocks']} blocks): p = {p_rho:.4f}, "
+          f"CI [{lo_r:+.4f},{hi_r:+.4f}]")
+
+    q4, q1 = strat.get("Q4"), strat.get("Q1")
+    fracs = [strat[f"Q{i}"]["frac_positive"] for i in range(1, 5)
+             if f"Q{i}" in strat]
+    monotone = all(fracs[i] <= fracs[i + 1] for i in range(len(fracs) - 1))
+    if q4 and q1:
+        print()
+        print(f"  top quartile mean d_w {q4['mean_d']:+.5f}  vs  "
+              f"bottom {q1['mean_d']:+.5f}")
+        print(f"  fraction positive by quartile: "
+              f"{' -> '.join(f'{f:.3f}' for f in fracs)}"
+              f"{'  (monotone increasing)' if monotone else '  (NOT monotone)'}")
+        print()
+        print("  READ CAREFULLY -- mean d_w is NOT monotone in phi variance")
+        print("  (Q2 is the largest, not Q4), so this is not a clean dose-")
+        print("  response. What IS monotone is the fraction of windows where")
+        print("  the structural arm wins. And the bottom quartile is NEGATIVE:")
+        print("  where phi barely varies inside the window, the structural arm")
+        print("  is WORSE. Caution: in Q1 the centred target is almost pure")
+        print("  noise (phi variance 0.003-0.066 of pooled), so a per-window r")
+        print("  there is estimating close to nothing and its sign is weakly")
+        print("  determined.")
+        if rho > 0 and lo_r > 0:
+            print()
+            print("  => CONSISTENT AND POSITIVE AT EVERY BLOCK LENGTH TESTED.")
+            print("     Unlike the pooled-r difference, rho's CI excludes zero")
+            print("     even at the largest RELIABLE block count, so this does")
+            print("     not rest on the 9-block artefact. The remaining caveat")
+            print(f"     is the same one as everywhere else: {L_rho * WINDOW / 1e6:.3f} Mb blocks")
+            print("     are shorter than Hi-C autocorrelation, so the p is")
+            print("     anticonservative and 8.98 Mb cannot do better. Call it")
+            print("     a strong lead that the multi-chromosome build should")
+            print("     confirm -- not an established result.")
+        else:
+            print()
+            print("  => SUGGESTIVE, NOT ESTABLISHED. The bootstrap CI on rho")
+            print("     includes 0 once window dependence is respected. The")
+            print("     direction is right and the fraction-positive trend is")
+            print("     monotone, but this does not clear significance on 8.98")
+            print("     Mb -- the same genome-quantity limit as everything else")
+            print("     here. It is a lead for the multi-chromosome build to")
+            print("     confirm or kill, not a result.")
+
     # ---- the seed-level test, for comparison
     perm = exact_permutation_3v3(
         np.array([per_run_r[n] for n in STRUCT]),
@@ -413,8 +587,13 @@ def main() -> int:
           f"   (floor {perm['p_floor']:.3f} at 3v3, {perm['n_arrangements']} "
           f"arrangements)")
     used = sweep[str(L_use)]
+    st = sign_test(d)
     print(f"  ACROSS WINDOWS (does it hold across the genome?)")
-    print(f"    mean d_w {d.mean():+.5f}  on {ok.sum()} windows")
+    print(f"    mean d_w {d.mean():+.5f}  sd {d.std(ddof=1):.5f} "
+          f"-- the sd is {d.std(ddof=1) / abs(d.mean()):.0f}x the mean")
+    print(f"    sign test  {st['n_positive']}/{st['n']} windows positive "
+          f"({st['fraction']:.1%})  p = {st['p_two_sided']:.4f}"
+          f"   <-- assumption-free, and it is FLAT")
     print(f"    moving block bootstrap, L = {L_use} windows "
           f"({L_use * WINDOW / 1e6:.3f} Mb), {used['n_blocks']} blocks")
     print(f"    mean-of-per-window-r  p = {used['p_two_sided']:.4f}   95% CI "
@@ -476,6 +655,20 @@ def main() -> int:
                                      "n_boot": N_BOOT, "seed": BOOT_SEED,
                                      "chosen_L": int(L_use),
                                      "sweep": pooled_sweep},
+        "sign_test": st,
+        "phi_variance_stratification": {
+            "per_window_keep_phi": {"min": float(kk.min()),
+                                    "median": float(np.median(kk)),
+                                    "max": float(kk.max())},
+            "quartiles": strat,
+            "spearman_rho": float(rho),
+            "spearman_p_naive_INVALID": float(p_rho_naive),
+            "spearman_p_block_bootstrap": float(p_rho),
+            "spearman_ci95": [float(lo_r), float(hi_r)],
+            "spearman_sweep": rho_sweep,
+            "block_len_windows": int(L_rho),
+            "block_len_note": "largest L with >= MIN_BLOCKS blocks",
+            "frac_positive_monotone": bool(monotone)},
         "seed_level_permutation": perm,
     }, indent=2))
     print(f"\nwrote {OUT}")

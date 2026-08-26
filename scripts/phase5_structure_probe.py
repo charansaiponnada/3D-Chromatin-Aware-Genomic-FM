@@ -136,7 +136,14 @@ EXPECTED_NAMES = [
     "short_long_ratio", "compartment_pc1",
 ]
 
-ALPHAS = np.logspace(-3, 6, 40)
+# 2026-08-26: extended from logspace(-3, 6, 40). baseline_v2_seed2 selected
+# alpha = 1e6 exactly -- the old grid MAXIMUM -- in the probe-B fit, i.e. its
+# regularisation was clamped by the grid, not chosen by LOO-GCV. That run is
+# also the strongest baseline (+0.0221), so an under-regularised baseline
+# inflates the structural-minus-baseline gap in the direction the project
+# wants. Extended to 1e9 and ridge_fit_eval now reports boundary hits rather
+# than letting them pass silently.
+ALPHAS = np.logspace(-3, 9, 53)
 BATCH = 2
 PROBE_SEED = 20260817          # fixed, not a training seed
 
@@ -293,7 +300,13 @@ def ridge_fit_eval(Xtr, ytr, Xva, yva, with_pred=False):
         r = float("nan")
     else:
         r = float(np.corrcoef(pred, yva)[0, 1])
-    out = {"r": r, "r2": r2, "alpha": float(alpha), "loo_mse": float(best[0])}
+    # A selected alpha sitting on either end of ALPHAS was clamped, not chosen.
+    # Reported, never silently accepted: the LOO-GCV optimum may lie outside the
+    # grid, and which side it falls on determines which way the fit is biased.
+    at_edge = ("max" if alpha >= ALPHAS[-1] * (1 - 1e-12)
+               else "min" if alpha <= ALPHAS[0] * (1 + 1e-12) else None)
+    out = {"r": r, "r2": r2, "alpha": float(alpha), "loo_mse": float(best[0]),
+           "alpha_at_grid_edge": at_edge}
     if with_pred:
         # per-row predictions, for tests whose unit of analysis is the
         # window rather than the run (phase5_repower.py). Kept behind a
