@@ -1,0 +1,78 @@
+{
+  "created": "2026-08-26T11:14:20",
+  "config": {
+    "experiment_set": "4DNES3JX38V5",
+    "chrom": "chr11",
+    "resolution_bp": 5000,
+    "band_bp": 2000000,
+    "coarse_resolution_bp": 250000,
+    "genome_assembly": "GRCh38",
+    "fasta_source": "https://ftp.ensembl.org/pub/release-113/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.11.fa.gz",
+    "gtf_source": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_47/gencode.v47.annotation.gtf.gz",
+    "chrom_naming_note": "Ensembl FASTA uses '9'; normalised to 'chr9' to match GENCODE and 4DN. Coordinates are unchanged (both GRCh38)."
+  },
+  "artifacts": [
+    {
+      "path": "data/raw/4DNFIVK5JOFU_boundaries_bed.bed.gz",
+      "source": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/15b1a7db-6d72-4134-a90f-fcfeb644b92f/4DNFIVK5JOFU.bed.gz",
+      "accession": "4DNFIVK5JOFU",
+      "role": "TAD boundary calls",
+      "bytes": 125016,
+      "md5": "ebdf5462f5d150b6818c2bf2ab570ea7"
+    },
+    {
+      "path": "data/raw/4DNFIBMOGOZC_insulation_bw.bw",
+      "source": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/a4d9ce75-8e06-4151-9804-c651b50525aa/4DNFIBMOGOZC.bw",
+      "accession": "4DNFIBMOGOZC",
+      "role": "insulation score, diamond method",
+      "bytes": 8555721,
+      "md5": "06a391048266b9c53a89588748b7e1ae"
+    },
+    {
+      "path": "data/raw/4DNFILYQ1PAY_compartments_bw.bw",
+      "source": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/7635b7f8-4bfd-4ebc-9cd2-1d64fe8c84ee/4DNFILYQ1PAY.bw",
+      "accession": "4DNFILYQ1PAY",
+      "role": "A/B compartment eigenvector",
+      "bytes": 214177,
+      "md5": "ba73062524e460539390cd6513a068d1"
+    },
+    {
+      "path": "data/interim/hic_band_chr11_5000bp.npz",
+      "source": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/d6abea45-b0bb-4154-9854-1d3075b98097/4DNFIXP4QG5B.mcool",
+      "accession": "4DNFIXP4QG5B",
+      "role": "near-diagonal band, +/-2000000 bp, balanced, upper triangle",
+      "entries": 8513992,
+      "n_bins": 27018,
+      "bytes": 33246191,
+      "md5": "6e5041d3071b8ebd0ce24054170303e2"
+    },
+    {
+      "path": "data/interim/hic_coarse_chr11_250000bp.npz",
+      "source": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/d6abea45-b0bb-4154-9854-1d3075b98097/4DNFIXP4QG5B.mcool",
+      "accession": "4DNFIXP4QG5B",
+      "role": "coarse balanced matrix for compartment calling",
+      "shape": [
+        541,
+        541
+      ],
+      "bytes": 979308,
+      "md5": "46f74e52b87aad18c34af708d297e91a"
+    },
+    {
+      "path": "data/interim/chr11.fa",
+      "source": "https://ftp.ensembl.org/pub/release-113/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.11.fa.gz",
+      "role": "GRCh38 chr9 sequence, header normalised",
+      "bases": 135086622,
+      "bytes": 137338073,
+      "md5": "99ab7af57d6ba862c86d54eb9b0f600e"
+    },
+    {
+      "path": "data/interim/gencode.v47.chr11.gtf",
+      "source": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_47/gencode.v47.annotation.gtf.gz",
+      "role": "GENCODE v47 annotation filtered to chr9",
+      "rows": 230267,
+      "bytes": 103844770,
+      "md5": "501c151e22fdd6e62526af7587fd065c"
+    }
+  ]
+}

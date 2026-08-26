@@ -18,6 +18,8 @@ Design notes
 
 Run:  python scripts/phase1_acquire.py
       python scripts/phase1_acquire.py --dry-run
+      python scripts/phase1_acquire.py --chrom chr10 --dry-run
+      python scripts/phase1_acquire.py --chrom chr10
 """
 
 from __future__ import annotations
@@ -118,28 +120,54 @@ def fdn_record(accession: str) -> dict:
 
 
 def stream_download(url: str, dest: Path, expect_md5: str | None = None) -> Path:
-    """Download with resume. Skips if a complete file is already present."""
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    if dest.exists() and expect_md5 and md5(dest) == expect_md5:
-        print(f"    cached (md5 ok): {dest.name}")
-        return dest
+    """Download with resume. Skips if a complete file is already present.
 
-    tmp = dest.with_suffix(dest.suffix + ".part")
-    pos = tmp.stat().st_size if tmp.exists() else 0
-    headers = {"Range": f"bytes={pos}-"} if pos else {}
-    with requests.get(url, headers=headers, stream=True, timeout=180) as r:
-        if r.status_code not in (200, 206):
-            raise RuntimeError(f"HTTP {r.status_code} for {url}")
-        mode = "ab" if r.status_code == 206 and pos else "wb"
-        with tmp.open(mode) as fh:
-            for chunk in r.iter_content(1 << 20):
-                fh.write(chunk)
-    tmp.replace(dest)
-    if expect_md5:
-        got = md5(dest)
-        status = "OK" if got == expect_md5 else f"MISMATCH (expected {expect_md5})"
-        print(f"    md5 {got} {status}")
-    return dest
+    Locked with flock on a sibling .lock file: some destinations (the
+    genome-wide GTF, in particular) are SHARED across chromosomes in the
+    multi-chromosome build, and multiple phase1_acquire.py --chrom invocations
+    now run concurrently. Without the lock, concurrent writers to the same
+    dest corrupt each other's .part file (observed 2026-08-26: chr13 got
+    "zlib.error: invalid block type" mid-decompress, chr14 got
+    FileNotFoundError on tmp.replace(dest) because a sibling process's rename
+    had already consumed the shared .part). The lock serialises all access to
+    one dest path; a process that loses the race for the lock finds dest
+    already complete when it wakes up and skips its own download.
+    """
+    import fcntl
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = dest.parent / (dest.name + ".lock")
+    with lock_path.open("a+") as lockfh:
+        fcntl.flock(lockfh.fileno(), fcntl.LOCK_EX)
+        try:
+            if dest.exists() and expect_md5 and md5(dest) == expect_md5:
+                print(f"    cached (md5 ok): {dest.name}")
+                return dest
+            if dest.exists() and not expect_md5:
+                # No checksum to verify against (e.g. the GTF), but a
+                # complete file is already at this path -- possibly written
+                # by a concurrent chromosome's invocation while we waited on
+                # the lock. Trust it rather than re-fetching.
+                print(f"    cached (present, no checksum available): {dest.name}")
+                return dest
+
+            tmp = dest.with_suffix(dest.suffix + ".part")
+            pos = tmp.stat().st_size if tmp.exists() else 0
+            headers = {"Range": f"bytes={pos}-"} if pos else {}
+            with requests.get(url, headers=headers, stream=True, timeout=180) as r:
+                if r.status_code not in (200, 206):
+                    raise RuntimeError(f"HTTP {r.status_code} for {url}")
+                mode = "ab" if r.status_code == 206 and pos else "wb"
+                with tmp.open(mode) as fh:
+                    for chunk in r.iter_content(1 << 20):
+                        fh.write(chunk)
+            tmp.replace(dest)
+            if expect_md5:
+                got = md5(dest)
+                status = "OK" if got == expect_md5 else f"MISMATCH (expected {expect_md5})"
+                print(f"    md5 {got} {status}")
+            return dest
+        finally:
+            fcntl.flock(lockfh.fileno(), fcntl.LOCK_UN)
 
 
 def fetch_hic_band(mcool_url: str) -> dict:
@@ -232,8 +260,8 @@ def fetch_coarse_matrix(mcool_url: str) -> dict:
 
 
 def fetch_sequence(dest: Path) -> tuple[Path, int]:
-    """Ensembl chr9 FASTA -> plain .fa with the header normalised to 'chr9'."""
-    gz = RAW / "Homo_sapiens.GRCh38.dna.chromosome.9.fa.gz"
+    """Ensembl per-chromosome FASTA -> plain .fa, header normalised to 'chrN'."""
+    gz = RAW / f"Homo_sapiens.GRCh38.dna.chromosome.{CHROM.removeprefix('chr')}.fa.gz"
     stream_download(FASTA_URL, gz)
     n = 0
     with gzip.open(gz, "rt") as src, dest.open("w", encoding="utf-8") as out:
@@ -264,10 +292,19 @@ def fetch_annotation(dest: Path) -> tuple[Path, int]:
 
 
 def main() -> None:
+    global CHROM, FASTA_URL
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true",
                     help="resolve URLs and print the plan, download nothing")
+    ap.add_argument("--chrom", default=CHROM,
+                    help="chromosome to fetch, e.g. chr9, chr10 (default: chr9). "
+                         "chr9 stays the TEST split in the multi-chromosome build "
+                         "(CHROME holds chr9 out as test too); every other "
+                         "chromosome fetched here is a train/val candidate.")
     args = ap.parse_args()
+
+    CHROM = args.chrom
+    FASTA_URL = fasta_url(CHROM)
 
     RAW.mkdir(parents=True, exist_ok=True)
     INTERIM.mkdir(parents=True, exist_ok=True)
@@ -359,7 +396,9 @@ def main() -> None:
             role="GENCODE v47 annotation filtered to chr9",
             rows=n_rows, bytes=gtf.stat().st_size, md5=md5(gtf))
 
-    man.write(REPO / "data" / "pilot_manifest.json")
+    manifest_name = ("pilot_manifest.json" if CHROM == "chr9"
+                      else f"pilot_manifest_{CHROM}.json")
+    man.write(REPO / "data" / manifest_name)
     print("\nPhase 1 step 1 complete. Next: step 2 (build phi features), "
           "step 3 (visual validation -- you must eyeball a TAD and a loop).")
 

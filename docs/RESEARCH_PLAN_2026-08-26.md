@@ -193,3 +193,49 @@ alpha tested here.
 
 Phase B, C, D are unauthorized until picked up in a session with PI sign-off;
 this session did not touch the GPU and stops here per its own instructions.
+
+---
+
+**AMENDMENT, PI, same day.** Component 3 is dropped, not the A1 result: the
+alpha-confound elimination (rho stable +0.112 to +0.118) is a negative
+control, not support for the claim. The A1 gate itself was mis-specified --
+pairing rho with a non-independent quartile-monotonicity display -- noted for
+future gates; the chr9 verdict is not reopened. Superseding pre-registration
+(rho > 0 on held-out chromosomes, no secondary) written verbatim into
+architecture_spec.md §7 Decision 7 and project.tex before any multi-chromosome
+data existed.
+
+**Phase B0, run 2026-08-26:**
+- (a) Single-GPU allocator smoke test (`scripts/b0_single_gpu_smoke.py`).
+  Single GPU alone does NOT avoid the nvmlInit_v2_ assertion at 65,536 bp --
+  it fires with 43.97/44.39 GiB free and no other process. Isolated cause:
+  65,536 bp without `--grad-checkpoint` needs on the order of 70+ GiB (32,768
+  bp alone already peaks at 37.23 GiB); WITH `--grad-checkpoint`, 65,536 bp
+  fits in 7.51 GiB at ~7.16 s/step on one GPU, measured. `run_phase4.sh` must
+  pass `--grad-checkpoint` at 65,536 bp -- it currently doesn't. This was
+  previously misattributed to "concurrent load from an unrelated project on
+  both devices"; the real constraint is memory, not device contention. D2
+  memcheck rerun is still separately required.
+- (b) Draft admin message written to `docs/ADMIN_REQUEST_idle_culler.md`, not
+  sent.
+
+**Phase B1, run 2026-08-26: multi-chromosome build complete.**
+`dataset_index_multichrom.npz` built -- chr9 held out whole as test,
+chr10-13 train, chr14-15 val (~957/161/108 Mb). All 7 chromosomes acquired,
+featurised, and validated against independent 4DN tracks (insulation_100kb r
+0.9968-0.9972, compartment r 0.948-0.977 across all seven). phi
+standardisation decided PER-CHROMOSOME, recorded in
+`phase1_features.py`'s docstring and `docs/data_card.md` §7.
+
+A real concurrency bug was found running 5 acquisitions in parallel: three
+chromosomes (chr13/14/15) crashed racing on the single shared GENCODE-GTF
+download target. Fixed with an flock-based lock in `stream_download`
+(`scripts/phase1_acquire.py`); the three affected chromosomes' already-correct
+Hi-C band/coarse/sequence data was reused, only the annotation step was
+recovered.
+
+Not done: visual TAD/loop inspection beyond chr9 (data_card.md §6 is
+chr9-only); B2 (phi at 1 kb) and B3 (second cell line) were not started this
+session -- B1 was prioritised per this file's own instruction ("if you can
+only complete one Phase B item, complete B1"). Phase C, D still unauthorized;
+this session did not touch the GPU beyond the B0(a) smoke test.

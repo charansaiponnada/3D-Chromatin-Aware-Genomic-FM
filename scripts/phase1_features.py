@@ -22,10 +22,26 @@ where the antisymmetric coordinates cancel between the forward and reverse
 Mamba passes.
 
 Run:  python scripts/phase1_features.py
+      python scripts/phase1_features.py --chrom chr10
+
+phi standardisation scope, decided 2026-08-26 for the multi-chromosome build
+(docs/RESEARCH_PLAN_2026-08-26.md B1): PER-CHROMOSOME, unchanged from the
+single-chromosome pilot. Each chromosome's phi is z-scored against its own
+usable-bin mean/std (mu, sd below), independently of every other chromosome.
+Reasoning: a global standardisation would require every chromosome's raw phi
+in memory simultaneously and would make each chromosome's z-scores depend on
+which OTHER chromosomes were included in a given build -- re-running with a
+different chromosome set would silently change every existing chromosome's
+phi values. Per-chromosome standardisation keeps each chromosome's phi build
+fully independent and reproducible in isolation, at the cost that keep(phi)
+and every phi-derived number are relative to that chromosome's OWN variance,
+not on one absolute scale across chromosomes. This must travel with any
+cross-chromosome phi comparison.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import time
 from pathlib import Path
@@ -257,6 +273,15 @@ def validate(phi_raw: dict, bin_start: np.ndarray, valid: np.ndarray) -> dict:
 
 
 def main() -> None:
+    global CHROM
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--chrom", default=CHROM,
+                    help="chromosome to build phi for, e.g. chr9, chr10 "
+                         "(default: chr9). Must match a chromosome already "
+                         "fetched by phase1_acquire.py --chrom.")
+    args = ap.parse_args()
+    CHROM = args.chrom
+
     t0 = time.time()
     PROCESSED.mkdir(parents=True, exist_ok=True)
 
@@ -329,7 +354,12 @@ def main() -> None:
         "feature_names": FEATURE_NAMES, "feature_symmetry": FEATURE_SYMMETRY,
         "elapsed_s": round(time.time() - t0, 1),
     })
-    rp = PROCESSED / "phi_validation_report.json"
+    # Must END in "_validation_report.json" to match the .gitignore exception
+    # `!data/processed/*_validation_report.json` -- these are results, not
+    # regenerable data, and must be tracked. chrN goes BEFORE that suffix.
+    report_name = ("phi_validation_report.json" if CHROM == "chr9"
+                   else f"phi_{CHROM}_validation_report.json")
+    rp = PROCESSED / report_name
     rp.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"wrote {rp.relative_to(REPO)}")
     print(f"\ndone in {time.time()-t0:.1f}s")

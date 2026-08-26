@@ -1,0 +1,38 @@
+{
+  "pearson_insulation_100kb_vs_4DN": 0.9972,
+  "n_compared_insulation_100kb": 25545,
+  "pearson_insulation_250kb_vs_4DN": 0.7896,
+  "n_compared_insulation_250kb": 25479,
+  "pearson_insulation_500kb_vs_4DN": 0.5145,
+  "n_compared_insulation_500kb": 25367,
+  "pearson_compartment_vs_4DN": 0.9774,
+  "n_compared_compartment": 26017,
+  "n_4DN_boundaries_chr9": 375,
+  "n_our_boundary_candidates": 633,
+  "frac_4DN_boundaries_within_10kb": 0.4133,
+  "median_distance_bins": 5.0,
+  "n_bins": 27018,
+  "usable_bins": 25426,
+  "usable_frac": 0.9411,
+  "feature_names": [
+    "insulation_100kb",
+    "insulation_250kb",
+    "insulation_500kb",
+    "directionality_2Mb",
+    "log_contact_density",
+    "upstream_mass_frac",
+    "short_long_ratio",
+    "compartment_pc1"
+  ],
+  "feature_symmetry": [
+    1,
+    1,
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    1
+  ],
+  "elapsed_s": 6.0
+}

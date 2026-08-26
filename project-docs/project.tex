@@ -510,6 +510,79 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-26 (sixth entry) --- Phase B1: multi-chromosome data build
+complete, chr9 held out whole as test, a real concurrency bug found and fixed}
+
+No GPU. \code{scripts/phase1\_acquire.py} and \code{scripts/phase1\_features.py}
+gained \code{--chrom}; new script \code{scripts/phase1\_multichrom\_index.py}
+writes \code{data/processed/dataset\_index\_multichrom.npz}. Six new
+chromosomes acquired end to end (Hi-C band + coarse matrix + sequence +
+GENCODE annotation + $\varphi$ features, each validated against independent
+4DN tracks), --dry-run'd first per the plan's trap warning.
+
+\textbf{Roles.} chr9 held out in its \textbf{entirety} as test --- no internal
+train/val/test carve-out inside chr9 the way the single-chromosome
+\code{dataset\_index.npz} has, matching CHROME's chr9-held-out convention.
+chr10--chr13 train, chr14--chr15 val. Measured total: train
+$\sim$957 Mb, val $\sim$161 Mb, test $\sim$108 Mb --- close to the $\sim$1 Gb
+target (\code{docs/NEXT\_SESSION.md} \S4).
+
+\textbf{$\varphi$ standardisation decided PER-CHROMOSOME} (recorded in
+\code{phase1\_features.py}'s module docstring): each chromosome's $\varphi$ is
+z-scored against its own usable bins only, unchanged from the
+single-chromosome pipeline. A global standardisation would require every
+chromosome's raw $\varphi$ simultaneously and would make one chromosome's
+z-scores depend on which others were included in a given build. Cost:
+keep($\varphi$) and every $\varphi$-derived number on this index is relative
+to each window's own chromosome's variance, not one shared absolute scale.
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+chrom & role & usable bins & insulation$_{100kb}$ $r$ vs 4DN & compartment $r$ vs 4DN \\
+\midrule
+chr9  & test  & 77.74\% & 0.9969 & 0.9759 \\
+chr10 & train & 94.84\% & 0.9969 & 0.9612 \\
+chr11 & train & 94.11\% & 0.9972 & 0.9774 \\
+chr12 & train & 96.37\% & 0.9971 & 0.9585 \\
+chr13 & train & 82.58\% & 0.9968 & 0.9655 \\
+chr14 & val   & 80.39\% & 0.9971 & 0.9711 \\
+chr15 & val   & 72.64\% & 0.9969 & 0.9482 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+chr13--chr15's lower usable-bin fractions track their acrocentric short arms
+(large centromeric/repetitive regions), the same phenomenon behind chr9's own
+22.26\% unusable fraction --- a property of those chromosomes, not a pipeline
+defect.
+
+\textbf{A real concurrency bug, found and fixed.} Running five chromosome
+fetches in parallel (network-bound, no GPU, ample RAM/CPU headroom measured
+first: 245 GiB free, 40 cores) exposed that \code{stream\_download}'s
+destination for the GENCODE GTF is genome-wide, shared across every
+chromosome, and had no protection against concurrent writers. Three of six
+chromosomes (chr13, chr14, chr15) crashed racing on that one file: one hit
+\code{zlib.error: Error -3 while decompressing data: invalid block type}
+reading a file a sibling process was simultaneously overwriting; two hit
+\code{FileNotFoundError} on \code{tmp.replace(dest)} because a sibling's
+rename had already consumed the shared temp file first.
+\warn{\code{stream\_download} now takes an \code{flock} on a sibling
+\code{.lock} file before touching any destination}, and treats an
+already-complete destination (found after acquiring the lock) as a cache hit
+even with no checksum to verify it against --- the process that loses the race
+for the lock finds the file already there when it wakes. The three affected
+chromosomes' expensive Hi-C band/coarse/sequence fetches (already correct on
+disk) were \textbf{not} re-run; only the annotation step was recovered from
+already-verified files, using the fixed locking code.
+
+\textbf{Not yet done.} No chromosome beyond chr9 has had $\varphi$ visually
+inspected against a known TAD/loop (\code{docs/data\_card.md} \S6 is chr9-only).
+The quantitative validation above is strong and sufficient to proceed per that
+section's own stated logic, but the visual sign-off should be extended before
+this data supports a paper claim. Nothing has trained on this index; Phase D
+is out of scope for this session.
+
 \subsection*{2026-08-26 (fifth entry) --- Component 3 amended, not deleted: the
 alpha confound is ruled out and kept as a negative control; the superseding
 stratification test is pre-registered in \S7}

@@ -287,7 +287,7 @@ Written now, while they are obvious, because they are easy to forget by Phase 6.
 6. **4DN's processing pipeline is upstream of us.** Balancing, filtering and mapping were done by 4DN, not by this project. We inherit their choices and any artifacts. The boundary/insulation/compartment tracks are likewise theirs.
 7. **Single Hi-C experiment, no replicate.** No estimate of experimental variability in the structural signal. Seed variance in Phase 5 captures model variance only, not measurement variance.
 8. **A fifth of the pilot chromosome is structurally blank.** 19.31% of bins have no balancing weight, dominated by a single 17.25 Mb centromeric/heterochromatic gap (§4.2). Effective usable chr9 is ~two arms rather than one continuous sequence, and any per-chromosome statistic quoted in the paper should say whether it is over all bins or usable bins.
-9. **Splits are within one chromosome, not across chromosomes.** Train, validation and test are disjoint intervals of chr9 separated by 1 Mb buffers (§4D.2). Adjacent regions of a single chromosome share compartment identity and replication timing in ways separate chromosomes do not, so held-out performance is optimistic relative to CHROME's chr9-held-out design. State this in the paper rather than letting a reader assume a cross-chromosome split.
+9. **Splits are within one chromosome, not across chromosomes.** Train, validation and test are disjoint intervals of chr9 separated by 1 Mb buffers (§4D.2). Adjacent regions of a single chromosome share compartment identity and replication timing in ways separate chromosomes do not, so held-out performance is optimistic relative to CHROME's chr9-held-out design. State this in the paper rather than letting a reader assume a cross-chromosome split. **Partially addressed 2026-08-26 — see §7**: a multi-chromosome index now exists with chr9 held out in its entirety as test and chr10–chr15 split train/val by whole chromosome. The data infrastructure is built and validated; nothing has trained on it yet, so this limitation still applies to every result in this document and in `CLAUDE.md` §4.
 10. **Training windows overlap by 50%.** 5,422 windows at stride 16,384 cover roughly 89 Mb of unique sequence, not 178 Mb. Effective dataset size is about half what the window count suggests, which matters when reporting tokens seen or comparing against models trained on the full genome.
 
 ---
@@ -313,4 +313,71 @@ Per `CLAUDE.md`, Phase 1 does not close until **you have personally seen a TAD a
 
 ---
 
-*Created 2026-08-07. Provenance verified against the live 4DN API; measured fields pending acquisition completion.*
+## 7. Multi-chromosome build, 2026-08-26
+
+`docs/RESEARCH_PLAN_2026-08-26.md` Phase B1. `scripts/phase1_acquire.py` and
+`scripts/phase1_features.py` gained `--chrom`; `scripts/phase1_multichrom_index.py`
+is the new script, writing `data/processed/dataset_index_multichrom.npz` +
+`dataset_meta_multichrom.json` (both gitignored, regenerable, like every other
+`data/processed/*.npz` — only this section and the per-chromosome
+`data/pilot_manifest_{chrom}.json` files and validation reports are tracked).
+
+**Roles** — chr9 held out in its **entirety** as test (no internal
+train/val/test carve-out inside chr9 the way the single-chromosome
+`dataset_index.npz` has; matches CHROME's chr9-held-out convention).
+chr10–chr13 train, chr14–chr15 val. Chosen as mid-sized autosomes near chr9 in
+length to land near the ~1 Gb target (`docs/NEXT_SESSION.md` §4): measured
+total is train ~957 Mb + val ~161 Mb + test ~108 Mb.
+
+**φ standardisation is PER-CHROMOSOME**, unchanged from the single-chromosome
+pipeline (decided in `phase1_features.py`'s module docstring): each
+chromosome's φ is z-scored against its own usable bins only. Every φ-derived
+number is therefore relative to that chromosome's own variance, not on one
+shared absolute scale — this must travel with any cross-chromosome φ
+comparison, `keep(φ)` included.
+
+**Per-chromosome measurements**, all from `phi_{chrom}_validation_report.json`
+(command output, `scripts/phase1_features.py --chrom {chrom}`):
+
+| chrom | role | usable bins | insulation_100kb r vs 4DN | compartment r vs 4DN |
+|---|---|---|---|---|
+| chr9  | test  | 77.74% | 0.9969 | 0.9759 |
+| chr10 | train | 94.84% | 0.9969 | 0.9612 |
+| chr11 | train | 94.11% | 0.9972 | 0.9774 |
+| chr12 | train | 96.37% | 0.9971 | 0.9585 |
+| chr13 | train | 82.58% | 0.9968 | 0.9655 |
+| chr14 | val   | 80.39% | 0.9971 | 0.9711 |
+| chr15 | val   | 72.64% | 0.9969 | 0.9482 |
+
+chr13–chr15's lower usable-bin fractions match their acrocentric short arms
+(large centromeric/repetitive regions), the same phenomenon that gives chr9
+its 22.26% unusable fraction (§4.2); it is a property of those chromosomes,
+not a pipeline defect. Insulation validates near-identically well on every
+chromosome; compartment PC1 is somewhat more variable (0.948–0.977) but
+strong throughout.
+
+**A real concurrency bug was found and fixed during this build.**
+`stream_download`'s destination for the GENCODE GTF is genome-wide, shared
+across every chromosome, and was not safe under the multi-chromosome
+pipeline's parallel `--chrom` invocations: three of six chromosomes (chr13,
+chr14, chr15) crashed when they raced on that shared file — one hit
+`zlib.error: invalid block type` reading a concurrently-overwritten file, two
+hit `FileNotFoundError` on the atomic rename after a sibling process's rename
+had already consumed the shared temp file. `stream_download` now takes an
+`flock` on a sibling `.lock` file before touching a destination, and treats
+an already-complete destination (found after acquiring the lock) as a cache
+hit even without a checksum to verify it against — a process that loses the
+race for the lock finds the file already there when it wakes up. The three
+affected chromosomes' expensive Hi-C band/coarse/sequence fetches were not
+re-run; only the annotation step was recovered, from files already verified
+on disk.
+
+**Gate not yet passed for this build**: no chromosome beyond chr9 has had its
+processed φ visually inspected against a known TAD/loop (§6 above is chr9-only).
+The quantitative validation numbers above are strong and, per §6's own logic,
+sufficient to proceed, but the visual sign-off is chr9-specific and should be
+extended before this data is used for a paper claim, not just a training run.
+
+---
+
+*Created 2026-08-07. Provenance verified against the live 4DN API; measured fields pending acquisition completion. §7 added 2026-08-26.*

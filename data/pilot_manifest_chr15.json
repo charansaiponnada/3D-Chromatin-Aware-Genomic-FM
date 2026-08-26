@@ -1,0 +1,54 @@
+{
+  "created": "2026-08-26T11:37:26",
+  "config": {
+    "experiment_set": "4DNES3JX38V5",
+    "chrom": "chr15",
+    "resolution_bp": 5000,
+    "band_bp": 2000000,
+    "coarse_resolution_bp": 250000,
+    "genome_assembly": "GRCh38",
+    "fasta_source": "https://ftp.ensembl.org/pub/release-113/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.15.fa.gz",
+    "gtf_source": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_47/gencode.v47.annotation.gtf.gz",
+    "chrom_naming_note": "Ensembl FASTA uses bare number; normalised to chrN.",
+    "recovery_note": "2026-08-26: this chromosome's original acquire run crashed in fetch_annotation on a shared-GTF-download race with concurrent sibling chromosomes (fixed in stream_download with flock). Band/coarse/fasta from the original run were reused as-is; only annotation was re-fetched."
+  },
+  "artifacts": [
+    {
+      "path": "data/interim/hic_band_chr15_5000bp.npz",
+      "source": "(reused from original run)",
+      "accession": "4DNFIXP4QG5B",
+      "role": "near-diagonal band, +/-2000000 bp, balanced, upper triangle",
+      "entries": 4993221,
+      "n_bins": 20399,
+      "bytes": 19511716,
+      "md5": "8503e4c24d1a2ada13ff2ddc04f59921"
+    },
+    {
+      "path": "data/interim/hic_coarse_chr15_250000bp.npz",
+      "source": "(reused from original run)",
+      "accession": "4DNFIXP4QG5B",
+      "role": "coarse balanced matrix for compartment calling",
+      "shape": [
+        408,
+        408
+      ],
+      "bytes": 359249,
+      "md5": "2657dbef7823e5f1a8e2e36a1f64cb76"
+    },
+    {
+      "path": "data/interim/chr15.fa",
+      "source": "https://ftp.ensembl.org/pub/release-113/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.15.fa.gz",
+      "role": "GRCh38 sequence, header normalised (reused from original run)",
+      "bytes": 103691050,
+      "md5": "b778dafa0b4d71ef242156b2601bc1fc"
+    },
+    {
+      "path": "data/interim/gencode.v47.chr15.gtf",
+      "source": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_47/gencode.v47.annotation.gtf.gz",
+      "role": "GENCODE v47 annotation filtered to chromosome (recovered)",
+      "rows": 147688,
+      "bytes": 64286148,
+      "md5": "fa5297312d3275af5f062d0c0436657f"
+    }
+  ]
+}
