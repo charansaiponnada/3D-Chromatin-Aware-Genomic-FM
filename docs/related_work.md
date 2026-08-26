@@ -440,3 +440,93 @@ Their conclusion, verbatim: *"Evo2 has learned local CTCF grammar but misses hig
 ---
 
 *Appendix II compiled 2026-08-07. §I3 read from the primary PDF in full after an automated summary was found to have inverted the paper's conclusion.*
+
+---
+
+# Appendix III — Journal-readiness literature expansion, 2026-08-16
+
+Triggered by a direct question: is the literature review in §A–§G sufficient for a mini-project, or for a journal submission? Answer given at the time: adequate for the former, not yet for the latter, with four named gaps (the broader sequence-only genomic-FM landscape; two names — AlphaGenome, EpiGePT — that had surfaced only inside the forward-citation sweep in Appendix II without their own entry; the base Mamba paper, cited so far only indirectly via Caduceus; and a fresh sweep for 2025–2026 work that might already occupy the claimed gap). This appendix closes all four. Entries below are appended, not merged; §A–§G and Appendices I–II are untouched and remain subject to independent verification, per the standing rule for this file.
+
+Five search angles were run: (1) direct verification of the four named candidates, (2) the broader sequence-only genomic-FM landscape, (3) a forward-citation sweep on CHROME, including a direct check for any "Caduceus + Hi-C" extension, (4) a forward-citation sweep on Evo2HiC plus a check for a newer revision, (5) a fresh direct search for 2025–2026 work combining state-space models with chromatin structure.
+
+---
+
+## J1. AlphaGenome — Google DeepMind, 2025 `[V-ABS]`
+
+"AlphaGenome: advancing regulatory variant effect prediction with a unified DNA sequence model." bioRxiv 10.1101/2025.06.25.661532, posted June 2025.
+
+**What it does.** A unified sequence-to-function model, positioned as successor to Enformer and Borzoi: takes 1 Mb of raw DNA sequence and predicts thousands of functional genomic tracks at single-base-pair resolution across eleven modalities — gene expression (RNA-seq, CAGE, PRO-cap), splicing, and chromatin accessibility/histone marks among them. Architecture is convolutional layers for local pattern detection, transformers for long-range communication across the input, then per-modality output heads.
+
+**Structure in pretraining or downstream.** Neither, on the evidence gathered. Its eleven output modalities are all 1D genomic tracks (expression, splicing, accessibility, histone marks); no Hi-C contact-map modality or other explicit 3D-structure channel was found in what was checked. This makes it architecturally closer to Enformer/Borzoi than to CHROME or Evo2HiC — a major, very recent unified regulatory-genome model, but not a structure-aware one by this project's definition.
+
+**How this project differs / relation.** AlphaGenome is not a competitor on the specific axis this project occupies (structure inside self-supervised sequence pretraining), but its prominence means a reviewer will very likely ask about it. It belongs in §C (sequence-only models) as the largest and newest entry in that family, cited to show the sequence-only-track-prediction paradigm has scaled further still without incorporating 3D structure. `[UNVERIFIED]` — the full modality list was not exhaustively confirmed against the primary paper; if AlphaGenome does in fact predict any contact-map-like output, this entry needs correction before it appears in a draft.
+
+---
+
+## J2. EpiGePT — Gao, Liu, Zeng, Jiang, Wong, *Genome Biology*, 2024 `[V-FULL]`
+
+"EpiGePT: a pretrained transformer-based language model for context-specific human epigenomics." *Genome Biology* 25:310, published 18 December 2024. DOI: 10.1186/s13059-024-03449-7. Preprint: bioRxiv 10.1101/2023.07.15.549134.
+
+**Methodology, read from the primary text.** Four modules: a sequence module (convolutional/pooling blocks over one-hot DNA), a transcription-factor module (a TF-profile vector encoding cellular context), a transformer module, and a prediction module. Training is **supervised multi-task regression** — mean-squared error between predicted and observed epigenomic signal across eight chromatin marks, per input-region/cellular-context combination — not masked-language-modelling and not autoregressive next-token prediction over nucleotides at any stage.
+
+**Where 3D structure actually enters — the decisive point.** Hi-C/HiChIP contact data is **never a model input**. It enters only as an auxiliary **loss term on the transformer's self-attention weights**: a cosine-similarity penalty between the learned attention matrix and observed HiChIP loop structure, encouraging attention to indirectly track real 3D contacts. This is a third, genuinely distinct pattern from both of this project's named competitors — not CHROME's post-hoc graph attention, not Evo2HiC's contrastive embedding alignment, but a structural regularisation term on attention *during* supervised training.
+
+**What it achieved / limitations.** Improves cell-type-specific long-range interaction prediction and variant-impact prediction over baselines that lack the 3D-aware attention loss, per its own reported comparisons. Limitation for our purposes: the objective is supervised regression against labelled epigenomic tracks throughout, with no self-supervised stage over raw sequence, so — like CHROME — its representation is bounded by its training labels rather than general-purpose.
+
+**How this project differs / relation.** EpiGePT gives a third concrete answer to "where can structure enter a sequence model," alongside CHROME's stage-2 graph attention and Evo2HiC's contrastive distillation, and strengthens the argument that this project's fourth answer (inside a *self-supervised* recurrence) is the one still missing: EpiGePT's attention-regularisation trick could only ever be applied within its supervised regression objective, and has no self-supervised nucleotide-level counterpart for structure to interact with, exactly the same structural gap already identified against Evo2HiC in §D1.
+
+---
+
+## J3. C.Origami and the wider sequence-to-Hi-C prediction family `[V-ABS]`
+
+"Cell-type-specific prediction of 3D chromatin organization enables high-throughput in silico genetic screening." Tan, J. et al. *Nature Biotechnology*, published 9 January 2023. DOI: 10.1038/s41587-022-01612-8. Open access: PMC10329734.
+
+**What it does.** A multimodal network taking DNA sequence plus two **cell-type-specific** inputs — CTCF ChIP-seq and chromatin accessibility — to predict a Hi-C contact matrix within a 2 Mb window at 8,192 bp resolution. Supervised, contact-map-as-target, in the same methodological family as Akita and Orca (§D3) — but unlike either, its inputs are cell-type-specific rather than sequence-alone, which makes it a genuinely closer piece of prior art: it is the clearest existing demonstration that conditioning a sequence-to-structure model on cell-type context changes its predictions, the same premise (context-dependent structure) this project's Hi-C-conditioning mechanism also rests on, just applied to a supervised folding-prediction target rather than self-supervised pretraining.
+
+**How this project differs.** Same category-level argument as against Akita/Orca in §D3: C.Origami's objective is exclusively contact-map prediction; nothing in the search for this appendix found its learned representations extracted, frozen, or probed on a non-folding task, so the same transfer gap applies. It should be added to §D3 as a named example of the wider family, not treated as a new differentiator to argue against.
+
+**The wider family, not individually reviewed here.** The same search surfaced several further sequence/epigenomic-to-Hi-C models of the same general kind — Epiphany, ChromaFold, HiCDiffusion, GRACHIP, scGrapHiC — plus two survey-style sources that already cover this landscape systematically and are more efficient to cite than re-deriving individual entries: Wang et al., "A review of deep learning models for the prediction of chromatin interactions with DNA and epigenomic profiles," *Briefings in Bioinformatics* 26(1):bbae651 (2025) `[V-ABS]`, and a broader methods review at arXiv:2403.03231, "Machine and deep learning methods for predicting 3D genome organization" `[V-ABS]`, PMC10942493. Recommendation: cite both reviews plus C.Origami by name in §D3, and use the reviews rather than individually chasing every model in this family — none found so far changes the category-level argument.
+
+`[NOTE]` C.Origami's PDF could not be automatically downloaded (PMC's download path is gated behind a proof-of-work bot check this project's tooling does not solve); the paper itself is confirmed open access at PMC10329734 for anyone downloading it manually.
+
+---
+
+## J4. HiCMamba — Yang, Huang, Zheng, Liu, Zhang, Zhang, Xiong, Tang, *PLOS Computational Biology*, 2026 `[V-FULL]`
+
+"HiCMamba: Enhancing Hi-C resolution and identifying 3D genome structures with state space modeling." *PLOS Computational Biology* 22(3):e1014057, published 24 March 2026. DOI: 10.1371/journal.pcbi.1014057. Fully open access.
+
+**Why this is the single most important finding of this appendix.** This is a Mamba/state-space model applied to Hi-C data — the same architecture family this project uses — published five weeks before this appendix was compiled. It needed to be checked very carefully.
+
+**What it actually does, confirmed from the primary text.** HiCMamba takes a **low-resolution Hi-C contact matrix as input and enhances it to high resolution**, treating the contact map as a 2D image and applying a state-space scan (an "SS2D" module, in the lineage of vision-Mamba image models) plus a feature-optimisation module. **DNA sequence never enters the model at any stage.** There is no pretraining over nucleotides, masked or autoregressive. This is a structure-in, structure-out image-restoration task, in the same category as HiCFoundation's resolution-enhancement head (§B1), just built on a different backbone.
+
+**The authors' own framing of what they did not do.** Their discussion names incorporating DNA sequence data as a direction that could improve the model, explicitly left for future work — i.e., the authors themselves flag "Mamba + sequence + Hi-C, jointly" as an open opportunity they have not pursued.
+
+**How this project differs / relation.** HiCMamba is independent, dated evidence — from a different group, published after everything else in this review — that the specific combination this project pursues (a state-space *sequence* model whose recurrence is conditioned on Hi-C) remains unoccupied even by researchers who are already combining Mamba with Hi-C in a different way. It does not compete with this project; it corroborates the gap. Recommended action: cite in §E/§F as the most current and most specific confirmation that "SSM + Hi-C" work exists, but not yet on the sequence-pretraining axis this project claims.
+
+---
+
+## J5. The base Mamba paper — Gu & Dao, 2023 `[V-ABS]`
+
+"Mamba: Linear-Time Sequence Modeling with Selective State Spaces." Albert Gu, Tri Dao. arXiv:2312.00752, posted December 2023.
+
+**Why this is a real citation gap, not a formality.** This project's mechanism modifies Mamba's own retention/decay term directly (§Method, "structural bias inside the state-space recurrence"). Every citation to Mamba in this project's record so far has been indirect, via Caduceus. A paper that edits Mamba's recurrence needs to cite Mamba directly. No relation-to-this-project analysis is needed beyond that; this is architectural lineage, not competing work.
+
+---
+
+## J6. Confirmed absent — the checks that came back empty, which is itself the finding
+
+Three specific, falsifiable checks were run and found nothing, which matters as much as the papers that were found:
+
+- **No "Caduceus + Hi-C" extension exists.** A direct search for anyone extending Caduceus — this project's own architectural parent — with Hi-C or 3D chromatin structure in any form returned nothing. This is the single check that could have ended this project's novelty claim outright, and it came back negative.
+- **No new work citing CHROME changes the picture.** CHROME (Briefings in Bioinformatics, published July 2026) is too recent for a meaningful citation trail yet; nothing found closes or narrows the gap argued in §D1/§3.3.
+- **No Evo2HiC revision adding variant-level evaluation was found.** The specific limitation §D1/§2.4.4 rests on — zero occurrences of ClinVar, pathogenic, eQTL, or variant in the Evo2HiC preprint — was checked again and still holds as of this search. `[UNVERIFIED]` in the sense that a v2 could exist and not have surfaced in search; this should be re-checked again immediately before any paper draft is finalised, same standing caution as §G already carried for this exact item.
+
+## J7. What this means for us
+
+Nothing found in this round overturns the central claim in §E: no reviewed model lets 3D chromatin structure shape a self-supervised sequence-pretraining objective from the start. If anything, the two strongest new data points (HiCMamba's explicit "future work" framing, and the negative "Caduceus + Hi-C" search) are independent, dated evidence *for* the gap rather than against it. What changes is completeness: the sequence-only landscape (§C) was thin and is now defensible via the benchmark suite in J3/J6's citation; the structure-conditioning taxonomy (previously two patterns — CHROME's post-hoc graph attention, Evo2HiC's contrastive distillation) is now three, with EpiGePT's attention-regularisation approach added; and the closest sequence-to-structure prior art (previously Akita/Orca only) now properly includes C.Origami and points to two survey papers for the rest of that family.
+
+**Recommended edits to the main body before this is treated as closed:** add AlphaGenome to §C as the newest sequence-only landmark; add EpiGePT to §D as a third structure-conditioning pattern, with its own gap argument (supervised throughout, no self-supervised stage for structure to interact with); add C.Origami to §D3 alongside Akita/Orca, citing the two survey papers rather than expanding D3 model-by-model; add HiCMamba to §E/§F as the most current confirming evidence; cite Gu & Dao directly wherever the SSM recurrence is described. None of these are done in this appendix, per the standing rule that §A–§G are edited deliberately, not silently, in a separate pass.
+
+---
+
+*Appendix III compiled 2026-08-16. J2 (EpiGePT) and J4 (HiCMamba) read from primary full text; J1 (AlphaGenome), J3 (C.Origami and the review papers), and J6 (the negative-result searches) verified from abstract/landing page and search-engine cross-checks, not full primary text — flag accordingly before citing specifics from those in a paper draft.*
