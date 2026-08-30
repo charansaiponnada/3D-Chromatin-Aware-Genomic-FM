@@ -58,9 +58,54 @@ FILES = {
 # Files small enough to mirror locally. The mcool is deliberately excluded.
 DOWNLOAD = ["4DNFIVK5JOFU", "4DNFIBMOGOZC", "4DNFILYQ1PAY"]
 
-# Rebound by --chrom in main(). chr9 stays the default and, in the
-# multi-chromosome build, stays the TEST split: CHROME holds chr9 out as test
-# and matching that keeps the two comparable.
+# docs/RESEARCH_PLAN_2026-08-26.md B3: a second cell line, same pipeline, same
+# features. Accessions verified live against the 4DN API 2026-08-26 (not
+# guessed): each experiment set's own `processed_files` list, filtered to the
+# same four file_types FILES above uses. Both mcools confirmed to carry the
+# 1,000/2,000/5,000 bp resolutions this pipeline needs.
+# CAVEAT, disclosed, not hidden: GM12878's set is 72 experiments merged;
+# K562 is 6, IMR90 is 7 -- both companion maps are markedly shallower than the
+# pilot's GM12878 map. Confirm this doesn't starve the balancing weights
+# (the usable-bin fraction) before treating results as comparable.
+CELL_LINES = {
+    "GM12878": {
+        "expset": "4DNES3JX38V5",
+        "description": "in situ Hi-C on gm12878 with MboI and bio-dATP",
+        "files": {
+            "4DNFIXP4QG5B": ("mcool", "multires contact matrix"),
+            "4DNFIVK5JOFU": ("boundaries_bed", "TAD boundary calls"),
+            "4DNFIBMOGOZC": ("insulation_bw", "insulation score, diamond method"),
+            "4DNFILYQ1PAY": ("compartments_bw", "A/B compartment eigenvector"),
+        },
+    },
+    "K562": {
+        "expset": "4DNESI7DEJTM",
+        "description": ("in situ Hi-C on K562 with MboI and bio-dATP "
+                         "(higher crosslinker concentration); 6 experiments, "
+                         "vs GM12878's 72 -- shallower map"),
+        "files": {
+            "4DNFI18UHVRO": ("mcool", "multires contact matrix"),
+            "4DNFI4EFYN3Q": ("boundaries_bed", "TAD boundary calls"),
+            "4DNFIXU7QLG6": ("insulation_bw", "insulation score, diamond method"),
+            "4DNFIWUAO2QI": ("compartments_bw", "A/B compartment eigenvector"),
+        },
+    },
+    "IMR90": {
+        "expset": "4DNES1ZEJNRU",
+        "description": ("in situ Hi-C on IMR90 with MboI and bio-dATP; "
+                         "7 experiments, vs GM12878's 72 -- shallower map"),
+        "files": {
+            "4DNFIJTOIGOI": ("mcool", "multires contact matrix"),
+            "4DNFIMNT2VYL": ("boundaries_bed", "TAD boundary calls"),
+            "4DNFIZFI8U3R": ("insulation_bw", "insulation score, diamond method"),
+            "4DNFIHM89EGL": ("compartments_bw", "A/B compartment eigenvector"),
+        },
+    },
+}
+
+# Rebound by --chrom / --resolution / --cell-line in main(). chr9 stays the
+# default and, in the multi-chromosome build, stays the TEST split: CHROME
+# holds chr9 out as test and matching that keeps the two comparable.
 CHROM = "chr9"
 RESOLUTION = 5_000      # matches CHROME's 5 kb bulk Hi-C
 BAND_BP = 2_000_000     # +/- 2 Mb around the diagonal
@@ -292,7 +337,7 @@ def fetch_annotation(dest: Path) -> tuple[Path, int]:
 
 
 def main() -> None:
-    global CHROM, FASTA_URL
+    global CHROM, FASTA_URL, RESOLUTION, EXPSET, FILES, DOWNLOAD
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true",
                     help="resolve URLs and print the plan, download nothing")
@@ -301,10 +346,26 @@ def main() -> None:
                          "chr9 stays the TEST split in the multi-chromosome build "
                          "(CHROME holds chr9 out as test too); every other "
                          "chromosome fetched here is a train/val candidate.")
+    ap.add_argument("--resolution", type=int, default=RESOLUTION,
+                    help=f"Hi-C band resolution in bp (default {RESOLUTION}). "
+                         "docs/WORKPLAN_2026-08-25.md T1 / RESEARCH_PLAN B2: "
+                         "confirm the resolution exists in the mcool's "
+                         "resolutions/ group first (T1.1) before using this "
+                         "for anything beyond a small tile.")
+    ap.add_argument("--cell-line", default="GM12878", choices=sorted(CELL_LINES),
+                    help="docs/RESEARCH_PLAN_2026-08-26.md B3: second cell "
+                         "line. See CELL_LINES above for accessions and the "
+                         "sequencing-depth caveat for K562/IMR90.")
     args = ap.parse_args()
 
     CHROM = args.chrom
+    RESOLUTION = args.resolution
     FASTA_URL = fasta_url(CHROM)
+    cl = CELL_LINES[args.cell_line]
+    EXPSET = cl["expset"]
+    FILES = cl["files"]
+    DOWNLOAD = [acc for acc, (short, _) in FILES.items() if short != "mcool"]
+    mcool_acc = next(acc for acc, (short, _) in FILES.items() if short == "mcool")
 
     RAW.mkdir(parents=True, exist_ok=True)
     INTERIM.mkdir(parents=True, exist_ok=True)
@@ -312,7 +373,8 @@ def main() -> None:
     man = Manifest(
         created=time.strftime("%Y-%m-%dT%H:%M:%S"),
         config={
-            "experiment_set": EXPSET,
+            "cell_line": args.cell_line, "experiment_set": EXPSET,
+            "experiment_set_description": cl["description"],
             "chrom": CHROM,
             "resolution_bp": RESOLUTION,
             "band_bp": BAND_BP,
@@ -326,7 +388,8 @@ def main() -> None:
         },
     )
 
-    print(f"\n=== resolving 4DN accessions (set {EXPSET}) ===")
+    print(f"\n=== resolving 4DN accessions (set {EXPSET}, cell line "
+          f"{args.cell_line}) ===")
     urls: dict[str, dict] = {}
     for acc, (short, desc) in FILES.items():
         rec = fdn_record(acc)
@@ -362,42 +425,55 @@ def main() -> None:
                 accession=acc, role=u["desc"],
                 bytes=dest.stat().st_size, md5=md5(dest))
 
-    print(f"\n=== Hi-C band, {CHROM} @ {RESOLUTION//1000} kb ===")
-    band = fetch_hic_band(urls["4DNFIXP4QG5B"]["url"])
-    band_path = INTERIM / f"hic_band_{CHROM}_{RESOLUTION}bp.npz"
+    # Cell-line and resolution namespacing: GM12878 @ 5,000 bp keeps the
+    # original bare filenames (every existing reference in this project
+    # assumes them); anything else gets an explicit suffix so it cannot
+    # silently collide with or shadow the pilot's files.
+    cl_tag = "" if args.cell_line == "GM12878" else f"_{args.cell_line}"
+    res_tag = "" if RESOLUTION == 5_000 else f"_{RESOLUTION}bp"
+
+    print(f"\n=== Hi-C band, {CHROM} @ {RESOLUTION//1000} kb, {args.cell_line} ===")
+    band = fetch_hic_band(urls[mcool_acc]["url"])
+    band_path = INTERIM / f"hic_band_{CHROM}_{RESOLUTION}bp{cl_tag}.npz"
     np.savez_compressed(band_path, **band)
     man.add(path=str(band_path.relative_to(REPO)),
-            source=urls["4DNFIXP4QG5B"]["url"], accession="4DNFIXP4QG5B",
+            source=urls[mcool_acc]["url"], accession=mcool_acc,
             role=f"near-diagonal band, +/-{BAND_BP} bp, balanced, upper triangle",
             entries=int(len(band["val"])), n_bins=int(band["n_bins"]),
             bytes=band_path.stat().st_size, md5=md5(band_path))
 
-    print(f"\n=== Hi-C coarse matrix, {CHROM} @ {COARSE_RESOLUTION//1000} kb ===")
-    coarse = fetch_coarse_matrix(urls["4DNFIXP4QG5B"]["url"])
-    coarse_path = INTERIM / f"hic_coarse_{CHROM}_{COARSE_RESOLUTION}bp.npz"
+    print(f"\n=== Hi-C coarse matrix, {CHROM} @ {COARSE_RESOLUTION//1000} kb, "
+          f"{args.cell_line} ===")
+    coarse = fetch_coarse_matrix(urls[mcool_acc]["url"])
+    coarse_path = INTERIM / f"hic_coarse_{CHROM}_{COARSE_RESOLUTION}bp{cl_tag}.npz"
     np.savez_compressed(coarse_path, **coarse)
     man.add(path=str(coarse_path.relative_to(REPO)),
-            source=urls["4DNFIXP4QG5B"]["url"], accession="4DNFIXP4QG5B",
+            source=urls[mcool_acc]["url"], accession=mcool_acc,
             role="coarse balanced matrix for compartment calling",
             shape=list(coarse["matrix"].shape),
             bytes=coarse_path.stat().st_size, md5=md5(coarse_path))
 
+    # Sequence and annotation are genome, not cell-line, data -- shared and
+    # reused across cell lines exactly as they already are across
+    # chromosomes' worth of a single cell line.
     print("\n=== reference sequence ===")
     fa = INTERIM / f"{CHROM}.fa"
     _, n_bp = fetch_sequence(fa)
     man.add(path=str(fa.relative_to(REPO)), source=FASTA_URL,
-            role="GRCh38 chr9 sequence, header normalised",
+            role="GRCh38 sequence, header normalised (shared across cell lines)",
             bases=n_bp, bytes=fa.stat().st_size, md5=md5(fa))
 
     print("\n=== annotation ===")
     gtf = INTERIM / f"gencode.v47.{CHROM}.gtf"
     _, n_rows = fetch_annotation(gtf)
     man.add(path=str(gtf.relative_to(REPO)), source=GTF_URL,
-            role="GENCODE v47 annotation filtered to chr9",
+            role="GENCODE v47 annotation filtered to chromosome (shared "
+                 "across cell lines)",
             rows=n_rows, bytes=gtf.stat().st_size, md5=md5(gtf))
 
-    manifest_name = ("pilot_manifest.json" if CHROM == "chr9"
-                      else f"pilot_manifest_{CHROM}.json")
+    manifest_name = ("pilot_manifest.json"
+                      if CHROM == "chr9" and not cl_tag and not res_tag
+                      else f"pilot_manifest_{CHROM}{cl_tag}{res_tag}.json")
     man.write(REPO / "data" / manifest_name)
     print("\nPhase 1 step 1 complete. Next: step 2 (build phi features), "
           "step 3 (visual validation -- you must eyeball a TAD and a loop).")

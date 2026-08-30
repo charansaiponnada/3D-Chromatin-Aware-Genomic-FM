@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -55,6 +56,7 @@ RAW = REPO / "data" / "raw"
 
 CHROM = "chr9"
 RES = 5_000
+CL_TAG = ""     # "" for GM12878, "_K562"/"_IMR90" etc otherwise; set in main()
 INSULATION_WINDOWS_BP = (100_000, 250_000, 500_000)
 DI_WINDOW_BP = 2_000_000
 SHORT_RANGE_BP = 100_000
@@ -70,7 +72,7 @@ FEATURE_SYMMETRY = [+1, +1, +1, -1, +1, -1, +1, +1]
 
 
 def load_band() -> dict:
-    z = np.load(INTERIM / f"hic_band_{CHROM}_{RES}bp.npz")
+    z = np.load(INTERIM / f"hic_band_{CHROM}_{RES}bp{CL_TAG}.npz")
     n = int(z["n_bins"])
     w = int(z["band_bp"]) // RES
     weight = z["weight"]
@@ -152,7 +154,7 @@ def directionality_index(A: np.ndarray, B: np.ndarray) -> np.ndarray:
 def compartments(bin_start: np.ndarray, n: int) -> np.ndarray:
     """PC1 of the O/E correlation matrix at coarse resolution, GC-oriented,
     then broadcast to 5 kb bins."""
-    z = np.load(INTERIM / f"hic_coarse_{CHROM}_250000bp.npz")
+    z = np.load(INTERIM / f"hic_coarse_{CHROM}_250000bp{CL_TAG}.npz")
     M = z["matrix"].astype(np.float64)
     cres = int(z["resolution"])
     k = M.shape[0]
@@ -215,14 +217,25 @@ def read_chr9() -> np.ndarray:
     return _SEQ_CACHE
 
 
-def validate(phi_raw: dict, bin_start: np.ndarray, valid: np.ndarray) -> dict:
-    """Cross-check against 4DN's own derived tracks."""
+def validate(phi_raw: dict, bin_start: np.ndarray, valid: np.ndarray,
+             files: dict) -> dict:
+    """Cross-check against 4DN's own derived tracks.
+
+    `files` is a CELL_LINES[cell_line]["files"] dict (accession -> (short,
+    desc)) from phase1_acquire.py -- looking these up by SHORT NAME rather
+    than hardcoding GM12878's accessions is what makes this function correct
+    for a second cell line (docs/RESEARCH_PLAN_2026-08-26.md B3): validating
+    K562 phi against GM12878's reference tracks would silently measure the
+    wrong thing.
+    """
     import gzip
     import pybigtools
+    by_short = {short: acc for acc, (short, _) in files.items()}
 
     report: dict = {}
 
-    bw = pybigtools.open(str(RAW / "4DNFIBMOGOZC_insulation_bw.bw"))
+    ins_acc = by_short["insulation_bw"]
+    bw = pybigtools.open(str(RAW / f"{ins_acc}_insulation_bw.bw"))
     ref = np.array(bw.values(CHROM, 0, int(bin_start[-1]) + RES, bins=len(bin_start),
                              fillna=None), dtype=float)
     for name in ("insulation_100kb", "insulation_250kb", "insulation_500kb"):
@@ -234,7 +247,8 @@ def validate(phi_raw: dict, bin_start: np.ndarray, valid: np.ndarray) -> dict:
             report[f"n_compared_{name}"] = int(m.sum())
             print(f"    {name:<20} vs 4DN insulation: r = {r:+.4f}  (n={m.sum():,})")
 
-    bwc = pybigtools.open(str(RAW / "4DNFILYQ1PAY_compartments_bw.bw"))
+    comp_acc = by_short["compartments_bw"]
+    bwc = pybigtools.open(str(RAW / f"{comp_acc}_compartments_bw.bw"))
     refc = np.array(bwc.values(CHROM, 0, int(bin_start[-1]) + RES,
                                bins=len(bin_start), fillna=None), dtype=float)
     ours = phi_raw["compartment_pc1"]
@@ -245,8 +259,9 @@ def validate(phi_raw: dict, bin_start: np.ndarray, valid: np.ndarray) -> dict:
     print(f"    {'compartment_pc1':<20} vs 4DN compartments: r = {r:+.4f}  (n={m.sum():,})")
 
     # boundary agreement: our insulation minima vs 4DN's calls
+    bed_acc = by_short["boundaries_bed"]
     bnds = []
-    with gzip.open(RAW / "4DNFIVK5JOFU_boundaries_bed.bed.gz", "rt") as f:
+    with gzip.open(RAW / f"{bed_acc}_boundaries_bed.bed.gz", "rt") as f:
         for line in f:
             p = line.split("\t")
             if p[0] == CHROM:
@@ -273,14 +288,27 @@ def validate(phi_raw: dict, bin_start: np.ndarray, valid: np.ndarray) -> dict:
 
 
 def main() -> None:
-    global CHROM
+    global CHROM, RES, CL_TAG
+    sys.path.insert(0, str(REPO / "scripts"))
+    from phase1_acquire import CELL_LINES        # noqa: E402  (avoid at import time)
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--chrom", default=CHROM,
                     help="chromosome to build phi for, e.g. chr9, chr10 "
                          "(default: chr9). Must match a chromosome already "
                          "fetched by phase1_acquire.py --chrom.")
+    ap.add_argument("--resolution", type=int, default=RES,
+                    help=f"must match the resolution phase1_acquire.py "
+                         f"--resolution used to build the band (default {RES}).")
+    ap.add_argument("--cell-line", default="GM12878", choices=sorted(CELL_LINES),
+                    help="must match phase1_acquire.py --cell-line; looks up "
+                         "the right 4DN reference tracks to validate against "
+                         "(RESEARCH_PLAN_2026-08-26.md B3).")
     args = ap.parse_args()
     CHROM = args.chrom
+    RES = args.resolution
+    CL_TAG = "" if args.cell_line == "GM12878" else f"_{args.cell_line}"
+    cell_files = CELL_LINES[args.cell_line]["files"]
 
     t0 = time.time()
     PROCESSED.mkdir(parents=True, exist_ok=True)
@@ -320,7 +348,7 @@ def main() -> None:
     print(f"  compartment_pc1 finite {np.isfinite(raw['compartment_pc1']).mean():.4f}")
 
     print("=== validation against 4DN derived tracks ===")
-    report = validate(raw, bin_start, valid)
+    report = validate(raw, bin_start, valid, cell_files)
 
     print("=== assembling phi ===")
     phi = np.stack([raw[k] for k in FEATURE_NAMES], axis=1).astype(np.float32)
@@ -337,7 +365,7 @@ def main() -> None:
         print(f"    {nm:<22} raw mu={mu[i]:+.4g} sd={sd[i]:.4g} "
               f"sym={'+' if FEATURE_SYMMETRY[i] > 0 else '-'}")
 
-    out = PROCESSED / f"phi_{CHROM}_{RES}bp.npz"
+    out = PROCESSED / f"phi_{CHROM}_{RES}bp{CL_TAG}.npz"
     np.savez_compressed(
         out, phi=phi_z, phi_raw=phi, usable=usable, valid=valid,
         bin_start=bin_start, bin_end=B["bin_end"],
@@ -357,8 +385,10 @@ def main() -> None:
     # Must END in "_validation_report.json" to match the .gitignore exception
     # `!data/processed/*_validation_report.json` -- these are results, not
     # regenerable data, and must be tracked. chrN goes BEFORE that suffix.
-    report_name = ("phi_validation_report.json" if CHROM == "chr9"
-                   else f"phi_{CHROM}_validation_report.json")
+    report_name = ("phi_validation_report.json"
+                   if CHROM == "chr9" and not CL_TAG and RES == 5_000
+                   else f"phi_{CHROM}{CL_TAG}"
+                        f"{'' if RES == 5_000 else f'_{RES}bp'}_validation_report.json")
     rp = PROCESSED / report_name
     rp.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"wrote {rp.relative_to(REPO)}")
