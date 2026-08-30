@@ -510,6 +510,76 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-30 --- T5c and T5c-dual: the per-window and joint
+conditioning arms, a real architecture change, Decisions 8--9}
+
+Requested directly by the PI after a review of the project's own novelty
+claims concluded the implemented mechanism (Decision 1, per-position
+$\Delta$-bias) is a narrow, mostly-inert addition to an otherwise-unmodified
+Caduceus-Ph, on an unchanged pretraining objective. This entry documents
+the mechanism actually built in response, not the discussion that led to it.
+
+\textbf{The diagnosed reason Decision 1 is mostly inert} (CLAUDE.md \S4):
+keep($\varphi$) = 0.1099 at 65,536 bp means a per-position mechanism can only
+ever reach $\sim$11\% of $\varphi$'s variance; $\sim$89\% lies BETWEEN
+windows and is unreachable by any per-position bias at any window width that
+fits on this hardware. Decision 8 addresses this directly.
+
+\textbf{Decision 8 --- T5c, per-window conditioning
+(\code{phi\_granularity="window"}).} \code{scripts/phase1\_dataset.py}'s new
+\code{pool\_phi\_window()} collapses a window's per-position interpolated
+$\varphi$ to its mean over valid positions, broadcast to every position.
+\textbf{This needs ZERO changes to \code{model.py}}: \code{struct\_encoder}
+and \code{W\_dstruct} (Decision 1's own pathway) are both pointwise --
+applied independently per position, nothing mixes across positions -- so a
+CONSTANT input produces bit-identical output to computing one structural
+embedding for the window and broadcasting it. ``Encode once, broadcast'' and
+``broadcast the input, encode redundantly at every position'' are the same
+computation. The entire arm is therefore a data-pipeline change: what
+\code{WindowDataset} hands the already-verified pathway, not a new pathway.
+Zero additional parameters; the trained model class is byte-identical to
+Decision 1's.
+
+\textbf{Decision 9 --- T5c-dual, joint local + global conditioning
+(\code{phi\_granularity="dual"}).} Decision 8 alone TRADES the within-window
+share for the between-window share; it does not get both. T5c-dual
+concatenates the per-position and per-window-pooled $\varphi$ into one
+16-channel input (\code{d\_struct\_raw} $8 \to 16$), validity defined as the
+AND of both halves (a position is trusted only where both scales are
+legitimately defined). Still no new architecture -- the same pointwise
+encoder, now with a wider input -- and negligible additional cost: parameter
+budget measured at \textbf{+0.429\%} against Decision 1's +0.43\%, i.e. the
+structural encoder's first layer gaining $8\times d_{\text{struct\_hidden}}$
+weights and nothing else. This is the version that can be credited or
+faulted for using ALL of $\varphi$'s variance, not half of it by
+construction.
+
+\textbf{Wired end to end, not just unit-tested.}
+\code{scripts/test\_phase4\_wiring.py} grew from 51 to \textbf{60/60}
+checks: shape and validity checks for both new granularities, a check that a
+\code{d\_struct\_raw} mismatch fails LOUDLY (shape error) rather than
+silently, a parameter-budget check for the dual arm, and RC-augmentation
+checks confirming pooled $\varphi$ stays constant and its symmetry vector
+doubles correctly by concatenation (an antisymmetric channel's window mean
+under reversal-plus-sign-flip is the negative of the original mean, same as
+any single position, so no special-casing was needed). Beyond the unit
+tests, a real \code{scripts/train.py --smoke} run was executed for both new
+granularities -- actual forward/backward/optimiser steps, not an isolated
+check -- confirming \code{run\_config.yaml} records
+\code{phi\_granularity: dual} and \code{d\_struct\_raw: 16} correctly and
+that training proceeds without error (5 steps, CPU-adjacent tiny config,
+one GPU, $\sim$8--9s).
+
+\textbf{What this is not.} Not a new backbone; Caduceus-Ph's architecture is
+untouched. Not a new pretraining objective; the loss is the same
+masked-nucleotide task as Decision 1 and as Caduceus itself. It is a second
+(and third) instantiation of the SAME kind of contribution as Decision 1 --
+a targeted, cheaply falsifiable addition to an existing model -- aimed at
+the specific, measured limitation Decision 1's own diagnostics found. No
+training run has been LAUNCHED at either new granularity beyond the
+\code{--smoke} wiring check above; Phase D (a real, properly-powered run)
+is still gated on the seed-budget and endpoint decisions already on record.
+
 \subsection*{2026-08-26 (sixth entry) --- Phase B1: multi-chromosome data build
 complete, chr9 held out whole as test, a real concurrency bug found and fixed}
 

@@ -84,7 +84,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from chromfm.model import BiMambaLM, ModelConfig, use_scan   # noqa: E402
 from phase1_dataset import (WindowDataset, PHI_CONTROLS,     # noqa: E402
-                            PHI_CONTROL_SEED, S2_SHIFT_BP,
+                            PHI_CONTROL_SEED, S2_SHIFT_BP, PHI_GRANULARITIES,
                             WINDOW as DATASET_WINDOW)
 
 # One line each, written into run_config.yaml so a run states what it is without
@@ -315,10 +315,11 @@ def batch_struct(batch: dict, device, symmetry) -> dict:
 def make_loader(split: str, batch_size: int, rank: int, world: int,
                 seed: int, rc_augment: bool, num_workers: int,
                 shuffle: bool, structural: bool = False,
-                phi_control: str = "none"
+                phi_control: str = "none", phi_granularity: str = "position"
                 ) -> tuple[DataLoader, DistributedSampler | None]:
     ds = WindowDataset(split, structural=structural, rc_augment=rc_augment,
-                       seed=seed, phi_control=phi_control)
+                       seed=seed, phi_control=phi_control,
+                       phi_granularity=phi_granularity)
     sampler = None
     if world > 1:
         sampler = DistributedSampler(ds, num_replicas=world, rank=rank,
@@ -611,10 +612,15 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
     torch.cuda.manual_seed_all(args.seed)
     np.random.seed(args.seed)
 
+    # T5c-dual doubles the raw structural input (local 8 + global 8 pooled
+    # channels concatenated, phase1_dataset.py WindowDataset); every other
+    # granularity keeps the ModelConfig default of 8. A mismatch here fails
+    # loudly at the first forward pass (shape error), not silently.
+    d_struct_raw = 16 if args.phi_granularity == "dual" else ModelConfig.d_struct_raw
     cfg = ModelConfig(
         d_model=args.d_model, n_layer=args.n_layer, d_state=args.d_state,
         d_conv=args.d_conv, expand=args.expand, vocab_size=args.vocab_size,
-        structural=args.structural,
+        structural=args.structural, d_struct_raw=d_struct_raw,
     )
     model = BiMambaLM(cfg).to(device)
 
@@ -716,11 +722,13 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
     train_loader, train_sampler = make_loader(
         "train", args.batch_size, rank, world, args.seed,
         rc_augment=args.rc_augment, num_workers=args.num_workers, shuffle=True,
-        structural=args.structural, phi_control=args.phi_control)
+        structural=args.structural, phi_control=args.phi_control,
+        phi_granularity=args.phi_granularity)
     val_loader, _ = make_loader(
         "val", args.eval_batch_size, rank, world, args.seed,
         rc_augment=False, num_workers=args.num_workers, shuffle=False,
-        structural=args.structural, phi_control=args.phi_control)
+        structural=args.structural, phi_control=args.phi_control,
+        phi_granularity=args.phi_granularity)
 
     # phi's antisymmetric coordinates (directionality index, the two directional
     # contact masses) must flip sign when the window is reversed for the reverse
@@ -749,6 +757,7 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
                 if args.structural else "baseline (structural=False)"),
             "phi_control": args.phi_control,
             "phi_control_meaning": PHI_CONTROL_DOC[args.phi_control],
+            "phi_granularity": args.phi_granularity,
             "seed": args.seed,
             "init": ("warm start -- staged pretraining, NOT paired "
                      "(inherits the source checkpoint's init)" if _warm
@@ -1044,6 +1053,17 @@ def parse() -> argparse.Namespace:
                    help="shuffled-structure control applied to phi before the "
                         "encoder (architecture_spec.md 4.1.3). Requires "
                         "--structural.")
+    p.add_argument("--phi-granularity", choices=PHI_GRANULARITIES,
+                   default="position",
+                   help="architecture_spec.md 4.1.3 decisions 8-9. 'position' "
+                        "(default) is the original per-position Delta-bias "
+                        "arm, capacity-limited to keep(phi)'s within-window "
+                        "share. 'window' (T5c) pools phi to one value per "
+                        "window -- reaches the between-window share instead, "
+                        "at the cost of the within-window share. 'dual' "
+                        "(T5c-dual) concatenates both (d_struct_raw becomes "
+                        "16 automatically) so the pathway sees both at once. "
+                        "Requires --structural.")
     p.add_argument("--smoke", action="store_true",
                    help="tiny config, few hundred steps, for wiring validation")
     args = p.parse_args()
@@ -1052,6 +1072,10 @@ def parse() -> argparse.Namespace:
         p.error("--phi-control requires --structural: the baseline never reads "
                 "phi, so a control on it would be a no-op and the run would be "
                 "mislabelled as a control")
+    if args.phi_granularity != "position" and not args.structural:
+        p.error("--phi-granularity requires --structural: the baseline never "
+                "reads phi, so a non-default granularity on it would be a "
+                "no-op and the run would be mislabelled as testing T5c")
 
     if args.smoke:
         args.d_model, args.n_layer, args.d_state = 64, 2, 16
@@ -1065,7 +1089,9 @@ def parse() -> argparse.Namespace:
     if args.run_name is None:
         if args.structural:
             suffix = "" if args.phi_control == "none" else f"_{args.phi_control}"
-            args.run_name = f"structural{suffix}_seed{args.seed}"
+            gran = ("" if args.phi_granularity == "position"
+                    else f"_{args.phi_granularity}")
+            args.run_name = f"structural{gran}{suffix}_seed{args.seed}"
         else:
             args.run_name = f"baseline_seed{args.seed}"
     return args

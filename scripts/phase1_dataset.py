@@ -360,6 +360,49 @@ def apply_phi_control(phi: np.ndarray, usable: np.ndarray, control: str
     return ctl_phi, (ctl_usable & usable)
 
 
+PHI_GRANULARITIES = ("position", "window", "dual")
+
+
+def pool_phi_window(s: np.ndarray, valid: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """T5c -- the per-window conditioning arm (architecture_spec.md 4.1.3,
+    decision 8). Collapses a window's per-position interpolated phi (varying
+    at every token) to its mean over valid positions, broadcast back to every
+    position in the window.
+
+    Why this is a genuine architecture change and not just a data trick:
+    model.py's struct_encoder and W_dstruct are both POINTWISE (applied
+    independently per position, nothing mixes across positions). Feeding a
+    CONSTANT phi across the window is mathematically identical to computing
+    one structural embedding for the window and injecting it at every
+    position -- "encode once, broadcast" and "broadcast the input, encode
+    redundantly at every position" give bit-identical results, because the
+    encoder is a deterministic pointwise function. That means the per-window
+    arm needs zero changes to model.py: only what WindowDataset hands it
+    changes. This is the design's whole point -- the per-position mechanism
+    can only ever see the ~11% of phi's variance that lies WITHIN a window
+    (keep(phi) = 0.1099 at 65,536 bp, CLAUDE.md 4); a per-window constant
+    instead carries the ~89% that lies BETWEEN windows, which no per-position
+    mechanism can reach at any window width that fits on this hardware.
+
+    Validity: with the input now constant, "valid at this position" is no
+    longer a per-position concept -- it becomes "does this window have a
+    structural signal at all". If ANY position was valid, the window's mean
+    is well-defined and every position is marked valid (uniformly); a window
+    with zero valid positions (should not occur past MIN_STRUCT_FRAC
+    filtering, but handled rather than assumed away) yields a zero vector and
+    every position marked invalid, matching the existing "structure
+    unavailable here" convention.
+    """
+    any_valid = bool(valid.any())
+    if any_valid:
+        mean = s[valid].mean(axis=0)
+    else:
+        mean = np.zeros(s.shape[-1], dtype=s.dtype)
+    pooled = np.broadcast_to(mean, s.shape).copy()
+    pooled_valid = np.full(valid.shape, any_valid, dtype=bool)
+    return pooled, pooled_valid
+
+
 class WindowDataset:
     """Windows of tokenised sequence with structural features attached.
 
@@ -372,13 +415,25 @@ class WindowDataset:
 
     def __init__(self, split: str, structural: bool = True,
                  rc_augment: bool = False, seed: int = 0,
-                 phi_control: str = "none"):
+                 phi_control: str = "none", phi_granularity: str = "position"):
+        if phi_granularity not in PHI_GRANULARITIES:
+            raise ValueError(f"phi_granularity={phi_granularity!r}; "
+                             f"expected one of {PHI_GRANULARITIES}")
+        self.phi_granularity = phi_granularity
         z = np.load(PROCESSED / "dataset_index.npz", allow_pickle=True)
         self.starts = z[split]
         self.window = int(z["window"])
         self.phi = z["phi"]
         self.usable = z["usable"].astype(bool)
         self.symmetry = z["feature_symmetry"].astype(np.int8)
+        if phi_granularity == "dual":
+            # T5c-dual: BOTH scales at once, concatenated on the feature axis
+            # (d_struct_raw 8 -> 16). The window-pooled half's RC symmetry is
+            # identical to the position half's -- the mean of an antisymmetric
+            # quantity over a reversed, sign-flipped window is the negative of
+            # the original mean, same as any single position -- so the
+            # symmetry vector doubles by simple concatenation, not redefinition.
+            self.symmetry = np.concatenate([self.symmetry, self.symmetry])
         self.tokens = np.load(PROCESSED / f"tokens_{CHROM}.npy", mmap_mode="r")
         self.structural = structural
         self.phi_control = phi_control
@@ -390,6 +445,12 @@ class WindowDataset:
                 f"phi_control={phi_control!r} with structural=False: the "
                 f"baseline never reads phi, so this would silently be a no-op "
                 f"and produce a run that looks like a control but is not one")
+        if not structural and phi_granularity != "position":
+            raise ValueError(
+                f"phi_granularity={phi_granularity!r} with structural=False: "
+                f"the baseline never reads phi, so this would silently be a "
+                f"no-op and produce a run that looks like it tested T5c but "
+                f"did not")
         self.rc_augment = rc_augment
         self.rng = np.random.default_rng(seed)
         self._comp = np.arange(16, dtype=np.int8)
@@ -407,6 +468,20 @@ class WindowDataset:
         if self.structural:
             pos = np.arange(start, start + self.window)
             s, valid = interpolate_phi(self.phi, self.usable, pos)
+            if self.phi_granularity == "window":
+                s, valid = pool_phi_window(s, valid)
+            elif self.phi_granularity == "dual":
+                # T5c-dual: the new mechanism. LOCAL (per-position, varying --
+                # the original arm, capacity-limited to keep(phi)'s ~11%
+                # within-window share) concatenated with GLOBAL (per-window,
+                # constant -- T5c, reaching the ~89% between-window share).
+                # A position trusts the combined signal only where BOTH halves
+                # are legitimately defined; this is stricter than either arm
+                # alone, deliberately -- letting one invalid half through
+                # silently would confound what the joint pathway is credited
+                # with learning.
+                s_win, v_win = pool_phi_window(s, valid)
+                s, valid = np.concatenate([s, s_win], axis=-1), (valid & v_win)
             out["phi"] = s
             out["phi_valid"] = valid
 

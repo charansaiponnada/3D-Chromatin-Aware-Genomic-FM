@@ -25,7 +25,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from chromfm.model import BiMambaLM, ModelConfig      # noqa: E402
 from phase1_dataset import (WindowDataset, apply_phi_control,   # noqa: E402
-                            PHI_CONTROL_SEED, S2_SHIFT_BP, RES)
+                            PHI_CONTROL_SEED, S2_SHIFT_BP, RES, pool_phi_window)
 from train import collate, batch_struct, DeltaCapture, empirical_tau  # noqa: E402
 
 PASS, FAIL = [], []
@@ -142,6 +142,13 @@ def main() -> int:
         check("phi_control with structural=False is rejected", True,
               "would otherwise be a silent no-op mislabelled as a control")
 
+    try:
+        WindowDataset("train", structural=False, phi_granularity="window")
+        check("phi_granularity with structural=False is rejected", False)
+    except ValueError:
+        check("phi_granularity with structural=False is rejected", True,
+              "would otherwise be a silent no-op mislabelled as a T5c run")
+
     # ------------------------------------------------------------------ shapes
     print("\ndataset -> collate -> model")
     ds_s = WindowDataset("val", structural=True, rc_augment=False, seed=0)
@@ -170,6 +177,157 @@ def main() -> int:
             break
     check("collate accepts reverse-complemented (negative-stride) phi", got_rc,
           "found an rc window and stacked it without error")
+
+    # -------------------------------------------------- T5c per-window granularity
+    print("\nT5c: per-window phi conditioning (architecture_spec.md 4.1.3, decision 8)")
+    ds_pos = WindowDataset("val", structural=True, rc_augment=False, seed=0,
+                          phi_granularity="position")
+    ds_default = WindowDataset("val", structural=True, rc_augment=False, seed=0)
+    check("default phi_granularity is 'position' (backward compatible)",
+          ds_default.phi_granularity == "position")
+    item_pos = ds_pos[0]
+    item_default = ds_default[0]
+    check("explicit 'position' matches the default bit-for-bit",
+          np.array_equal(item_pos["phi"], item_default["phi"])
+          and np.array_equal(item_pos["phi_valid"], item_default["phi_valid"]))
+
+    ds_win = WindowDataset("val", structural=True, rc_augment=False, seed=0,
+                          phi_granularity="window")
+    item_win = ds_win[0]
+    s_win, v_win = item_win["phi"], item_win["phi_valid"]
+    check("window mode: phi is constant across every position in the window",
+          bool(np.all(s_win == s_win[0])),
+          f"one row shown: {np.round(s_win[0], 4)}")
+    check("window mode: phi_valid is uniform (all True or all False)",
+          bool(v_win.all() or (~v_win).all()),
+          f"{int(v_win.sum())}/{len(v_win)} valid")
+    manual_mean, manual_valid = pool_phi_window(item_pos["phi"], item_pos["phi_valid"])
+    check("window mode matches manual pool_phi_window() on the same window",
+          np.allclose(s_win, manual_mean) and np.array_equal(v_win, manual_valid))
+    check("window mode is NOT just position mode (real windows have real "
+          "within-window variance, so pooling must change the values)",
+          not np.array_equal(s_win, item_pos["phi"]))
+
+    # a window with zero valid positions must not raise and must zero out cleanly
+    zero_valid = np.zeros(ds_win.window, dtype=bool)
+    zero_phi = np.random.default_rng(0).standard_normal((ds_win.window, 8)).astype(np.float32)
+    pooled0, pv0 = pool_phi_window(zero_phi, zero_valid)
+    check("pool_phi_window on an all-invalid window returns zeros, all-invalid",
+          bool(np.all(pooled0 == 0.0)) and not pv0.any())
+
+    try:
+        WindowDataset("val", structural=True, phi_granularity="bogus")
+        check("unknown phi_granularity is rejected", False)
+    except ValueError:
+        check("unknown phi_granularity is rejected", True)
+
+    # the model must actually see a different signal under window granularity,
+    # and must remain numerically well-behaved (this is model.py's own pointwise
+    # struct_encoder/W_dstruct doing exactly what pool_phi_window's docstring
+    # claims -- no model.py code was changed to support this arm)
+    cfg_w = small_cfg(True)
+    m_w = BiMambaLM(cfg_w)
+    m_w.eval()
+    # W_dstruct is zero-initialised (the step-0 identity guarantee), so with a
+    # fresh model EVERY phi delivery is a no-op by construction -- this would
+    # be true for position vs. window granularity too and prove nothing about
+    # granularity specifically. Perturb it first, matching the pattern above
+    # ("once W_dstruct is non-zero, shuffling phi changes the output"), to ask
+    # the question this check actually needs answered: once the pathway is
+    # live, does WHICH granularity of phi it receives change the output?
+    with torch.no_grad():
+        for l in m_w.layers:
+            for d in ("fwd", "rev"):
+                getattr(l, d).W_dstruct.weight.normal_(0, 0.5)
+    b_pos = collate([item_pos])
+    b_win = collate([item_win])
+    with torch.no_grad():
+        out_pos = m_w(b_pos["tokens"][:, :512], phi=b_pos["phi"][:, :512],
+                     phi_valid=b_pos["phi_valid"][:, :512],
+                     symmetry=torch.tensor(ds_win.symmetry, dtype=torch.float32))
+        out_win = m_w(b_win["tokens"][:, :512], phi=b_win["phi"][:, :512],
+                     phi_valid=b_win["phi_valid"][:, :512],
+                     symmetry=torch.tensor(ds_win.symmetry, dtype=torch.float32))
+    check("model output under window-granularity phi is finite",
+          bool(torch.isfinite(out_win).all()))
+    check("with W_dstruct live, model output differs between position- and "
+          "window-granularity phi (same tokens, same architecture, different "
+          "phi delivery)",
+          not torch.allclose(out_pos, out_win),
+          f"max abs diff {float((out_pos - out_win).abs().max()):.3e}")
+
+    # RC augmentation on a window-mode item: a constant array's flip is itself,
+    # so only the symmetry sign-flip on antisymmetric channels should show up
+    ds_win_rc = WindowDataset("train", structural=True, rc_augment=True, seed=7,
+                              phi_granularity="window")
+    for i in range(60):
+        item = ds_win_rc[i]
+        if item["rc"]:
+            s_rc, v_rc = item["phi"], item["phi_valid"]
+            check("RC-augmented window-mode phi stays constant across positions",
+                  bool(np.all(s_rc == s_rc[0])))
+            check("RC-augmented window-mode phi_valid stays uniform",
+                  bool(v_rc.all() or (~v_rc).all()))
+            break
+    else:
+        check("found an rc window in window-granularity mode to check", False)
+
+    # ------------------------------------------------ T5c-dual: both scales at once
+    print("\nT5c-dual: local + global phi conditioned jointly "
+          "(architecture_spec.md 4.1.3, decision 9)")
+    ds_dual = WindowDataset("val", structural=True, rc_augment=False, seed=0,
+                            phi_granularity="dual")
+    item_dual = ds_dual[0]
+    s_dual, v_dual = item_dual["phi"], item_dual["phi_valid"]
+    check("dual mode: phi is (window, 16) -- local 8 + global 8 concatenated",
+          s_dual.shape == (ds_dual.window, 16), str(s_dual.shape))
+    check("dual mode: symmetry vector is doubled to length 16",
+          ds_dual.symmetry.shape == (16,))
+    check("dual mode: first 8 channels equal position-mode phi exactly",
+          np.array_equal(s_dual[:, :8], item_pos["phi"]))
+    win_half, win_half_valid = pool_phi_window(item_pos["phi"], item_pos["phi_valid"])
+    check("dual mode: last 8 channels equal window-pooled phi exactly",
+          np.allclose(s_dual[:, 8:], win_half))
+    check("dual mode: validity is the AND of local and global validity",
+          np.array_equal(v_dual, item_pos["phi_valid"] & win_half_valid))
+
+    # the model must actually require d_struct_raw=16 for dual mode -- a config
+    # mismatch must fail loudly, not silently truncate or broadcast wrong data
+    cfg_dual_wrong = ModelConfig(structural=True, d_model=32, n_layer=1,
+                                 d_state=8, expand=2, d_struct_raw=8)
+    m_wrong = BiMambaLM(cfg_dual_wrong)
+    try:
+        m_wrong(torch.zeros(1, 64, dtype=torch.long),
+               phi=torch.from_numpy(s_dual[:64]).unsqueeze(0).float(),
+               phi_valid=torch.from_numpy(v_dual[:64]).unsqueeze(0),
+               symmetry=torch.tensor(ds_dual.symmetry, dtype=torch.float32))
+        check("d_struct_raw=8 with 16-channel dual phi fails loudly "
+              "(shape mismatch), not silently", False)
+    except RuntimeError:
+        check("d_struct_raw=8 with 16-channel dual phi fails loudly "
+              "(shape mismatch), not silently", True)
+
+    cfg_dual = ModelConfig(structural=True, d_model=32, n_layer=1, d_state=8,
+                           expand=2, d_struct_raw=16)
+    m_dual = BiMambaLM(cfg_dual)
+    m_dual.eval()
+    with torch.no_grad():
+        for l in m_dual.layers:
+            for d in ("fwd", "rev"):
+                getattr(l, d).W_dstruct.weight.normal_(0, 0.5)
+        out_dual = m_dual(
+            torch.randint(2, 6, (1, 512)),
+            phi=torch.from_numpy(s_dual[:512]).unsqueeze(0).float(),
+            phi_valid=torch.from_numpy(v_dual[:512]).unsqueeze(0),
+            symmetry=torch.tensor(ds_dual.symmetry, dtype=torch.float32))
+    check("d_struct_raw=16 dual-mode forward pass is finite",
+          bool(torch.isfinite(out_dual).all()))
+
+    over_dual = (BiMambaLM(ModelConfig(structural=True, d_struct_raw=16)).n_params()
+                - BiMambaLM(ModelConfig(structural=False)).n_params()
+                ) / BiMambaLM(ModelConfig(structural=False)).n_params()
+    check("dual mode (d_struct_raw=16) is within the 5% parameter budget",
+          over_dual <= 0.05, f"+{over_dual*100:.3f}%")
 
     # --------------------------------------------------------------- parameters
     print("\nparameter accounting")
