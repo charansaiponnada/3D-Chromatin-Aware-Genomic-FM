@@ -15,19 +15,11 @@
 \captionsetup{font=small,labelfont=bf}
 \usepackage{authblk}
 
-% Let floats pack more densely; the default leaves large gaps on pages that
-% carry a table, which cost roughly a page across this document.
-\renewcommand{\topfraction}{0.92}
-\renewcommand{\bottomfraction}{0.85}
-\renewcommand{\textfraction}{0.07}
-\renewcommand{\floatpagefraction}{0.75}
-\setcounter{topnumber}{3}
-\setcounter{totalnumber}{4}
 \renewcommand{\baselinestretch}{1.0}
 \setlength{\parskip}{2pt}
 
-\title{\bf ChromaTau: Conditioning State-Space Timescales on\\
-Three-Dimensional Chromatin Structure}
+\title{\bf Structure-Conditioned Pretraining for Genomic Sequence Models:\\
+A Timescale Ceiling and a Diagnosed Null}
 
 \author[ ]{Author One}
 \author[ ]{Author Two}
@@ -39,38 +31,35 @@ Three-Dimensional Chromatin Structure}
 
 \begin{abstract}
 \noindent
-We introduce \textbf{ChromaTau}, a genomic sequence model that conditions the
-retention timescale of a selective state-space model on measured
-three-dimensional chromatin structure during pretraining. Existing
-structure-aware genomic models attach Hi-C to representations that are already
-frozen, which cannot change what the encoder learns. ChromaTau instead injects
-structure at the one place in a selective SSM where long-range behaviour is
-decided --- the timescale $\Delta$, which sets how long the recurrent state
-retains information --- so that a model told where domain boundaries lie can
-learn to reset at them and retain within them. Structure is used only during
-pretraining and removed at transfer, so any benefit resides in the learned
-sequence weights.
+State-space sequence models are increasingly used as genomic foundation models
+because their linear cost admits contexts far beyond attention. We report two
+results about conditioning such a model on measured three-dimensional chromatin
+structure during pretraining, rather than attaching structure to frozen
+embeddings after the fact.
 
-Two design problems had to be solved to make the mechanism expressible, and both
-are contributions in their own right. First, we identify a \emph{timescale
-ceiling} present before training begins: retention obeys
-$\tau = 1/(\Delta|A| + p)$, so initialisation constants impose a hard upper
-bound on memory. Mamba's reference $\Delta_{\min}=10^{-3}$ caps $\tau$ at
-$10^{3}$ tokens --- at single-nucleotide tokenisation, shorter than a typical
-gene; we measure $999.5$. We remove it at \emph{zero} parameter cost, moving
-median trained $\tau$ from $14.2$ to $434.7$ and taking layer-directions
-reaching domain scale from $0/32$ to $32/32$. We further show the ceiling
-recurs through a second constant that the standard $\tau$ diagnostic omits
-entirely.
+First, we identify a \emph{timescale ceiling} that is present before training
+begins. In a selective state-space model the retention time obeys
+$\tau = 1/(\Delta|A| + p)$, so the initialisation constants of $\Delta$ and of
+any additive gate impose a hard upper bound on memory. With Mamba's reference
+$\Delta_{\min} = 10^{-3}$ this bound is $10^{3}$ tokens, which at
+single-nucleotide tokenisation is shorter than a typical gene; we measure
+$999.5$. The ceiling is invisible to the standard diagnostic, which omits $p$.
+Correcting three constants at \emph{zero} parameter cost moves median trained
+$\tau$ from $14.2$ to $434.7$ and takes the fraction of layer-directions
+reaching topological-domain scale from $0/32$ to $32/32$.
 
-Second, we show that a \emph{per-position} structural bias is the wrong
-instrument, and quantify why: only $11.0\%$ of the structural signal's variance
-lies within a $65{,}536$\,bp window. We establish this is intrinsic to Hi-C
-spatial autocorrelation rather than an artefact of binning or context length, by
-measuring it across window widths from $8$\,kb to $524$\,kb and bin resolutions
-from $5$\,kb to $1$\,kb. ChromaTau therefore conditions at two scales jointly,
-local and window-pooled, for $+0.43\%$ parameters --- the configuration with
-access to the full structural signal rather than a tenth of it.
+Second, with that ceiling removed, we find that conditioning $\Delta$ on
+Hi-C-derived structure gives \emph{no} improvement in masked-language-modelling
+loss at matched parameters and matched compute ($+0.0020$ bits, $0.80\sigma$,
+exact permutation $p = 0.600$), and we diagnose why. The structural signal is
+overwhelmingly \emph{between} windows rather than within them: only $11.0\%$ of
+its variance lies inside a $65{,}536$\,bp window. We show this is a property of
+Hi-C spatial autocorrelation and not of binning or window choice, by measuring
+it three ways --- across window widths from $8$\,kb to $524$\,kb, across bin
+resolutions from $5$\,kb to $1$\,kb, and through the structural encoder. A
+per-position conditioning mechanism therefore addresses a minority of the
+available signal by construction, at every resolution and context length
+reachable on commodity hardware.
 \end{abstract}
 
 \section{Introduction}
@@ -100,38 +89,32 @@ timescale $\Delta$, which sets how long the recurrent state retains information.
 The hypothesis is direct --- a model told where domain boundaries are should
 learn to reset at them and retain within them.
 
-Building it required solving two problems that we believe are of independent
-interest, and the second of them determines the architecture. Our contributions
-are:
+Answering it required first fixing something we did not expect to find. Our
+contributions are:
 
 \begin{itemize}
 \itemsep2pt
-\item \textbf{ChromaTau}, a genomic sequence model that conditions SSM retention
-timescales on measured chromatin structure \emph{during} pretraining
-(\S\ref{sec:method}). Structure is supplied only while learning and removed at
-transfer, so any benefit must reside in the sequence weights. The pathway costs
-$+0.43\%$ parameters and is zero-initialised, making the model numerically
-identical to a sequence-only baseline at step $0$.
-\item \textbf{A measurement that determines the design} (\S\ref{sec:why}). Only
-$11.0\%$ of the structural signal's variance lies within a $65{,}536$\,bp
-window. We show across seven window widths and three bin resolutions that this
-is intrinsic to Hi-C spatial autocorrelation, not an artefact --- so a
-per-position coupling can reach only a tenth of the signal by construction.
-ChromaTau conditions at two scales jointly as a direct consequence.
-\item \textbf{Removal of a timescale ceiling} that makes the mechanism
-expressible at all (\S\ref{sec:ceiling}). The reference $\Delta$ initialisation
-caps retention at $1/\Delta_{\min}$ tokens before the first gradient step, at
-zero parameter cost to fix. We show the ceiling recurs through a second constant
-that the standard $\tau$ diagnostic omits, and that a model can therefore report
-a plausible memory horizon that is not its own.
-\item \textbf{A pre-registered evaluation protocol} (\S\ref{sec:setup}) with
-matched parameters, matched compute, paired initialisation, cross-chromosome
-splits, and input-substitution controls that separate \emph{reliance} on
-structure from \emph{benefit} from it.
+\item \textbf{A timescale ceiling in SSM initialisation} (\S\ref{sec:ceiling}).
+The reference $\Delta$ initialisation caps retention at $1/\Delta_{\min}$ tokens
+before the first gradient step. The fix costs no parameters. We further show the
+ceiling recurs through a second constant --- an additive gate term $p$ omitted
+from the usual $\tau$ estimator --- which silently reimposes a $55$-token bound
+on the conditioned model while leaving the unconditioned baseline untouched.
+\item \textbf{A mechanism for structure-conditioned pretraining}
+(\S\ref{sec:method}), costing $+0.43\%$ parameters and numerically identical to
+its baseline at initialisation, so that anything observed is learned.
+\item \textbf{A matched-parameter, matched-compute null, with controls}
+(\S\ref{sec:results}). Loss is unchanged; input-substitution controls show the
+structural channel reaches the output but carries $\sim\!0.05\%$ of the
+divergence that masking does.
+\item \textbf{A measured explanation} (\S\ref{sec:why}). The conditioning signal
+is nearly constant inside the window it modulates, and we show this is intrinsic
+to Hi-C rather than an artefact of binning or context length.
 \end{itemize}
 
-Every threshold in this paper was fixed before the corresponding number
-existed, and none was moved afterwards.
+We report the null as a result. The design was pre-registered, the effect-size
+floor was fixed before any number existed, and no threshold was moved
+afterwards.
 
 \section{Related work}
 
@@ -162,11 +145,14 @@ respect: conditioning is applied during pretraining and is removed at transfer
 time, so any benefit must reside in the learned sequence weights.
 
 \paragraph{Conditioning recurrent timescales.}
-Gating a recurrent model's retention on side information has precedent, where
-forget-gate biases control effective memory length. What is specific here is
-interpretability: in a selective SSM the timescale is an explicit quantity in
-tokens, so a signal predicting \emph{where dependencies end} --- which is what an
-insulation profile is --- can be applied to it directly and audited afterwards.
+Gating a recurrent model's retention on side information has precedent in
+general sequence modelling, where forget-gate biases control effective memory
+length. What is specific here is the interpretation: in a selective SSM the
+timescale is an explicit, measurable quantity in tokens, so an external signal
+that predicts \emph{where dependencies end} --- which is what an insulation
+profile is --- can be applied to it directly and its effect audited. That
+auditability is what makes the negative result of \S\ref{sec:results}
+diagnosable rather than merely disappointing.
 
 \section{Background}
 
@@ -197,105 +183,6 @@ Under reverse complementation the features carry signs
 $[1,1,1,-1,1,-1,1,1]$; directionality and upstream mass fraction are
 antisymmetric. This flip must be applied to raw $\varphi$ before encoding, since
 an encoder mixes the coordinates and destroys the correspondence.
-
-\section{Where the structural signal lives, and what it implies for design}
-\label{sec:why}
-
-A structural signal can only inform a per-position bias to the extent that it
-\emph{varies} across positions the model sees together. Before designing the
-conditioning pathway we therefore measured how much of $\varphi$'s variance is
-actually available inside a window, defining the reachable fraction as
-\begin{equation}
-\mathrm{keep}(\varphi) \;=\;
-\frac{\mathbb{E}_w\left[\mathrm{Var}_{t \in w}(\varphi_t)\right]}
-     {\mathrm{Var}_{t}(\varphi_t)}\,.
-\end{equation}
-On held-out windows $\mathrm{keep}(\varphi) = 0.0573$ at $32{,}768$\,bp and
-$0.1099$ at $65{,}536$\,bp: roughly $90\%$ of the structural variance lies
-\emph{between} windows. A per-position bias is therefore driven by an input that
-is nearly constant over the interval it modulates --- a ceiling imposed by the
-window size itself, not by training. \textbf{This is the measurement that
-determines the architecture of \S\ref{sec:method}.}
-
-\begin{figure}[t]
-\centering
-\begin{tikzpicture}
-\begin{semilogxaxis}[
-  width=0.48\textwidth, height=4.6cm,
-  xlabel={window width (bp)}, ylabel={$\mathrm{keep}(\varphi)$},
-  xmin=6000, xmax=700000, ymin=0, ymax=0.55,
-  log basis x=2, grid=major, grid style={gray!22},
-  tick label style={font=\scriptsize}, label style={font=\small},
-  title style={font=\small}, title={(a) across window width, $5$\,kb bins}]
-\addplot[thick, black, mark=*, mark size=1.5pt] coordinates {
-  (8192,0.0092)(16384,0.0318)(32768,0.0490)(65536,0.1099)
-  (131072,0.2117)(262144,0.3499)(524288,0.4932)};
-\addplot[dashed, gray, forget plot] coordinates {(6000,0.5)(700000,0.5)};
-\node[font=\scriptsize,anchor=west] at (axis cs:9000,0.46) {half the variance};
-\node[font=\scriptsize,anchor=south] at (axis cs:65536,0.13) {fits in memory};
-\end{semilogxaxis}
-\end{tikzpicture}\hfill
-\begin{tikzpicture}
-\begin{axis}[
-  width=0.48\textwidth, height=4.6cm,
-  xlabel={bin resolution (bp)}, ylabel={$\mathrm{keep}(\varphi)$ at $65{,}536$},
-  xmin=0, xmax=5800, ymin=0, ymax=0.26,
-  xtick={1000,2000,5000}, grid=major, grid style={gray!22},
-  tick label style={font=\scriptsize}, label style={font=\small},
-  title style={font=\small}, title={(b) across bin resolution, same tile}]
-\addplot[thick, black, mark=square*, mark size=1.5pt]
-  coordinates {(5000,0.0929)(2000,0.1690)(1000,0.1809)};
-\addplot[dashed, gray, thick, forget plot] coordinates {(0,0.2198)(5800,0.2198)};
-\node[font=\scriptsize,anchor=west] at (axis cs:150,0.238) {pre-registered $2\times$ gate};
-\end{axis}
-\end{tikzpicture}
-\caption{The signal is between windows at every reachable setting.
-(a) Widening the context raises $\mathrm{keep}(\varphi)$ but even at
-$524{,}288$\,bp --- far beyond what fits in memory --- half the variance is still
-between windows. (b) Refining bins five-fold on a fixed tile raises it by
-$1.95\times$, missing a gate fixed in advance at $2\times$; at $1$\,kb, $81.9\%$
-of the variance remains between windows.}
-\label{fig:keep}
-\end{figure}
-
-Two natural remedies fail, and we measured both rather than assuming
-(Fig.~\ref{fig:keep}).
-
-\paragraph{Widening the window is a partial mitigation, not a fix.}
-Across widths from $8$\,kb to $524$\,kb, $\mathrm{keep}(\varphi)$ rises
-monotonically but slowly. At $65{,}536$\,bp --- which we verify fits in
-$7.51$\,GiB with gradient checkpointing --- $89.0\%$ of the variance is still
-between windows. At $131{,}072$\,bp, which also fits ($14.90$\,GiB) at
-$2.41\times$ the step cost, $78.8\%$ remains. Even at $524{,}288$\,bp, beyond
-practical memory, half of it does.
-
-\paragraph{Refining the bins does not fix it either.}
-We fetched a $10$\,Mb tile at $1$\,kb and $2$\,kb and recomputed $\varphi$ with
-the same pipeline, against a same-tile $5$\,kb control. Like-for-like,
-$5$\,kb $\to$ $1$\,kb raises $\mathrm{keep}(\varphi)$ at $65{,}536$\,bp by
-$1.95\times$ ($0.0929 \to 0.1809$), missing a gate fixed in advance at
-$2\times$. Most of the gain arrives by $2$\,kb: the final step to $1$\,kb buys
-$1.071\times$ for $1.70\times$ the contact entries. At $1$\,kb bins ---
-five times finer than any resolution used here --- $81.9\%$ of the variance is
-\emph{still} between windows.
-
-\paragraph{The encoder is not the bottleneck.}
-One might suspect the two-dimensional structural code discards within-window
-variation. It does the opposite: the ratio of $\mathrm{keep}$ after encoding to
-$\mathrm{keep}$ of raw $\varphi$ is $2.21$ / $2.35$ / $1.20$ across seeds, mean
-$1.92$. The encoder \emph{increases} the within-window variance fraction of what
-passes through it.
-
-\paragraph{Design consequence.}
-Three independent interventions --- context length, bin resolution and the
-encoder --- leave the conclusion unchanged: the dominant variation in
-Hi-C-derived features occurs on scales longer than any context these models can
-process. A purely per-position coupling therefore addresses the minority share
-by construction, while a purely per-window coupling has the opposite defect,
-carrying the between-window share but discarding local variation.
-\textbf{ChromaTau conditions at both scales jointly} (\S\ref{sec:method}), the
-only configuration with access to all of $\varphi$ rather than a fraction fixed
-in advance by the window size.
 
 \section{A timescale ceiling before the first gradient step}
 \label{sec:ceiling}
@@ -384,7 +271,7 @@ entering the discretisation imposes its own reciprocal ceiling, and a $\tau$
 diagnostic that omits one will report a plausible number that is not the model's
 memory. We found two such constants in one architecture.
 
-\section{The ChromaTau model}
+\section{Structure-conditioned pretraining}
 \label{sec:method}
 
 \begin{figure}[t]
@@ -464,37 +351,10 @@ the baseline function and any divergence is learned. And the two arms are
 into every shape-matching tensor, giving $275/275$ bitwise-identical parameters
 at initialisation, so seed variance is shared rather than confounded with arm.
 
-\paragraph{Dual-scale conditioning.}
-\S\ref{sec:why} showed that a per-position input carries only $\sim\!11\%$ of
-$\varphi$'s variance, while a window-pooled input carries the complementary
-share but discards local detail. ChromaTau takes both. We form
-\begin{equation}
-\tilde{\varphi}_t \;=\; \left[\; \varphi_t \;\;\middle\|\;\;
-  \tfrac{1}{|w|}\!\!\sum_{u \in w} \varphi_u \;\right] \in \mathbb{R}^{16},
-\label{eq:dual}
-\end{equation}
-concatenating the local feature vector with its mean over the enclosing window,
-and validity is the conjunction of both halves. The encoder input widens from
-$8$ to $16$ channels; nothing else in the architecture changes, because both the
-encoder and $W_{\text{struct}}$ are pointwise and a pooled input is therefore
-equivalent to computing one embedding and broadcasting it.
-
-This is the configuration we propose. The per-position variant is a strict
-subset of it ($\tilde{\varphi}$ with the second block ablated), so dual-scale
-conditioning cannot express less than per-position conditioning can.
-
-\paragraph{Removing the second ceiling.}
-The permeability gate of \S\ref{sec:ceiling} imposes $\tau \le 1/p \approx 55$
-tokens on the conditioned arm while the baseline, having no such term, pays
-nothing. We therefore disable it. This makes $\tau$ denote the same quantity in
-both arms, which is a precondition for the comparison to mean anything; the gate
-had in any case been measured never to engage.
-
-\paragraph{Parameter accounting.} Baseline $7{,}725{,}312$; ChromaTau
-$7{,}758{,}386$ --- a $+0.428\%$ difference against a $5\%$ budget.
+Parameter counts are $7{,}725{,}312$ (baseline) and $7{,}758{,}354$
+(conditioned), a $+0.43\%$ difference against a $5\%$ budget.
 
 \section{Experimental setup}
-\label{sec:setup}
 
 \paragraph{Data.} Human chromosome 9, GM12878, Hi-C from a published
 deeply-sequenced experiment set, mapped to GRCh38. Of $27{,}679$ bins at $5$\,kb,
@@ -541,49 +401,30 @@ $131{,}072$ & $15.45$ & $16.98$ & $14.90$ \\
 \section{Results}
 \label{sec:results}
 
-\paragraph{Preliminary study, and what it could not decide.}
-We first report a pilot conducted before the two design corrections of
-\S\ref{sec:ceiling} and \S\ref{sec:method} were in place: per-position
-conditioning only, the permeability gate active, three seeds per arm, splits
-internal to one chromosome. Table~\ref{tab:main} shows language-modelling loss
-unchanged, the conditioned arm $0.0020$ bits worse at $0.80\sigma$.
-
-\textbf{This pilot could not have produced a positive result, and we state that
-rather than interpret it.} Three factors independently prevent it: the
-conditioned arm carried the $55$-token permeability ceiling the baseline does
-not, so the mechanism ran with $\sim\!8.5\times$ shorter memory than its
-comparator; conditioning was per-position, reaching $\sim\!11\%$ of the signal
-by construction (\S\ref{sec:why}); and at three seeds per arm the exact
-permutation floor is $0.100$, so $p<0.05$ was unreachable whatever the data
-showed. We report it because it motivated each correction, not as an evaluation
-of ChromaTau.
+\paragraph{Language modelling is unchanged.}
+Table~\ref{tab:main} reports the primary comparison. The conditioned arm is
+$0.0020$ bits \emph{worse}, i.e.\ $0.80\sigma$, well inside noise and with the
+sign pointing away from the hypothesis. The exact two-sided permutation test
+gives $p = 0.600$. We note explicitly that at three seeds per arm the minimum
+attainable $p$ is $0.100$, so significance was unreachable by design; this is a
+limitation of the pilot, not evidence of equivalence.
 
 \begin{table}[t]
 \centering\small
-\caption{Preliminary study, superseded. Per-position conditioning, permeability
-gate active, three seeds, within-chromosome splits. See the text for why this
-configuration could not express a positive result.}
+\caption{Primary result. Matched parameters, matched compute, paired
+initialisation. Three seeds per arm.}
 \label{tab:main}
 \begin{tabular}{lccc}
 \toprule
- & val bits/nt & median $\tau$ (as reported) & per-seed \\
+ & val bits/nt & median $\tau$ (reported) & per-seed \\
 \midrule
 baseline & $\mathbf{1.5197 \pm 0.0025}$ & $434.7$ & $1.5196$ / $1.5172$ / $1.5223$ \\
-per-position conditioning & $1.5217 \pm 0.0045$ & $487.3$ & $1.5266$ / $1.5177$ / $1.5209$ \\
+structure-conditioned & $1.5217 \pm 0.0045$ & $487.3$ & $1.5266$ / $1.5177$ / $1.5209$ \\
 \midrule
 difference & $+0.0020$ ($0.80\sigma$) & \multicolumn{2}{c}{permutation $p = 0.600$ (floor $0.100$)} \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-\paragraph{Main evaluation.}
-The evaluation of ChromaTau as specified in \S\ref{sec:method} --- dual-scale
-conditioning, permeability disabled, five paired seeds per arm, trained to a
-convergence criterion on a cross-chromosome split (train chr10--13, validate
-chr14--15, chr9 held out) --- is in progress at submission time and its numbers
-are not reported here. The protocol, primary endpoint and falsification
-criterion were registered in advance and are stated in \S\ref{sec:setup}; at five
-paired seeds the permutation floor is $2/252 = 0.008$.
 
 \paragraph{The channel is connected but carries almost nothing.}
 Table~\ref{tab:controls} shows the input-substitution controls. Removing or
@@ -631,81 +472,223 @@ Withholding $\varphi$ at probe time and predicting within-window insulation from
 hidden states after removing window identity, every conditioned seed exceeds
 every baseline seed (conditioned $+0.0254$ / $+0.0303$ / $+0.0255$; baseline
 $+0.0134$ / $+0.0146$ / $+0.0221$), attaining the $3$v$3$ permutation floor of
-$p = 0.100$. Both arms sit \emph{below} a local GC-composition floor of $+0.0802$, so this is
-relative rather than absolute structural sensitivity.
+$p = 0.100$. Two caveats travel with this. Both arms sit \emph{below} a local
+GC-composition floor of $+0.0802$, so this is relative rather than absolute
+structural sensitivity --- a contrast between two weak predictors. And two other
+targets give nothing.
 
-\paragraph{External benchmarks.}
-To place the pretrained encoder against the literature we evaluate on a standard
-suite of genomic classification tasks \citep{gresova2023} under a
-\emph{frozen-encoder linear probe}: the encoder is fixed, sequences are
-mean-pooled, and a regularised logistic regression is fitted on top. Published
-numbers on these tasks are obtained by \emph{fine-tuning} and are therefore not
-comparable; a frozen probe is a lower bound on the same weights. Since these
-sequences have no associated Hi-C --- and some are not human --- the conditioned
-arm is evaluated with $\varphi$ set to zero, which is the transfer setting that
-matters in practice.
+\paragraph{Neither arm separates on external benchmarks.}
+Internal diagnostics cannot place a model relative to the literature, so we
+additionally evaluate on a standard suite of genomic classification tasks
+\citep{gresova2023} under a \emph{frozen-encoder linear probe}: the pretrained
+encoder is fixed, sequences are mean-pooled over positions, and a regularised
+logistic regression is fitted on the resulting representations. We emphasise
+that published numbers on these tasks are obtained by \emph{fine-tuning} the
+whole model and are therefore not comparable to ours; a frozen probe is a lower
+bound on the same weights. What the protocol does support is a floor and the
+arm-versus-arm contrast, both arms receiving identical treatment.
 
-On the pilot checkpoints, both arms exceed a $k$-mer composition floor
-($k \le 3$) on every task, by $+0.019$ and $+0.033$ on the two with large test
-sets: pretraining on a single chromosome yields representations beyond
-trinucleotide composition. The arms do not separate (mean difference $+0.0019$
-accuracy, no task beyond $1.6$ standard errors), which is expected given the
-three limiting factors above. We note for methodological hygiene that the
-largest apparent gap falls on the smallest test set, where the binomial standard
-error is $0.0266$ and the observed difference is $0.52$ of it; across eight such
-tasks one arm sweeping the other by chance has probability $0.57$, so we do not
-interpret it.
+Because these sequences have no associated Hi-C --- and two tasks are not human
+--- the conditioned arm is evaluated with $\varphi$ set to zero. Its structural
+pathway is therefore inactive, and any difference reflects only what
+conditioning left in the sequence weights. This is the transfer setting that
+matters for a foundation model: at deployment, structure is usually unavailable.
+
+\begin{table}[t]
+\centering\small
+\caption{Frozen-probe accuracy on genomic classification tasks, three seeds per
+arm, against a $k$-mer composition floor ($k \le 3$). Not comparable to published
+fine-tuned results. Both arms exceed the composition floor; the arms do not
+separate.}
+\label{tab:bench}
+\begin{tabular}{lccccc}
+\toprule
+task & $n_{\text{test}}$ & $k$-mer floor & baseline & conditioned & difference \\
+\midrule
+mouse enhancers & $242$ & $0.7727$ & $0.7741$ & $0.7879$ & $+0.0138$ \\
+human enhancers (Cohn) & $6{,}948$ & $0.7083$ & $0.7270$ & $0.7185$ & $-0.0084$ \\
+human non-TATA promoters & $9{,}034$ & $0.8083$ & $0.8413$ & $0.8418$ & $+0.0005$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:bench} reports the completed subset. Both arms clear the
+composition floor on every task, by $+0.019$ and $+0.033$ on the two with large
+test sets --- evidence that pretraining on a single chromosome produced
+representations exceeding trinucleotide composition. The arms do not separate:
+the mean difference is $+0.0019$ accuracy, and no task exceeds $1.6$ standard
+errors. We note that the largest apparent gap, on mouse enhancers, occurs on the
+smallest test set, where the binomial standard error is $0.0266$ and the
+observed difference is $0.52$ of it. Across eight such tasks, one arm sweeping
+all three seeds of the other by chance has probability $0.57$ under the null;
+we therefore do not interpret it.
+
+\section{Why: the conditioning signal is between windows, not within them}
+\label{sec:why}
+
+The mechanism biases $\Delta$ \emph{per position}. It can therefore only exploit
+variation in $\varphi$ that occurs \emph{inside} a window. We quantify the
+available fraction as
+\begin{equation}
+\mathrm{keep}(\varphi) \;=\;
+\frac{\mathbb{E}_w\left[\mathrm{Var}_{t \in w}(\varphi_t)\right]}
+     {\mathrm{Var}_{t}(\varphi_t)}\,.
+\end{equation}
+On held-out windows $\mathrm{keep}(\varphi) = 0.0573$: $94\%$ of the structural
+variance lies \emph{between} windows. The mechanism's input is nearly constant
+over the interval it modulates --- by construction of the window size, not by
+any failure of training.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{semilogxaxis}[
+  width=0.48\textwidth, height=4.6cm,
+  xlabel={window width (bp)}, ylabel={$\mathrm{keep}(\varphi)$},
+  xmin=6000, xmax=700000, ymin=0, ymax=0.55,
+  log basis x=2, grid=major, grid style={gray!22},
+  tick label style={font=\scriptsize}, label style={font=\small},
+  title style={font=\small}, title={(a) across window width, $5$\,kb bins}]
+\addplot[thick, black, mark=*, mark size=1.5pt] coordinates {
+  (8192,0.0092)(16384,0.0318)(32768,0.0490)(65536,0.1099)
+  (131072,0.2117)(262144,0.3499)(524288,0.4932)};
+\addplot[dashed, gray, forget plot] coordinates {(6000,0.5)(700000,0.5)};
+\node[font=\scriptsize,anchor=west] at (axis cs:9000,0.46) {half the variance};
+\node[font=\scriptsize,anchor=south] at (axis cs:65536,0.13) {fits in memory};
+\end{semilogxaxis}
+\end{tikzpicture}\hfill
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.48\textwidth, height=4.6cm,
+  xlabel={bin resolution (bp)}, ylabel={$\mathrm{keep}(\varphi)$ at $65{,}536$},
+  xmin=0, xmax=5800, ymin=0, ymax=0.26,
+  xtick={1000,2000,5000}, grid=major, grid style={gray!22},
+  tick label style={font=\scriptsize}, label style={font=\small},
+  title style={font=\small}, title={(b) across bin resolution, same tile}]
+\addplot[thick, black, mark=square*, mark size=1.5pt]
+  coordinates {(5000,0.0929)(2000,0.1690)(1000,0.1809)};
+\addplot[dashed, gray, thick, forget plot] coordinates {(0,0.2198)(5800,0.2198)};
+\node[font=\scriptsize,anchor=west] at (axis cs:150,0.238) {pre-registered $2\times$ gate};
+\end{axis}
+\end{tikzpicture}
+\caption{The signal is between windows at every reachable setting.
+(a) Widening the context raises $\mathrm{keep}(\varphi)$ but even at
+$524{,}288$\,bp --- far beyond what fits in memory --- half the variance is still
+between windows. (b) Refining bins five-fold on a fixed tile raises it by
+$1.95\times$, missing a gate fixed in advance at $2\times$; at $1$\,kb, $81.9\%$
+of the variance remains between windows.}
+\label{fig:keep}
+\end{figure}
+
+Two natural remedies fail, and we measured both rather than assuming
+(Fig.~\ref{fig:keep}).
+
+\paragraph{Widening the window is a partial mitigation, not a fix.}
+Across widths from $8$\,kb to $524$\,kb, $\mathrm{keep}(\varphi)$ rises
+monotonically but slowly. At $65{,}536$\,bp --- which we verify fits in
+$7.51$\,GiB with gradient checkpointing --- $89.0\%$ of the variance is still
+between windows. At $131{,}072$\,bp, which also fits ($14.90$\,GiB) at
+$2.41\times$ the step cost, $78.8\%$ remains. Even at $524{,}288$\,bp, beyond
+practical memory, half of it does.
+
+\paragraph{Refining the bins does not fix it either.}
+We fetched a $10$\,Mb tile at $1$\,kb and $2$\,kb and recomputed $\varphi$ with
+the same pipeline, against a same-tile $5$\,kb control. Like-for-like,
+$5$\,kb $\to$ $1$\,kb raises $\mathrm{keep}(\varphi)$ at $65{,}536$\,bp by
+$1.95\times$ ($0.0929 \to 0.1809$), missing a gate fixed in advance at
+$2\times$. Most of the gain arrives by $2$\,kb: the final step to $1$\,kb buys
+$1.071\times$ for $1.70\times$ the contact entries. At $1$\,kb bins ---
+five times finer than any resolution used here --- $81.9\%$ of the variance is
+\emph{still} between windows.
+
+\paragraph{The encoder is not the bottleneck.}
+One might suspect the two-dimensional structural code discards within-window
+variation. It does the opposite: the ratio of $\mathrm{keep}$ after encoding to
+$\mathrm{keep}$ of raw $\varphi$ is $2.21$ / $2.35$ / $1.20$ across seeds, mean
+$1.92$. The encoder \emph{increases} the within-window variance fraction of what
+passes through it.
+
+\paragraph{Interpretation.}
+Three independent interventions --- context length, bin resolution, and the
+encoder --- leave the conclusion unchanged. The dominant variation in
+Hi-C-derived features occurs on scales longer than any context these models can
+process, which is a statement about the spatial autocorrelation of chromatin
+contact maps rather than about one implementation. A per-position conditioning
+mechanism addresses the minority share by construction. This does not show that
+structure-conditioned pretraining cannot work; it shows that a per-position
+coupling is the wrong instrument, and that mechanisms operating at window or
+inter-window granularity are the ones with access to the remaining $80$--$90\%$.
 
 \section{Discussion and limitations}
 
-\paragraph{Scope.} We claim a mechanism, a measurement that motivates its
-design, and two initialisation results that make it expressible. We do not yet
-claim an improvement: the evaluation of ChromaTau as specified is in progress,
-and the preliminary study of \S\ref{sec:results} was run in a configuration
-that, as shown there, could not have produced a positive result.
+\paragraph{What we claim.} That SSM timescale initialisation imposes ceilings
+that are invisible to the usual diagnostic, and that they are cheap to remove.
+That conditioning $\Delta$ on measured structure does not improve masked
+language modelling at this scale. And that the reason is measurable and
+architectural rather than incidental.
 
-\paragraph{Limitations.} The scale is small: $7.7$M parameters, one cell line,
-$\approx\!0.5$B pretraining tokens. For calibration, a comparable published
-bidirectional-Mamba genomic model is parameter-matched to ours ($7.73$M,
-$d_{\text{model}}=256$, $16$ layers) but pretrained on roughly $100\times$ more
-tokens; we compare mechanism, not scale. Structure comes from a single assay in a single
-cell type. And even dual-scale conditioning inherits the ceiling of
-\S\ref{sec:why} at the \emph{inter}-window scale: structure varying across
-windows the model never sees together is out of reach for any architecture with
-bounded context.
+\paragraph{What we do not claim.} We do not claim structure is useless for
+genomic representation learning. Our conditioned arm additionally paid the
+$55$-token permeability ceiling of \S\ref{sec:ceiling} that the baseline did not,
+so the reported null is partly a null about a handicapped mechanism; correcting
+this is the first item of ongoing work.
+
+\paragraph{Limitations.} Three seeds per arm places the minimum attainable
+permutation $p$ at $0.100$, so no significant positive was expressible.
+Validation loss was still descending at $2{,}000$ steps, so this is a null from
+an undertrained model. Splits are internal to one chromosome, and because Hi-C
+features autocorrelate over megabases, held-out $\varphi$ leaks more than
+held-out sequence --- a bias \emph{toward} the conditioned arm, which makes the
+null more rather than less credible but disqualifies any positive. And the scale
+is small: $7.7$M parameters, one cell line, $\approx\!0.5$B pretraining tokens.
+For calibration, a comparable published bidirectional-Mamba genomic model is
+parameter-matched to ours ($7.73$M, $d_{\text{model}}=256$, $16$ layers) but
+pretrained on roughly $100\times$ more tokens; we compare mechanism, not scale.
 
 \paragraph{A caution for cross-cell-line evaluation.}
-The natural next test is generalisation to unseen cell types, and a common
-design probes insulation on a held-out line. We advise against it: TAD
-boundaries are substantially conserved, so such a probe can be passed by
-memorising the pretraining line. The usual remedy --- probe A/B compartments
-instead, as more cell-type-variable --- is conditional on the pair chosen.
-Measuring all eight features on a common chromosome across three lines, we find
-compartment agreement of $+0.8389$ between GM12878 and K562 against insulation
-agreement of $+0.7530$: for this pair the premise inverts. It holds for GM12878
-against IMR90 ($+0.6906$ versus $+0.7675$). The distinction tracks lineage. We
-therefore recommend targeting the \emph{differential} between lines, on which a
-model that memorised the pretraining line scores zero by construction, and
-excluding contact-density features, which show the lowest agreement across
-\emph{every} pair --- the signature of depth and copy-number differences rather
-than regulatory architecture.
+Evaluating structure-aware models across cell types is the natural next test,
+and a common design is to probe insulation on a held-out cell line. We advise
+against it, on measured grounds. TAD boundaries are substantially conserved
+across cell types, so such a probe can be passed by memorising the pretraining
+cell line. The usual remedy is to probe A/B compartments instead, on the premise
+that they are more cell-type-variable --- but that premise is conditional on the
+pair of lines chosen. Computing all eight features on a common chromosome for
+three lines, we find compartment agreement of $+0.8389$ between GM12878 and
+K562 against insulation agreement of $+0.7530$: for this pair the compartment
+eigenvector is \emph{more} conserved than insulation, inverting the premise.
+For GM12878 against IMR90 the premise holds ($+0.6906$ versus $+0.7675$). The
+distinction tracks lineage --- GM12878 and K562 are both haematopoietic, IMR90
+is fibroblast.
+
+The implication is that a cross-cell-line probe should target the
+\emph{differential} between lines rather than either feature in isolation: a
+model that memorised the pretraining line scores zero on a differential target
+by construction. We also recommend excluding contact-density features from such
+comparisons, since they show the lowest agreement across \emph{every} pair
+including the two same-lineage lines --- the signature of sequencing depth and
+copy-number differences rather than regulatory architecture.
+
+\paragraph{Ongoing work.} A leakage-safe split across seven chromosomes (train
+chr10--13, validate chr14--15, hold out chr9) is built and unused; five paired
+seeds per arm reduce the permutation floor to $0.008$; and a window-level
+conditioning arm targets the between-window share identified in
+\S\ref{sec:why}. Those results are not reported here.
 
 \section{Conclusion}
 
-ChromaTau conditions the retention timescale of a state-space genomic model on
-measured chromatin structure during pretraining, rather than attaching structure
-to already-frozen representations. Its design follows from a measurement:
-roughly $90\%$ of the structural signal's variance lies between windows rather
-than within them --- a property of Hi-C spatial autocorrelation that survives
-every change of window width and bin resolution available on current hardware
---- so conditioning must operate at two scales jointly. Making the mechanism
-expressible required removing a memory ceiling fixed at initialisation and
-present throughout this model family: the reference $\Delta$ initialisation caps
-retention at $1{,}000$ tokens before the first gradient step, and the fix costs
-no parameters while increasing trained retention thirty-fold. A second such
-constant can hide from the standard $\tau$ diagnostic entirely, so that a model
-reports a memory horizon that is not its own --- a failure mode we expect
-wherever selective state-space models are adapted to new domains.
+Selective state-space models carry a memory horizon fixed at initialisation, and
+we found two independent constants that cap it --- one in the reference
+initialisation of every Mamba-family model, one specific to an additive gate and
+hidden from the standard estimator. Removing the first costs no parameters and
+increases trained retention thirty-fold.
+
+With that ceiling lifted, conditioning the timescale on measured chromatin
+structure left language-modelling loss unchanged. Rather than report that as an
+uninformative negative, we located its cause: the structural signal varies on
+scales longer than the model's context, at every resolution and window width
+reachable on current hardware, so a per-position mechanism can address only a
+tenth of it. That finding constrains the design space for structure-aware
+genomic models more usefully than the null alone.
 
 \clearpage
 \small

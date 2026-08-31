@@ -1,4 +1,8 @@
-# Paper draft — AIAYN format
+# ChromaTau — paper draft (AIAYN format)
+
+**Framing: this is a MODEL paper.** The earlier negative-results framing is kept
+at `main_negative_framing.tex.bak` in case the Phase D result argues for
+reverting to it.
 
 `main.tex` → `main.pdf`. **10 pages: 9 of write-up, references alone on page 10**,
 matching the requested format (arXiv:1706.03762).
@@ -37,9 +41,15 @@ standing rule 1. Sources:
 
 ## Status — read before circulating
 
-- **Phase D has not run.** Every result is from the 32,768 bp chr9 pilot with
-  splits *inside* one chromosome. The draft says so in Limitations; do not remove
-  that paragraph.
+- **Phase D is RUNNING (launched 2026-08-31).** The paper proposes ChromaTau =
+  dual-scale conditioning + permeability disabled, which is exactly what Phase D
+  trains. §7 says the main evaluation is in progress and reports no numbers for
+  it. **Fill Table 3's successor from `results/phase_d/` only when runs reach
+  `status: COMPLETED`.**
+- **The pilot is labelled "superseded" and the paper states the three reasons it
+  could not have produced a positive** (permeability ceiling, per-position
+  conditioning, 3v3 permutation floor 0.100). Do not soften that paragraph — it
+  is what makes reporting the pilot at all defensible.
 - **The benchmark table is a partial sweep** (3 of 8 tasks complete at time of
   writing). Regenerate the table from `c1_genomic_benchmarks.json` when the
   sweep finishes.
