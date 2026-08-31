@@ -148,10 +148,36 @@ compartment eigenvector, not map depth: IMR90's insulation agreement is the
 | Drop the second line | Scope the paper to one cell line. Costs the cross-cell-line claim entirely. |
 | Investigate IMR90 further | On the explicit rule that if no computational fault is found, IMR90 stays out by the gate as written. |
 
-**Recommendation: K562, with the aneuploidy documented as a limitation** — a
-stated confound is worth more than no cross-cell-line arm, and the K562 chr14
-build already exists. This is genuinely a judgement call and reasonable people
-differ.
+**NEW EVIDENCE, 2026-08-31 (C2, `results/c2_differential_power.json`).** The
+choice is harder than the gate alone suggests, and it turns on the same feature.
+Measured on chr14, 17,059 jointly usable bins:
+
+| | K562 | IMR90 |
+|---|---|---|
+| B3 depth gate | **passes** all three | **FAILS** on compartment (0.8815) |
+| C2 premise: compartment more cell-type-variable than insulation | **fails** (+0.8389 vs +0.7530) | **holds** (+0.6906 vs +0.7675) |
+
+Between GM12878 and K562, `compartment_pc1` is *more* conserved than insulation
+— both lines are haematopoietic. **So with K562 as the second line, the plan's
+designated discriminating feature tests conservation, not generalisation** —
+the failure mode C2 exists to avoid, reached from the other direction. The line
+whose compartment track is trustworthy enough to pass the gate is the line whose
+compartment is too conserved to be interesting, and vice versa.
+
+**This does not reopen the gate** — IMR90 still fails it as written.
+
+**Recommendation: K562, with two limitations documented** — the aneuploidy, and
+now the compartment-conservation finding, which means the cross-cell-line claim
+must rest on the **differential** target (17.8% sign disagreement, ~8.4 Mb
+top-decile on chr14 alone — measured, and powered) rather than on raw
+compartment. `docs/C2_CROSS_CELL_LINE_PROBE.md` is designed against exactly
+that. A stated confound is worth more than no cross-cell-line arm, and the K562
+chr14 build already exists. This is genuinely a judgement call and reasonable
+people differ.
+
+**Cost note either way:** second-line φ exists for **chr14 only**. A
+cross-chromosome version needs the second line on chr15 and chr9 too — an
+unbudgeted acquisition, though B1 showed it is a few minutes per chromosome.
 
 ---
 
