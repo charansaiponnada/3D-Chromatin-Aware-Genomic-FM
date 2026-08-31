@@ -240,7 +240,31 @@ no model, 300 windows per width):
 At the adopted 65,536 window **89.0% of φ's variance is still between
 windows**; even at 524,288 — far beyond what fits in memory — half of it is.
 **Never write "the window was the fault and widening fixes it" without this
-table beside it.** The scan's 0.0490 at 32,768 and 0.0573 on the 274 val
+table beside it.**
+
+**Nor "the bins were too coarse" — B2 measured that too, 2026-08-31**
+(`results/b2_phi_resolution_probe.json`, `..._control_5kb.json`; one 10 Mb
+chr9 tile, 7 features, `compartment_pc1` not formable on a tile):
+
+| resolution | keep(φ)@32,768 | keep(φ)@65,536 | vs 5 kb | tile entries |
+|---|---|---|---|---|
+| 5,000 bp (control) | 0.0532 | 0.0929 | 1.00× | 600,161 |
+| 2,000 bp | 0.0995 | 0.1690 | 1.82× | 1,873,329 |
+| 1,000 bp | 0.1709 | **0.1809** | **1.95×** | 3,186,781 |
+
+**The pre-registered gate FAILED** — it required ≥ 0.2198 (2× the full-chr9
+0.1099) and got 0.1809. That verdict stands and the 1 kb rebuild is not
+authorised. The gate scored a tile against a full-chromosome reference; the
+5 kb same-tile control shows the tile *deflates* keep(φ) (0.85×), so the
+mismatch ran against the candidates, and the like-for-like gain is 1.95× — a
+near-miss. Whether to re-run a matched-reference gate is a PI call; **do not
+rescore the existing gate against the control.**
+
+**At 1 kb bins, 81.9% of φ's variance at 65,536 is still between windows.**
+Neither refining bins 5× nor doubling the window reaches the bulk. The binding
+constraint is Hi-C's intrinsic spatial autocorrelation, not binning or window
+choice. If any rebuild is ever authorised it should be **2 kb**: 1 kb buys
+1.071× over 2 kb for 1.70× the entries. The scan's 0.0490 at 32,768 and 0.0573 on the 274 val
 windows are different samples of the same quantity, consistent.
 
 **Consequence — PROPOSAL, not a decision (a §4.1.3 change, PI's call):** if

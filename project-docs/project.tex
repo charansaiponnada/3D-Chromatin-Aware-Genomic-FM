@@ -510,6 +510,97 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-31 (eighth entry) --- B2: the 1\,kb gate FAILS, and a
+same-tile control shows why the constraint is Hi-C itself, not the binning}
+
+No GPU. \code{scripts/b2\_phi\_resolution\_probe.py} run as written, one
+10\,Mb chr9 tile per resolution, nothing fetched at full-chromosome scale.
+
+\textbf{GATE VERDICT: FAIL at both candidate resolutions. It stands, and the
+threshold was not moved.}
+
+\begin{center}
+\begin{tabular}{lrrl}
+\hline
+resolution & keep($\varphi$)@65{,}536 & usable & gate ($\geq 0.2198$, $\geq 60\%$) \\
+\hline
+1{,}000\,bp & 0.1809 & 0.9131 & \textbf{FAIL} \\
+2{,}000\,bp & 0.1690 & 0.9348 & \textbf{FAIL} \\
+\hline
+\end{tabular}
+\end{center}
+
+The usable-bin fraction is not the problem --- both are far above the 60\%
+floor, and above the 5\,kb full-chromosome 0.7774. Only the keep($\varphi$)
+half fails.
+
+\textbf{A confound in the gate's own reference, found and measured rather than
+argued.} The pre-registered rule compares a 10\,Mb tile at 1--2\,kb against
+\code{p5\_window\_scan.json}'s 0.1099, which was computed on \emph{all} of
+chr9 and on \emph{eight} features. The tile carries seven ---
+\code{compartment\_pc1} needs a whole-chromosome eigenvector and cannot be
+formed on a tile --- and keep($\varphi$) is a within-window/total variance
+ratio, so restricting to 10\,Mb removes long-range variation from its
+denominator. Both mismatches were expected to bias \emph{towards} passing.
+
+The script was therefore re-run at \textbf{5\,kb on the same tile with the
+same seven features}, as a control (\code{B2\_RESOLUTIONS}/\code{B2\_OUT}
+environment overrides added for this purpose; the defaults are untouched, so
+running the script bare still reproduces the gate exactly). Result in
+\code{results/b2\_phi\_resolution\_control\_5kb.json}:
+
+\begin{center}
+\begin{tabular}{lrrrrr}
+\hline
+resolution & keep@32{,}768 & vs 5\,kb & keep@65{,}536 & vs 5\,kb & tile entries \\
+\hline
+5{,}000\,bp & 0.0532 & 1.00$\times$ & 0.0929 & 1.00$\times$ & 600{,}161 \\
+2{,}000\,bp & 0.0995 & 1.87$\times$ & 0.1690 & 1.82$\times$ & 1{,}873{,}329 (3.12$\times$) \\
+1{,}000\,bp & 0.1709 & 3.21$\times$ & 0.1809 & \textbf{1.95}$\times$ & 3{,}186{,}781 (5.31$\times$) \\
+\hline
+\end{tabular}
+\end{center}
+
+\textbf{The tile is not inflating anything}: 5\,kb on this tile gives 0.0929
+at 65{,}536 against the full-chromosome 0.1099, i.e. $0.85\times$ --- the tile
+slightly \emph{deflates} keep($\varphi$). The confound ran against the
+candidate resolutions, not for them.
+
+\textbf{Consequence, stated without moving the goalpost.} Measured
+like-for-like on one tile, 5\,kb $\to$ 1\,kb raises keep($\varphi$)@65{,}536
+by $1.95\times$ --- a near-miss on a $2\times$ gate that was scored against a
+mismatched reference. \textbf{The gate as pre-registered fails and the 1\,kb
+rebuild is not authorised by it.} Whether a gate written against a matched
+reference should be re-run is a \S4.1.3-class question and is the PI's, not
+mine; it is recorded here so the decision is made on the numbers rather than
+discovered later. What must not happen is rescoring the existing gate against
+the control after seeing it pass more nearly.
+
+\textbf{1\,kb is the wrong rebuild target regardless.} From 2\,kb to 1\,kb,
+keep($\varphi$)@65{,}536 rises $1.071\times$ for $1.70\times$ the band
+entries. Essentially the whole resolution gain is already present at 2\,kb.
+If any rebuild is authorised, it should be 2\,kb.
+
+\textbf{The finding that outlasts the gate.} At 1\,kb bins --- five times
+finer than anything this project has used --- \textbf{81.9\% of $\varphi$'s
+variance at a 65{,}536\,bp window is still between windows}. Beside the window
+scan (89.0\% between-window at 5\,kb/65{,}536; 78.8\% at 131{,}072, now known
+to fit) this says the same thing from the other direction: neither refining
+the bins $5\times$ nor doubling the window reaches the bulk of the structural
+signal. \textbf{The binding constraint is the spatial autocorrelation of Hi-C
+itself, not a binning choice or a window choice.} The probe's own docstring
+pre-committed to reading a negative this way --- ``a publishable measurement
+of Hi-C's intrinsic spatial autocorrelation, not a pipeline failure'' --- and
+that is what it returned.
+
+Note the interaction: resolution buys much more at the narrower window
+($3.21\times$ at 32{,}768 against $1.95\times$ at 65{,}536). Finer bins matter
+most when the window holds few of them; by 65{,}536 the residual variance is
+long-range and finer binning cannot reach it. This is the same wall the
+per-position mechanism hits, measured a third way, and it strengthens the case
+for the per-window (T5c) arm that D-b puts to the PI.
+
+
 \subsection*{2026-08-31 (seventh entry) --- convergence stopping and a
 best-val checkpoint: the \S3 criterion existed only on paper}
 

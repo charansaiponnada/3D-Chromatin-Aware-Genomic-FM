@@ -1,0 +1,48 @@
+{
+  "purpose": "B2 STOP GATE probe -- ONE 10 Mb tile per resolution, no full fetch",
+  "chrom": "chr9",
+  "tile_bp": 10000000,
+  "band_bp": 2000000,
+  "reference_5kb": {
+    "usable_frac": 0.7774,
+    "keep_phi": {
+      "32768": 0.049,
+      "65536": 0.1099
+    }
+  },
+  "decision_rule": {
+    "doubling_target_65536": 0.2198,
+    "usable_floor": 0.6
+  },
+  "results": {
+    "5000": {
+      "tile_entries": 600161,
+      "n_bins": 2000,
+      "elapsed_s": 135.52900743484497,
+      "bytes": 7209932,
+      "usable_frac": 0.9435,
+      "keep_phi": {
+        "32768": {
+          "keep": 0.05318275334501416,
+          "n_windows": 60
+        },
+        "65536": {
+          "keep": 0.0929292829022345,
+          "n_windows": 60
+        }
+      },
+      "feature_names": [
+        "insulation_100kb",
+        "insulation_250kb",
+        "insulation_500kb",
+        "directionality_2Mb",
+        "log_contact_density",
+        "upstream_mass_frac",
+        "short_long_ratio"
+      ]
+    }
+  },
+  "verdicts": {
+    "5000": false
+  }
+}

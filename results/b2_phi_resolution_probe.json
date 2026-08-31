@@ -1,0 +1,75 @@
+{
+  "purpose": "B2 STOP GATE probe -- ONE 10 Mb tile per resolution, no full fetch",
+  "chrom": "chr9",
+  "tile_bp": 10000000,
+  "band_bp": 2000000,
+  "reference_5kb": {
+    "usable_frac": 0.7774,
+    "keep_phi": {
+      "32768": 0.049,
+      "65536": 0.1099
+    }
+  },
+  "decision_rule": {
+    "doubling_target_65536": 0.2198,
+    "usable_floor": 0.6
+  },
+  "results": {
+    "1000": {
+      "tile_entries": 3186781,
+      "n_bins": 10000,
+      "elapsed_s": 205.0031876564026,
+      "bytes": 38281372,
+      "usable_frac": 0.9131,
+      "keep_phi": {
+        "32768": {
+          "keep": 0.17087531127626818,
+          "n_windows": 60
+        },
+        "65536": {
+          "keep": 0.1809406292806463,
+          "n_windows": 60
+        }
+      },
+      "feature_names": [
+        "insulation_100kb",
+        "insulation_250kb",
+        "insulation_500kb",
+        "directionality_2Mb",
+        "log_contact_density",
+        "upstream_mass_frac",
+        "short_long_ratio"
+      ]
+    },
+    "2000": {
+      "tile_entries": 1873329,
+      "n_bins": 5000,
+      "elapsed_s": 172.41672587394714,
+      "bytes": 22499948,
+      "usable_frac": 0.9348,
+      "keep_phi": {
+        "32768": {
+          "keep": 0.09953829458919375,
+          "n_windows": 60
+        },
+        "65536": {
+          "keep": 0.16898913026943418,
+          "n_windows": 60
+        }
+      },
+      "feature_names": [
+        "insulation_100kb",
+        "insulation_250kb",
+        "insulation_500kb",
+        "directionality_2Mb",
+        "log_contact_density",
+        "upstream_mass_frac",
+        "short_long_ratio"
+      ]
+    }
+  },
+  "verdicts": {
+    "1000": false,
+    "2000": false
+  }
+}

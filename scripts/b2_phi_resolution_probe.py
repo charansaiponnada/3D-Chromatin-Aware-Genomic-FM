@@ -30,6 +30,7 @@ Run:  ./3d-gen/bin/python -u scripts/b2_phi_resolution_probe.py
 """
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -44,11 +45,16 @@ from phase1_features import (                                   # noqa: E402
     insulation, upstream_downstream, directionality_index, _rowcum,
     INSULATION_WINDOWS_BP, DI_WINDOW_BP, SHORT_RANGE_BP, MIN_VALID_FRAC)
 
-OUT = REPO / "results" / "b2_phi_resolution_probe.json"
+# Overridable ONLY so the same code path can produce a same-tile 5 kb
+# CONTROL. The defaults are the pre-registered gate and are unchanged:
+# running this script with no environment set reproduces it exactly.
+OUT = REPO / "results" / os.environ.get(
+    "B2_OUT", "b2_phi_resolution_probe.json")
 CHROM = "chr9"
 TILE_BP = 10_000_000          # matches phase1_acquire.py's own TILE_BP
 BAND_BP = 2_000_000
-CANDIDATE_RES = [1_000, 2_000]
+CANDIDATE_RES = [int(r) for r in
+                 os.environ.get("B2_RESOLUTIONS", "1000,2000").split(",")]
 REFERENCE_RES = 5_000
 REFERENCE_USABLE = 0.7774                              # data_card.md, full chr9
 REFERENCE_KEEP = {32_768: 0.0490, 65_536: 0.1099}       # p5_window_scan.json
