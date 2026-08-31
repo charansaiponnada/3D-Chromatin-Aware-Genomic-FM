@@ -239,3 +239,54 @@ chr9-only); B2 (phi at 1 kb) and B3 (second cell line) were not started this
 session -- B1 was prioritised per this file's own instruction ("if you can
 only complete one Phase B item, complete B1"). Phase C, D still unauthorized;
 this session did not touch the GPU beyond the B0(a) smoke test.
+
+---
+
+**2026-08-31 session. No training. Phase B and C advanced; Phase D still blocked
+on decisions, not on code.**
+
+**B2 — RUN, GATE FAILS, and the negative is the informative kind.**
+`results/b2_phi_resolution_probe.json`. keep(φ)@65,536 = 0.1809 (1 kb) and
+0.1690 (2 kb) against the required 0.2198. Usable-bin fraction was never the
+issue (0.9131 / 0.9348). A same-tile 5 kb control
+(`b2_phi_resolution_control_5kb.json`) shows the tile *deflates* keep(φ)
+(0.0929 vs the full-chr9 0.1099), so the gate's tile-vs-chromosome mismatch ran
+against the candidates; like-for-like the 5 kb → 1 kb gain is 1.95×, a near-miss
+on a 2× gate. **The gate as written fails; it has not been rescored against the
+control.** Whether a matched-reference gate should be re-run is a PI call
+(B2′ in `docs/PI_DECISIONS_2026-08-31.md`). Do not rebuild at 1 kb regardless:
+it buys 1.071× over 2 kb for 1.70× the entries.
+
+**The finding that outlasts the gate:** at 1 kb bins, 81.9% of φ's variance at
+65,536 is still between windows. With the window scan (89.0% at 5 kb/65,536;
+78.8% at 131,072) this is the third independent measurement of the same wall —
+**the constraint is Hi-C's intrinsic spatial autocorrelation, not binning and
+not window width.** It strengthens the case for the per-window (T5c) arm.
+
+**C1 — WIRED AND VALIDATED.** `scripts/c1_genomic_benchmarks.py`, 8 Genomic
+Benchmarks tasks, chosen because Caduceus and HyenaDNA both report on them.
+Protocol is a **frozen-embedding linear probe**, which is **not** comparable to
+the published fine-tuned numbers and says so in the docstring, the banner and
+the JSON. Mandatory k-mer composition floor (k ≤ 3) per probe B's lesson. φ at
+downstream time is S0 (zeros) — these sequences have no Hi-C and two tasks are
+not human, which is a real limitation of structure-conditioned pretraining
+rather than a shortcut. `model.py` gained `encode()`; `forward()` is now a
+wrapper around it.
+
+**D1/D2 (Phase D prep) — CLOSED.** The memcheck had no persistence path at all,
+which is why the 2026-08-17 numbers vanished; it now writes
+`results/p5_memcheck.json`. **131,072 bp fits** (14.90 GiB of 44.39), never
+established before — now decision D-d. Phase D projects to **264.7 GPU-h
+DDP-scaled**, not the ~150 carried informally: the raw benchmark has no gradient
+sync and the measured 32,768 gloo factor is 1.753 / 1.788.
+
+**A live bug found and fixed:** `train.py --index` defaults to the chr9 *pilot*
+index and no runner passed the flag, so a Phase D launch would have silently
+trained on the within-chromosome split that weakness 5 exists to eliminate.
+
+**Early stopping and `checkpoint_best.pt` implemented** — §3's convergence
+criterion existed only on paper, and there was no best-checkpoint tracking at
+all, so every diagnostic this project has run could only reach the endpoint.
+
+**Not done:** C2 (cross-cell-line probe design), E1–E3, and Phase D itself.
+Six decisions are consolidated in `docs/PI_DECISIONS_2026-08-31.md`.
