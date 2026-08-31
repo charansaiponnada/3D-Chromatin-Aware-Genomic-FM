@@ -45,6 +45,13 @@ NOVEL="$REPO/results/novel_model"
 BASE="$REPO/results/baselines"
 SEED=0
 STEPS=1000
+# This run was pre-registered (docs/w65536_preregistration.md, 2026-08-18)
+# against the chr9 single-chromosome index, BEFORE the multi-chromosome
+# build existed. It stays on that index so the script still means what its
+# pre-registration says -- it is a pilot, superseded for Phase D by
+# docs/PREREG_PHASE_D_2026-08-31.md. Stated explicitly rather than left to
+# train.py's default, so no reader has to know what that default is.
+INDEX="${INDEX:-dataset_index.npz}"
 MAX_ATTEMPTS=20
 RETRY_SLEEP=60
 
@@ -91,7 +98,8 @@ run_arm() {
         # Phase 3/4: the idle culler fires more often than a 200-step interval
         # can save.
         "$PY" -u scripts/train.py --seed "$SEED" --resume --run-name "$NAME" \
-            --out-dir "$OUT" --init-from "$SRC" --grad-checkpoint $EXTRA \
+            --out-dir "$OUT" --init-from "$SRC" --grad-checkpoint \
+            --index "$INDEX" $EXTRA \
             --steps "$STEPS" --batch-size 2 --grad-accum 2 \
             --warmup-steps 100 --eval-every 100 --tau-every 100 \
             --ckpt-every 120 --keep-every 250 \

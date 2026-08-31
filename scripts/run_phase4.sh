@@ -39,6 +39,12 @@ RUN_TAG="${RUN_TAG:-w65536_multichrom}"
 PY="$REPO/3d-gen/bin/python"
 OUT="$REPO/results/novel_model"
 SEEDS="0 1 2"
+# The leakage-safe split (chr10-13 train, chr14-15 val, chr9 held out as
+# test). train.py's --index DEFAULTS to dataset_index.npz, the chr9
+# single-chromosome pilot whose splits are WITHIN one chromosome -- that is
+# weakness 5, and a run that omits this flag trains on it silently. Passed
+# explicitly so the choice is visible in the process line and run_config.yaml.
+INDEX="${INDEX:-dataset_index_multichrom.npz}"
 MAX_ATTEMPTS=20
 RETRY_SLEEP=60
 
@@ -94,7 +100,7 @@ for S in $SEEDS; do
         # idle culler fires every 15-20 minutes and a 200-step interval loses
         # more work than it saves.
         "$PY" -u scripts/train.py --seed "$S" --resume --run-name "$PREFIX$S" \
-            --out-dir "$OUT" --structural --grad-checkpoint $CONTROL_ARGS \
+            --out-dir "$OUT" --structural --grad-checkpoint --index "$INDEX" $CONTROL_ARGS \
             --steps 2000 --batch-size 2 --grad-accum 2 \
             --warmup-steps 150 --eval-every 200 --tau-every 200 --ckpt-every 120 \
             --log-every 50 2>&1 | grep --line-buffered -v "Can't initialize NVML"

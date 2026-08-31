@@ -1,0 +1,75 @@
+{
+  "script": "scripts/phase5_memcheck.py",
+  "utc": "2026-08-31T16:06:18Z",
+  "host": "vrsgpu",
+  "torch": "2.6.0+cu124",
+  "device_name": "NVIDIA L40S",
+  "device_total_gib": 44.3922,
+  "device_free_at_start_gib": 43.9681,
+  "batch": 2,
+  "dtype": "fp32",
+  "scan": "triton",
+  "phi_granularity": "position",
+  "notes": [
+    "Single process, no DDP: no gloo allreduce, so s/step is a LOWER bound on real wall time per step.",
+    "Peak is max_memory_allocated on ONE device; DDP runs one replica per GPU, so this is the per-GPU figure.",
+    "Structural arm measured at phi_granularity='position' only. The T5c window/dual granularities are NOT covered by this run.",
+    "3 iterations per cell, first discarded as warmup."
+  ],
+  "rows": [
+    {
+      "window": 32768,
+      "arm": "baseline",
+      "grad_checkpoint": true,
+      "peak_gib": 3.7841,
+      "s_per_step": 3.023114800453186,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "window": 32768,
+      "arm": "structural",
+      "grad_checkpoint": true,
+      "peak_gib": 3.8066,
+      "s_per_step": 3.4283255338668823,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "window": 65536,
+      "arm": "baseline",
+      "grad_checkpoint": true,
+      "peak_gib": 7.4613,
+      "s_per_step": 6.280837178230286,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "window": 65536,
+      "arm": "structural",
+      "grad_checkpoint": true,
+      "peak_gib": 7.5059,
+      "s_per_step": 7.166035890579224,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "window": 131072,
+      "arm": "baseline",
+      "grad_checkpoint": true,
+      "peak_gib": 14.8158,
+      "s_per_step": 15.446863174438477,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "window": 131072,
+      "arm": "structural",
+      "grad_checkpoint": true,
+      "peak_gib": 14.9044,
+      "s_per_step": 16.984119653701782,
+      "ok": true,
+      "error": ""
+    }
+  ]
+}

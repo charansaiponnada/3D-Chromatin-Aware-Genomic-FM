@@ -920,6 +920,23 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
 
     train_gen = torch.Generator(device=device).manual_seed(args.seed * 100003 + 17)
 
+    # CONVERGENCE / BEST-CHECKPOINT STATE.
+    # val_history is kept on EVERY rank, deliberately. `metrics` is appended
+    # only on rank 0 (see append_metric), so a stop decision derived from it
+    # would be made on rank 0 and never on the others, and the run would hang
+    # on the next collective. evaluate() all-reduces, so `ev` is identical
+    # everywhere and this history is too -- every rank reaches the same verdict
+    # on the same step without needing a broadcast.
+    val_history: list[tuple[int, float]] = [
+        (m["step"], m["val_bits_per_nucleotide"]) for m in metrics
+        if "val_bits_per_nucleotide" in m
+    ]
+    best_val = min((v for _, v in val_history), default=float("inf"))
+    best_step = next((st for st, v in val_history if v == best_val), 0)
+    stale_evals = 0
+    stop_reason = None
+    best_path = run_dir / "checkpoint_best.pt"
+
     def append_metric(rec: dict) -> None:
         if not is_main:
             return
@@ -1004,11 +1021,48 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
                     core, probe, seed=args.eval_seed,
                     struct_kwargs=batch_struct(pb1, device, symmetry))
                 rec["tau_bias_only"] = core.tau_stats()
+            # --- best-checkpoint + convergence bookkeeping ------------------
+            # Done BEFORE append_metric so rec carries the verdict it produced.
+            vb = ev["val_bits_per_nucleotide"]
+            improved = vb < best_val
+            if improved:
+                best_val, best_step = vb, step
+            # Improvement measured against the most recent eval at least
+            # --early-stop-window steps back. Comparing to the immediately
+            # previous eval instead would stop on eval-to-eval noise, which at
+            # sigma_real = 0.0025 is larger than the 0.0010 threshold itself.
+            ref = [(st, v) for st, v in val_history
+                   if st <= step - args.early_stop_window]
+            gain = (ref[-1][1] - vb) if ref else None
+            if gain is not None and gain < args.early_stop_delta:
+                stale_evals += 1
+            elif gain is not None:
+                stale_evals = 0
+            val_history.append((step, vb))
+            rec["val_best_so_far"] = best_val
+            rec["val_best_step"] = best_step
+            rec["improvement_over_window"] = gain
+            rec["stale_evals"] = stale_evals
+
             append_metric(rec)
+            # checkpoint_best.pt is SEPARATE from checkpoint.pt (which is the
+            # resume point and is overwritten every --ckpt-every steps). The
+            # endpoint is not necessarily the best model, and the probes should
+            # not be run on a worse one by accident.
+            if is_main and improved:
+                save_ckpt(best_path, ddp_model, opt, sched, step, args,
+                          metrics, train_gen.get_state())
             if is_main:
                 print(f"[rank0] eval  step {step:>6}  "
                       f"val {ev['val_bits_per_nucleotide']:.4f} bits  "
-                      f"acc {ev['val_accuracy']:.4f}", flush=True)
+                      f"acc {ev['val_accuracy']:.4f}"
+                      f"{'  <-- best' if improved else ''}", flush=True)
+                if gain is not None:
+                    print(f"[rank0] conv  gain over {args.early_stop_window} "
+                          f"steps {gain:+.4f} bits  "
+                          f"(threshold {args.early_stop_delta:.4f})  "
+                          f"stale {stale_evals}/{args.early_stop_patience}",
+                          flush=True)
                 if "tau_empirical" in rec:
                     s = rec["tau_empirical"]["summary"]
                     print(f"[rank0] tau   median {s['tau_median']:.1f}  "
@@ -1029,12 +1083,49 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
                           opt, sched, step, args, metrics,
                           train_gen.get_state())
 
+        # CONVERGENCE STOP. Every rank evaluates this identically (val_history
+        # is rank-independent), so all ranks leave the loop on the same step and
+        # the trailing barrier is reached by everyone.
+        if args.early_stop and stale_evals >= args.early_stop_patience:
+            stop_reason = "converged"
+            if is_main:
+                # The loop may exit off a --ckpt-every boundary, so the resume
+                # checkpoint is written here rather than relying on the block
+                # above having just run.
+                save_ckpt(ckpt_path, ddp_model, opt, sched, step, args,
+                          metrics, train_gen.get_state())
+                print(f"[rank0] EARLY STOP at step {step}: val bits/nt "
+                      f"improved by less than {args.early_stop_delta:.4f} over "
+                      f"{args.early_stop_window} steps for "
+                      f"{args.early_stop_patience} consecutive evals. "
+                      f"best {best_val:.4f} at step {best_step}.", flush=True)
+            break
+
     if is_main:
         cfg_path = run_dir / "run_config.yaml"
         doc = yaml.safe_load(cfg_path.read_text())
         doc["status"] = "COMPLETED"
         doc["completed_at_utc"] = datetime.now(timezone.utc).isoformat()
         doc["wall_clock_s"] = time.time() - t_start
+        # WHICH criterion ended the run. The pre-registration requires this to
+        # be recorded per run: if any arm hits the cap, the comparison is
+        # reported at matched steps AND the cap is reported as a limitation.
+        doc["stop_reason"] = stop_reason or (
+            "hard_cap" if step >= args.steps else "incomplete")
+        doc["stopped_at_step"] = step
+        doc["hard_cap_steps"] = args.steps
+        doc["early_stop_enabled"] = args.early_stop
+        doc["early_stop_delta"] = args.early_stop_delta
+        doc["early_stop_window"] = args.early_stop_window
+        doc["early_stop_patience"] = args.early_stop_patience
+        doc["best_val_bits_per_nucleotide"] = (
+            None if best_val == float("inf") else best_val)
+        doc["best_step"] = best_step
+        # Matched compute is the basis of this comparison, so the endpoint the
+        # primary endpoint must be read at is recorded explicitly alongside the
+        # best one. metrics.json retains every eval, so any arm can be re-read
+        # at the step where the shortest-running arm stopped.
+        doc["final_step"] = step
         cfg_path.write_text(yaml.safe_dump(plain(doc), sort_keys=False,
                                            default_flow_style=False),
                             encoding="utf-8")
@@ -1088,6 +1179,25 @@ def parse() -> argparse.Namespace:
     p.add_argument("--gpus", type=int, default=torch.cuda.device_count())
     p.add_argument("--backend", choices=("auto", "nccl", "gloo"), default="auto")
     p.add_argument("--grad-checkpoint", action="store_true", default=False)
+    # EARLY STOPPING (docs/PREREG_PHASE_D_2026-08-31.md 3). Off by default:
+    # every result on disk was produced at a fixed step count, and silently
+    # changing when a run ends would make new runs incomparable to them.
+    # Phase D opts in explicitly.
+    p.add_argument("--early-stop", action="store_true", default=False,
+                   help="stop when val bits/nt improves by less than "
+                        "--early-stop-delta over --early-stop-window steps, "
+                        "for --early-stop-patience consecutive evals. The "
+                        "--steps value remains a HARD CAP. Which of the two "
+                        "fired is recorded as stop_reason in run_config.yaml.")
+    p.add_argument("--early-stop-delta", type=float, default=0.0010,
+                   help="minimum val bits/nt improvement over the window that "
+                        "counts as still converging (pre-registered: 0.0010)")
+    p.add_argument("--early-stop-window", type=int, default=1000,
+                   help="lookback in STEPS over which improvement is measured "
+                        "(pre-registered: 1000)")
+    p.add_argument("--early-stop-patience", type=int, default=2,
+                   help="consecutive evals failing the delta before stopping "
+                        "(pre-registered: 2)")
     p.add_argument("--port", type=int, default=29511)
     p.add_argument("--init-from", type=str, default="",
                    help="warm start: load model weights from this "

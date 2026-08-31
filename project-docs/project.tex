@@ -510,6 +510,168 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-31 (seventh entry) --- convergence stopping and a
+best-val checkpoint: the \S3 criterion existed only on paper}
+
+No training beyond two smoke runs. \code{docs/PREREG\_PHASE\_D\_2026-08-31.md}
+\S3 replaces the fixed step count with a convergence criterion, because
+weakness 1 says a null from an undertrained model is not a null.
+\textbf{That criterion was written but never implemented}, and
+\code{train.py} additionally had \textbf{no best-checkpoint tracking at all}:
+\code{checkpoint.pt} is the resume point and is overwritten every
+\code{--ckpt-every} steps, so the only model any diagnostic could reach was
+the endpoint, which is not necessarily the best one. Both are now built.
+
+\textbf{Early stopping, opt-in.} \code{--early-stop} with
+\code{--early-stop-delta} (0.0010), \code{--early-stop-window} (1000 steps)
+and \code{--early-stop-patience} (2 evals), the pre-registered values as
+defaults. \code{--steps} remains a \textbf{hard cap}. Improvement is measured
+against the most recent eval at least one window back, not against the
+previous eval: at $\sigma_{\text{real}} = 0.0025$ the eval-to-eval noise is
+larger than the 0.0010 threshold, so the naive comparison would stop on noise.
+
+\textbf{Off by default, deliberately.} Every result on disk was produced at a
+fixed step count; silently changing when a run ends would make new runs
+incomparable to them. Phase D opts in explicitly.
+
+\textbf{The DDP hazard, avoided by construction.} \code{metrics} is appended
+only on rank 0 (\code{append\_metric} returns early otherwise), so a stop
+decision derived from it would be taken on rank 0 and never on the others, and
+the run would hang on the next collective. The convergence history is
+therefore kept on \emph{every} rank; \code{evaluate()} all-reduces, so the
+history and the verdict are identical everywhere without a broadcast.
+
+\textbf{\code{checkpoint\_best.pt}} is written whenever val bits/nt improves,
+separately from the resume checkpoint, so probes are not run on a worse model
+by accident. It is written whether or not early stopping is enabled.
+
+\textbf{Recorded per run in \code{run\_config.yaml}}: \code{stop\_reason}
+(\code{converged} / \code{hard\_cap} / \code{incomplete}),
+\code{stopped\_at\_step}, \code{hard\_cap\_steps}, \code{final\_step},
+\code{best\_val\_bits\_per\_nucleotide}, \code{best\_step} and the four
+early-stop settings. The pre-registration requires knowing which criterion
+fired for every run.
+
+\textbf{Matched compute is not weakened by this, and must not be.} Per-arm
+early stopping would let the two arms train for different budgets, which would
+confound mechanism with compute --- the one thing this comparison exists to
+control. \code{metrics.json} retains every eval, so the primary endpoint can
+always be re-read at the step where the shortest-running arm stopped; \S3's
+rule stands that all arms share one cap and one criterion, and that a cap hit
+by any arm is reported as a limitation.
+
+\textbf{Verified} (smoke config, 82{,}624 params, one GPU):
+\begin{itemize}
+\item Forced fire (\code{--early-stop-window 100 --early-stop-delta 999
+--early-stop-patience 1}): stopped at step 200 of a 300 cap,
+\code{stop\_reason: converged}, \code{stopped\_at\_step: 200},
+\code{best\_step: 200}, both \code{checkpoint.pt} and
+\code{checkpoint\_best.pt} on disk. The loop exited off a
+\code{--ckpt-every} boundary and the resume checkpoint was still written.
+\item Default path unchanged: ran the full 300 steps,
+\code{stop\_reason: hard\_cap}, \code{early\_stop\_enabled: false},
+\code{checkpoint\_best.pt} still written at \code{best\_step: 300}.
+\end{itemize}
+
+\code{test\_model.py} \textbf{21/21}, \code{test\_phase4\_wiring.py}
+\textbf{60/60}, \code{validate\_kernel.py} \textbf{34/34}, all unchanged.
+
+\textbf{Not wired into \code{run\_phase4.sh}.} That script still carries
+\code{--steps 2000} and \code{SEEDS="0 1 2"}, which contradict \S3's 8{,}000
+cap and D-c's 5 paired seeds. Those are PI decisions; half-applying a
+pre-registered protocol would be worse than not applying it, so the flags go
+in when the full Phase D parameter set is settled.
+
+
+\subsection*{2026-08-31 (sixth entry) --- D2 closed: the memcheck now persists,
+131{,}072\,bp fits, and the Phase D schedule was understated by 1.77$\times$}
+
+No training. Three defects closed, one of them live.
+
+\textbf{The \code{--index} default would have silently trained Phase D on the
+chr9 pilot.} \code{train.py}'s \code{--index} defaults to
+\code{dataset\_index.npz} --- the single-chromosome index whose splits are
+\emph{within} chr9, which is weakness 5 --- and \textbf{no runner script passed
+the flag}. \code{run\_phase4.sh} now passes
+\code{dataset\_index\_multichrom.npz} explicitly; \code{run\_w65536.sh} now
+passes \code{dataset\_index.npz} explicitly, because that script is
+pre-registered against the chr9 index (\code{docs/w65536\_preregistration.md},
+2026-08-18) and changing its data would break its own pre-registration. Both
+are stated rather than defaulted, so the choice is visible in the process line.
+The other two provenance defects named in \code{docs/PREREG\_PHASE\_D\_2026-08-31.md}
+\S6 --- \code{--window} and the guard sentinel --- were already closed in the
+fifth entry; \code{--window} now defaults to \code{phase1\_dataset.WINDOW}
+$= 65{,}536$.
+
+\textbf{\code{scripts/phase5\_memcheck.py} had no persistence path at all.} The
+2026-08-17 output was not ``lost''; the script printed a table and returned,
+writing nothing. That is why no 65\,kb figure has ever had a file behind it.
+It now writes \code{results/p5\_memcheck.json} with device, torch version,
+batch, dtype, scan backend and per-cell rows. Console tee'd to
+\code{results/p5\_memcheck\_console.log}.
+
+\textbf{Measured} (one L40S, fp32, batch 2, \code{--grad-checkpoint} on, single
+process, 3 iterations per cell with the first discarded):
+
+\begin{center}
+\begin{tabular}{lrrr}
+\hline
+window & baseline s/step & structural s/step & peak GiB \\
+\hline
+32{,}768 & 3.02 & 3.43 & 3.81 \\
+65{,}536 & 6.28 & 7.17 & 7.51 \\
+\textbf{131{,}072} & \textbf{15.45} & \textbf{16.98} & \textbf{14.90} \\
+\hline
+\end{tabular}
+\end{center}
+
+The 65{,}536 row independently reproduces B0(a)'s 7.51\,GiB and 7.16\,s/step,
+measured by a different script on a different day.
+
+\textbf{131{,}072\,bp fits, and that is new.} 14.90\,GiB against 44.39
+available. The window scan (\code{p5\_window\_scan.json}) measured keep($\varphi$)
+$= 0.1099$ at 65{,}536 and $0.2117$ at 131{,}072, so doubling the window
+doubles the share of $\varphi$'s variance the per-position mechanism can reach,
+for $2.41\times$ the step cost. \code{docs/PREREG\_PHASE\_D\_2026-08-31.md}
+assumes 65{,}536 and does not consider this; it is now a fourth open decision
+for the PI, alongside D-a/D-b/D-c. It does not dissolve the problem --- 78.8\%
+of $\varphi$'s variance is still between windows at 131{,}072 --- and the
+standing caution against calling the window ``the fault that widening fixes''
+is unchanged.
+
+\textbf{These numbers are a lower bound, and the schedule they replace was
+optimistic.} This benchmark runs one process with no gradient sync. The real
+Phase 3/4 runs at 32{,}768 measured 5.30 / 6.13 s/step against this bench's
+3.02 / 3.43 at the same width --- a \emph{measured} DDP-gloo factor of
+1.753 (baseline) and 1.788 (structural), NCCL being unavailable on this box.
+Carrying that factor to wider windows is a \textbf{projection}, labelled as
+one. For 5 paired seeds $\times$ 2 arms $\times$ the 8{,}000-step cap:
+
+\begin{center}
+\begin{tabular}{lrr}
+\hline
+window & raw GPU-h (lower bound) & DDP-scaled GPU-h (projection) \\
+\hline
+65{,}536  & 149.4 & \textbf{264.7} \\
+131{,}072 & 360.3 & 638.3 \\
+\hline
+\end{tabular}
+\end{center}
+
+Arithmetic: $5 \times (6.28 + 7.17) \times 8000 / 3600 = 149.4$; DDP-scaled
+$5 \times (6.28 \times 1.753 + 7.17 \times 1.788) \times 8000 / 3600 = 264.7$.
+The figure previously carried informally in session planning was $\sim$150
+GPU-h, which is the raw column --- \textbf{the realistic cost is 1.77$\times$
+that}, and against a 10-minute idle culler the difference decides whether the
+admin request in \code{docs/ADMIN\_REQUEST\_idle\_culler.md} (drafted
+2026-08-26, still unsent) is optional.
+
+\textbf{Caveat carried in the JSON itself.} The structural arm was benchmarked
+at \code{phi\_granularity="position"} only; the T5c window and dual
+granularities are not covered, and D-b's recommended T5c-dual arm therefore has
+no throughput number yet.
+
+
 \subsection*{2026-08-31 (fifth entry) --- the multi-chromosome index is
 finally reachable from training, and three provenance defects are closed}
 

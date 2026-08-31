@@ -336,11 +336,34 @@ encoder**, not on encoded `s` (failure mode F7).
 passes), both at 32,768. 2,000 steps ≈ 2.9 h wall ≈ 5.9 GPU-hours per seed.
 Matching is on steps and tokens, not wall clock.
 
-**No throughput or memory number at 65,536 is on disk.**
-`scripts/phase5_memcheck.py` ran on 2026-08-17 but its console output was never
-persisted, so the 65 kb / 131 kb figures quoted in `docs/NEXT_SESSION.md` §3
-have no file behind them. Under §2 rule 1, no schedule may be built on them
-until that run is repeated with its output written to disk.
+**Throughput and memory at 65,536 and 131,072 are now on disk** —
+`results/p5_memcheck.json` + `results/p5_memcheck_console.log`, measured
+2026-08-31. The script printed a table and wrote nothing until it was given a
+persistence path in the same session; the 2026-08-17 figures quoted in
+`docs/NEXT_SESSION.md` §3 still have no file behind them and remain unusable.
+
+Single process, no DDP, fp32, batch 2, `--grad-checkpoint` on, one L40S:
+
+| window | baseline s/step | structural s/step | peak GiB |
+|---|---|---|---|
+| 32,768 | 3.02 | 3.43 | 3.81 |
+| 65,536 | 6.28 | 7.17 | 7.51 |
+| **131,072** | **15.45** | **16.98** | **14.90** |
+
+**131,072 bp fits** — 14.90 GiB of 44.39, never established before. It costs
+2.41× per step over 65,536 and doubles keep(φ) (0.1099 → 0.2117), so it is a
+live Phase D option the pre-registration does not consider.
+
+**These are a LOWER bound and must be scaled before any schedule uses them.**
+This benchmark has no gradient sync; the historical real runs at 32,768 are
+5.30 / 6.13 s/step against this bench's 3.02 / 3.43 at the same width, a
+measured DDP-gloo factor of **1.753 / 1.788**. Applying that factor to wider
+windows is a *projection*, not a measurement. Phase D at 5 paired seeds × 2
+arms × 8,000 steps: **149.4 GPU-h raw / 264.7 GPU-h DDP-scaled** at 65,536;
+**360.3 / 638.3** at 131,072 (projections, arithmetic in the 2026-08-31 change
+log entry).
+
+The 65,536 row independently reproduces B0(a)'s 7.51 GiB and 7.16 s/step.
 
 ---
 
@@ -489,6 +512,30 @@ and shuffle variance are confounded.
 ---
 
 ## 9. Operational knowledge
+
+**Convergence stopping and the best checkpoint** (added 2026-08-31). `train.py`
+now takes `--early-stop` (`--early-stop-delta 0.0010`, `--early-stop-window
+1000`, `--early-stop-patience 2` — the pre-registered values), with `--steps`
+as a hard cap. **Off by default**, so every run on disk stays comparable.
+Improvement is measured against the eval one window back, not the previous one:
+eval-to-eval noise at σ_real = 0.0025 exceeds the 0.0010 threshold and would
+stop the run on noise.
+
+`checkpoint_best.pt` is written on every val improvement, separately from
+`checkpoint.pt` (the resume point, overwritten every `--ckpt-every`), whether
+or not early stopping is on. **Run probes on the best checkpoint, not the
+endpoint** — they are not the same model.
+
+`run_config.yaml` now records `stop_reason` (`converged`/`hard_cap`/
+`incomplete`), `stopped_at_step`, `final_step`, `hard_cap_steps`,
+`best_val_bits_per_nucleotide`, `best_step` and the four settings.
+
+**Do not let the arms early-stop to different budgets and then compare them.**
+That confounds mechanism with compute, which is the one thing this comparison
+controls. Same cap and same criterion for all arms; `metrics.json` keeps every
+eval, so the primary endpoint can be re-read at the step the shortest arm
+reached. Not yet wired into `run_phase4.sh` — its `--steps 2000` and 3 seeds
+contradict the 8,000 cap and D-c's 5 paired seeds, both PI decisions.
 
 **Restart training** (the one command that restores everything — guard starts
 supervisor, supervisor skips completed seeds and resumes partial ones):
