@@ -270,6 +270,15 @@ class BiMambaLM(nn.Module):
 
     def forward(self, tokens, phi=None, phi_valid=None, symmetry=None):
         """tokens (b,l) int64; phi (b,l,d_struct_raw); phi_valid (b,l) bool."""
+        return self.lm_head(self.encode(tokens, phi, phi_valid, symmetry))
+
+    def encode(self, tokens, phi=None, phi_valid=None, symmetry=None):
+        """Final normed hidden states (b,l,d_model), before the LM head.
+
+        Split out of forward() for downstream probing (C1 benchmarks), which
+        needs representations rather than token logits. forward() is now a
+        one-line wrapper, so the two can never diverge.
+        """
         u = self.embed(tokens)
         s = s_rev = None
         if self.c.structural:
@@ -296,7 +305,7 @@ class BiMambaLM(nn.Module):
                 s_rev = s_rev * m.flip(1)
         for layer in self.layers:
             u = layer(u, s, s_rev)
-        return self.lm_head(self.norm_f(u))
+        return self.norm_f(u)
 
     def n_params(self) -> int:
         return sum(p.numel() for p in self.parameters())

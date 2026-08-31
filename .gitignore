@@ -256,3 +256,7 @@ presentations/_pitch_figs/
 # 2026-08-18: the quarantined copies from the file-browser drag incident.
 # Kept on disk for inspection, deliberately not committed.
 _misplaced_20260818/
+
+# C1 benchmark caches -- regenerable, and the embeddings are large
+data/interim/c1/
+results/c1/emb/
