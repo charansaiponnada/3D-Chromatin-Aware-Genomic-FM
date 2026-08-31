@@ -1,0 +1,103 @@
+================================================================================
+ COMMANDS — 3d-gen running jobs          written 2026-08-31 23:50 IST
+ Full notes: docs/HANDOVER_RUNNING_JOBS.md
+ Everything below is copy-paste. Nothing here needs Claude.
+================================================================================
+
+--------------------------------------------------------------------------------
+ [1] IS ANYTHING RUNNING?   <- always start here
+--------------------------------------------------------------------------------
+
+pgrep -af "train.py.*phase_d" | wc -l          # expect 2  (0 = culler killed it)
+pgrep -af c1_genomic_benchmarks | wc -l        # expect 1  (0 = done, or killed)
+
+
+--------------------------------------------------------------------------------
+ [2] RESTART PHASE D   <- the important one. Safe ANY time. Run after every cull.
+--------------------------------------------------------------------------------
+
+\
+setsid nohup bash scripts/run_phase_d.sh >> results/phase_d/console.log 2>&1 < /dev/null &
+
+  RESUMES, does not restart:
+    - seeds with "status: COMPLETED" are skipped entirely
+    - partial runs resume from checkpoint.pt (written every 120 steps)
+    - worst case loss ~26 minutes
+    - a flock stops a second copy double-starting, so re-running is harmless
+
+
+--------------------------------------------------------------------------------
+ [3] RESTART C1 BENCHMARK SWEEP
+--------------------------------------------------------------------------------
+
+cd /home/jupyter-238w1a5447/3d-gen && \
+nohup ./3d-gen/bin/python -u scripts/c1_genomic_benchmarks.py \
+  --datasets human_ensembl_regulatory demo_coding_vs_intergenomic_seqs \
+             demo_human_or_worm human_ocr_ensembl \
+  >> results/c1_sweep.log 2>&1 &
+
+  RESUMES per (model, dataset): cached embeddings are reused, finished probes
+  print "(cached)" and are skipped. A kill costs only the item in flight.
+
+
+--------------------------------------------------------------------------------
+ [4] PROGRESS
+--------------------------------------------------------------------------------
+
+cd /home/jupyter-238w1a5447/3d-gen
+
+# Phase D — how many of the 10 runs are finished (0..10)
+grep -l "status: COMPLETED" results/phase_d/*/run_config.yaml | wc -l
+
+# Phase D — latest steps / evals / early-stop lines
+grep -hE "^\[rank0\] (step|eval|conv|EARLY)" results/phase_d/lane_*.log | tail -20
+
+# Phase D — per-lane
+tail -5 results/phase_d/lane_baseline.log
+tail -5 results/phase_d/lane_structural.log
+
+# C1 — results so far
+grep -vE "NVML|warnings.warn" results/c1_sweep.log | grep -E "^---|acc |floor" | tail -20
+
+
+--------------------------------------------------------------------------------
+ [5] STOP EVERYTHING  (only if you mean it)
+--------------------------------------------------------------------------------
+
+pkill -f run_phase_d.sh ; pkill -f "train.py.*phase_d"
+pkill -f c1_genomic_benchmarks
+
+  NOTE: run these from a terminal, NOT inside a command line that itself
+  contains the pattern — pkill matches its own caller and kills the shell.
+
+
+--------------------------------------------------------------------------------
+ [6] EXPECTED FINISH  (projections, not measurements)
+--------------------------------------------------------------------------------
+
+  Measured 12.94 s/optimizer-step on a lane with a GPU to itself.
+  8,000-step cap -> 28.8 h/seed -> 5 seeds ~ 144 h ~ 6.0 days.
+
+  Phase D, all runs hit the cap ....... ~23:00 IST  6-Sep
+  Phase D, converge at ~6,000 steps ... ~11:00 IST  5-Sep
+  Phase D, converge at ~4,000 steps ... ~23:00 IST  3-Sep
+  C1 sweep ........................... ~05:00-07:00 IST  1-Sep
+
+  The baseline lane currently runs 27.7 s/step vs the structural lane's 12.94
+  because C1 shares GPU 0 with it. That lane speeds up once C1 finishes.
+
+
+--------------------------------------------------------------------------------
+ [7] RULES — do not break these
+--------------------------------------------------------------------------------
+
+  * Do NOT read any Phase D number until that run's run_config.yaml says
+    "status: COMPLETED".
+  * metrics.json never lags. The console log DOES (block buffering) — trust
+    metrics.json.
+  * NEVER edit a running .sh file. Bash reads it incrementally by byte offset
+    and will execute garbage.
+  * The idle culler kills the whole cgroup — supervisor included — after 10
+    minutes with no live browser tab. Claude Code tool calls do NOT count.
+    docs/ADMIN_REQUEST_idle_culler.md is drafted and STILL UNSENT. Over a
+    six-day run that email is worth more than any code change.
