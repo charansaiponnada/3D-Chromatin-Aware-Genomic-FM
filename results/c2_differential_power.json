@@ -1,0 +1,94 @@
+{
+  "chrom": "chr14",
+  "resolution": 5000,
+  "jointly_usable_bins": 17059,
+  "n_bins": 21409,
+  "feature_names": [
+    "insulation_100kb",
+    "insulation_250kb",
+    "insulation_500kb",
+    "directionality_2Mb",
+    "log_contact_density",
+    "upstream_mass_frac",
+    "short_long_ratio",
+    "compartment_pc1"
+  ],
+  "pairwise_r": {
+    "insulation_100kb": {
+      "GM12878_vs_K562": 0.7530401901466504,
+      "GM12878_vs_IMR90": 0.7675222201163016,
+      "K562_vs_IMR90": 0.7928061578937008
+    },
+    "insulation_250kb": {
+      "GM12878_vs_K562": 0.789983964516754,
+      "GM12878_vs_IMR90": 0.8002976260364223,
+      "K562_vs_IMR90": 0.759919021475774
+    },
+    "insulation_500kb": {
+      "GM12878_vs_K562": 0.813152019826017,
+      "GM12878_vs_IMR90": 0.8049248291848324,
+      "K562_vs_IMR90": 0.7955171822879348
+    },
+    "directionality_2Mb": {
+      "GM12878_vs_K562": 0.7923567568817826,
+      "GM12878_vs_IMR90": 0.8025560536146051,
+      "K562_vs_IMR90": 0.7765443195205168
+    },
+    "log_contact_density": {
+      "GM12878_vs_K562": 0.4880932998748648,
+      "GM12878_vs_IMR90": 0.47991870863574465,
+      "K562_vs_IMR90": 0.4871132845648966
+    },
+    "upstream_mass_frac": {
+      "GM12878_vs_K562": 0.8339821041932964,
+      "GM12878_vs_IMR90": 0.8412026290162328,
+      "K562_vs_IMR90": 0.8202416123364629
+    },
+    "short_long_ratio": {
+      "GM12878_vs_K562": 0.7534577914491526,
+      "GM12878_vs_IMR90": 0.7625341449573424,
+      "K562_vs_IMR90": 0.7953012024828783
+    },
+    "compartment_pc1": {
+      "GM12878_vs_K562": 0.8388628460690216,
+      "GM12878_vs_IMR90": 0.690631214158677,
+      "K562_vs_IMR90": 0.6158450095726951
+    }
+  },
+  "differential": {
+    "GM12878_vs_K562__compartment_pc1": {
+      "pearson_r": 0.8388628460690216,
+      "sign_disagreement_frac": 0.1777947124684917,
+      "abs_diff_median": 0.12413334846496582,
+      "abs_diff_p90": 0.771390974521637,
+      "top_decile_bins": 1688,
+      "top_decile_mb": 8.44
+    },
+    "GM12878_vs_K562__insulation_100kb": {
+      "pearson_r": 0.7530401901466504,
+      "sign_disagreement_frac": null,
+      "abs_diff_median": 0.12826862931251526,
+      "abs_diff_p90": 0.32348039746284485,
+      "top_decile_bins": 1706,
+      "top_decile_mb": 8.53
+    },
+    "GM12878_vs_IMR90__compartment_pc1": {
+      "pearson_r": 0.690631214158677,
+      "sign_disagreement_frac": 0.20335306876135764,
+      "abs_diff_median": 0.2309487909078598,
+      "abs_diff_p90": 1.0657624006271362,
+      "top_decile_bins": 1685,
+      "top_decile_mb": 8.425
+    },
+    "GM12878_vs_IMR90__insulation_100kb": {
+      "pearson_r": 0.7675222201163016,
+      "sign_disagreement_frac": null,
+      "abs_diff_median": 0.17303775250911713,
+      "abs_diff_p90": 0.42348065972328186,
+      "top_decile_bins": 1706,
+      "top_decile_mb": 8.53
+    },
+    "GM12878_vs_K562__premise_holds": false,
+    "GM12878_vs_IMR90__premise_holds": true
+  }
+}
