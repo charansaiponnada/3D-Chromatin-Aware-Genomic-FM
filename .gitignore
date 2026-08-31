@@ -260,3 +260,11 @@ _misplaced_20260818/
 # C1 benchmark caches -- regenerable, and the embeddings are large
 data/interim/c1/
 results/c1/emb/
+
+# LaTeX build artefacts
+paper_draft_aiaun/*.aux
+paper_draft_aiaun/*.log
+paper_draft_aiaun/*.out
+paper_draft_aiaun/*.bbl
+paper_draft_aiaun/*.blg
+paper_draft_aiaun/out.txt
