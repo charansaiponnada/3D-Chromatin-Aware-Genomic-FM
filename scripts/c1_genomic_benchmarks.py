@@ -83,6 +83,7 @@ ALPHAS = [1e-4, 1e-3, 1e-2, 1e-1, 1.0, 10.0]
 VAL_FRAC = 0.1
 PROBE_SEED = 20260831
 MAX_LEN = 32_768          # the pilot checkpoints' training window
+TOKEN_BUDGET = 262_144    # positions per inference batch; see embed()
 
 
 # --------------------------------------------------------------------------
@@ -219,8 +220,18 @@ def logistic_probe(Xtr, ytr, Xte, yte, alphas=ALPHAS, seed=PROBE_SEED):
 # --------------------------------------------------------------------------
 
 @torch.no_grad()
-def embed(model, tokens, lens, device, structural, batch=8):
-    """Mean-pooled final hidden states over real (non-PAD) positions."""
+def embed(model, tokens, lens, device, structural, batch=0):
+    """Mean-pooled final hidden states over real (non-PAD) positions.
+
+    batch=0 auto-sizes to a fixed TOKEN budget rather than a fixed sequence
+    count. These tasks are 200-4,776 bp while the model trains at 32,768, so a
+    fixed small batch leaves the GPU nearly idle on the short tasks -- measured
+    difference is hours over the sweep. TOKEN_BUDGET is set against the
+    memcheck: 65,536 tokens/step peaks at 7.51 GiB in TRAINING, and inference
+    with no autograd graph is far cheaper, so 262,144 is conservative.
+    """
+    if not batch:
+        batch = max(1, TOKEN_BUDGET // max(int(tokens.shape[1]), 1))
     out = np.zeros((len(tokens), model.c.d_model), dtype=np.float32)
     sym = SYMMETRY.to(device)
     for i in range(0, len(tokens), batch):
@@ -268,7 +279,8 @@ def main() -> int:
     ap.add_argument("--runs", default="w32768")
     ap.add_argument("--datasets", nargs="*", default=DATASETS)
     ap.add_argument("--max-len", type=int, default=MAX_LEN)
-    ap.add_argument("--batch", type=int, default=8)
+    ap.add_argument("--batch", type=int, default=0,
+                    help="0 = auto-size to TOKEN_BUDGET positions")
     ap.add_argument("--skip-model", action="store_true",
                     help="composition floor only, no GPU")
     a = ap.parse_args()
