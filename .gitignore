@@ -224,6 +224,14 @@ __marimo__/
 # run_config.yaml and phase3_report.txt instead, which are tracked and total
 # under 300 KB. The weights are reproducible from the logged seed and config.
 results/**/checkpoint.pt
+# checkpoint_best.pt and the step-stamped retention copies were added
+# 2026-08-31 and were NOT covered by the line above; each is ~90 MB.
+results/**/checkpoint_best.pt
+results/**/checkpoint_step*.pt
+# Phase D run artefacts: keep run_config.yaml and metrics.json, drop the rest
+results/phase_d/*.log
+results/phase_d/*.lock
+results/phase_d/*.pid
 results/**/*.tmp
 # runtime scratch, not results
 results/baselines/*.pid
