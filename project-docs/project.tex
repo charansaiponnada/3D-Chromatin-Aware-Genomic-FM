@@ -510,6 +510,78 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-31 (ninth entry) --- the owed standardisation sensitivity:
+keep($\varphi$) is provably scheme-invariant, and the transductive exposure is
+bounded but not zero}
+
+No GPU. \code{docs/PREREG\_PHASE\_D\_2026-08-31.md} \S2 records this as
+\emph{owed and not yet run}: $\varphi$ is z-scored using each chromosome's own
+mean and sd, so chr14, chr15 and chr9 --- val and test --- are normalised with
+statistics computed from data the model is not supposed to have seen. Not label
+leakage, but distributional leakage, and a reviewer will find it.
+\code{scripts/d\_phi\_standardisation\_sensitivity.py} quantifies it against
+train-only statistics (chr10--13 pooled, 95{,}380 usable bins).
+
+\textbf{Result 1: keep($\varphi$) is exactly invariant, and this is an identity
+rather than a measurement.} keep $=$ mean-within-window variance over total
+variance; an affine map $x \mapsto (x-m)/s$ scales \emph{both} by $1/s^2$, so the
+ratio cannot move. Measured difference is $\pm 0.0000$ on all seven chromosomes
+at 65{,}536\,bp (400 sampled windows each, 399 on chr9), and a synthetic check
+reproduces bit-identical values under two unrelated affine maps.
+
+\textbf{Every keep($\varphi$) number in \code{CLAUDE.md} is therefore
+standardisation-independent} --- including the 0.0573 that diagnosed the Phase 4
+null, the window scan, and B2's resolution table. That is one reviewer objection
+that can be answered analytically instead of with a run.
+
+Per-chromosome keep($\varphi$) at 65{,}536, both schemes identical: chr10 0.0997,
+chr11 0.1144, chr12 0.1243, chr13 0.1108, chr14 0.1159, chr15 0.0966,
+chr9 0.1222. The chr9 value independently corroborates
+\code{p5\_window\_scan.json}'s 0.1099 on a different sample.
+
+\textbf{Result 2: the transductive exposure is small, and the held-out
+chromosomes are not the unusual ones.} Distance from the train-global
+standardisation, per chromosome:
+
+\begin{center}
+\begin{tabular}{llrrr}
+\hline
+chrom & role & max $|$z-shift$|$ & mean $|$z-shift$|$ & scale range \\
+\hline
+chr10 & train & 0.1185 & 0.0348 & 0.976--1.059 \\
+chr11 & train & \textbf{0.3056} & 0.0758 & 0.912--1.056 \\
+chr12 & train & 0.2142 & 0.0461 & 0.997--1.094 \\
+chr13 & train & 0.2793 & 0.0693 & 0.838--1.037 \\
+chr14 & val & \textbf{0.0942} & 0.0501 & 1.019--1.109 \\
+chr15 & val & 0.2231 & 0.0668 & 1.029--1.146 \\
+chr9 & TEST & 0.2266 & 0.0445 & 0.933--0.999 \\
+\hline
+\end{tabular}
+\end{center}
+
+\textbf{The largest shift belongs to chr11, a TRAINING chromosome, and the
+smallest to chr14, a held-out one.} So per-chromosome standardisation is not
+granting the held-out chromosomes a correction that training chromosomes do not
+also receive --- the between-chromosome spread is ordinary variation, not a
+val/test-specific advantage. That is the substantive answer to the objection.
+
+\textbf{What this does NOT settle.} The $\varphi$ actually fed to the model
+differs between schemes by up to 0.31\,sd in location and 15\% in scale, so the
+training input is scheme-dependent even though keep($\varphi$) is not. Whether a
+trained model's \emph{results} move is a question only a Phase D sensitivity run
+can answer. \textbf{Recommendation: keep per-chromosome standardisation}, which
+is already recorded in \code{phase1\_features.py} and \code{data\_card.md} \S7,
+report this analysis, and if budget allows run one Phase D seed under global
+standardisation as a stated sensitivity check.
+
+\textbf{A reporting bug in this script was caught and fixed before any number
+was recorded.} The window count returned was \code{len(within)} \emph{after}
+\code{within} had been collapsed to a per-feature mean, so it reported 8 --- the
+feature count --- instead of 400. The keep($\varphi$) values were unaffected, but
+a mislabelled provenance number is exactly what standing rule 1 exists to
+prevent, so it was fixed and the script re-run before this entry was written.
+
+
 \subsection*{2026-08-31 (eighth entry) --- B2: the 1\,kb gate FAILS, and a
 same-tile control shows why the constraint is Hi-C itself, not the binning}
 
