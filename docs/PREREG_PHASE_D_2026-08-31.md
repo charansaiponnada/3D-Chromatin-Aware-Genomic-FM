@@ -4,8 +4,44 @@ Written 2026-08-31, **before any run is launched**, per the practice used for
 Decisions 5–6. Nothing in this file may be edited after launch except by a
 dated amendment that says what changed and why.
 
-**Status: BLOCKED on three PI decisions in §0. Do not launch until they are
-recorded.**
+**Status: DECISIONS RECORDED 2026-08-31, PI. Launched.** See §0.1 below; §0's
+option tables are left unedited as the record of what was weighed.
+
+---
+
+## 0.1 DECISIONS AS TAKEN — PI, 2026-08-31
+
+Recorded **before launch**. The option tables in §0 below are left unedited as
+the record of what was weighed.
+
+| # | Decision | Flag |
+|---|---|---|
+| **D-a** | `use_permeability=False` (option C) | `--no-permeability` |
+| **D-b** | T5c-dual, baseline + structural-dual | `--phi-granularity dual` |
+| **D-c** | 5 paired seeds per arm | `SEEDS="0 1 2 3 4"` |
+| **D-d** | window 65,536 | from the index |
+| convergence | prereg §3 criterion, 8,000 hard cap | `--early-stop --steps 8000` |
+| split | leakage-safe multichrom | `--index dataset_index_multichrom.npz` |
+
+**D-a is a change to `architecture_spec.md` §7 (failure mode F2 fixed
+`b_g = -4`).** It is taken on the grounds that `p` imposes τ ≤ 1/p ≈ 55 tokens
+on the **structural arm only** — the baseline has no `p` term — so every
+comparison before this ran the hypothesis arm with ~8.5× shorter memory than
+the arm it was meant to beat. D2 measured the gate as never engaging (mean
+0.0172 over 287,309,824 evaluations, all mass in one bin), so nothing measured
+is given up. Recorded as Decision 10 in `architecture_spec.md` §7.
+
+**Parameter accounting under these settings, measured:** baseline
+**7,725,312**, structural-dual without `p` **7,758,386** — **+0.428%**, against
+a 5% budget.
+
+**Runner:** `scripts/run_phase_d.sh`. Two single-GPU lanes rather than DDP:
+NCCL cannot initialise on this box so DDP falls back to gloo, measured 1.75×
+slower per step, while a 65,536 run with gradient checkpointing peaks at
+7.51 GiB and two independent runs fit trivially in 2×44.39 GiB.
+
+**Unchanged from §1–§6:** primary endpoint, secondary endpoints, falsification
+criterion. None were altered after the decisions were taken.
 
 ---
 

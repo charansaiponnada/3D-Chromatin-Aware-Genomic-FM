@@ -649,6 +649,7 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
         d_model=args.d_model, n_layer=args.n_layer, d_state=args.d_state,
         d_conv=args.d_conv, expand=args.expand, vocab_size=args.vocab_size,
         structural=args.structural, d_struct_raw=d_struct_raw,
+        use_permeability=args.use_permeability,
     )
     model = BiMambaLM(cfg).to(device)
 
@@ -1179,6 +1180,20 @@ def parse() -> argparse.Namespace:
     p.add_argument("--gpus", type=int, default=torch.cuda.device_count())
     p.add_argument("--backend", choices=("auto", "nccl", "gloo"), default="auto")
     p.add_argument("--grad-checkpoint", action="store_true", default=False)
+    # DECISION D-a, PI, 2026-08-31. The permeability term p imposes tau <= 1/p,
+    # which at b_g = -4 is ~55 tokens -- a ceiling the BASELINE never pays,
+    # because it has no p term at all. Every tau reported before 2026-08-31
+    # omitted p and so overstated the structural arm's horizon ~10x. Disabling
+    # p is the only option that makes tau mean the same thing in both arms;
+    # D2 already measured the gate as never engaging (mean 0.0172 over 2.87e8
+    # evaluations, all mass in one bin), so nothing measured is being given up.
+    p.add_argument("--use-permeability", dest="use_permeability",
+                   action="store_true", default=True,
+                   help="keep the permeability gate p (pre-2026-08-31 default)")
+    p.add_argument("--no-permeability", dest="use_permeability",
+                   action="store_false",
+                   help="DISABLE p, removing the ~55-token ceiling the baseline "
+                        "does not pay. Phase D setting (decision D-a).")
     # EARLY STOPPING (docs/PREREG_PHASE_D_2026-08-31.md 3). Off by default:
     # every result on disk was produced at a fixed step count, and silently
     # changing when a run ends would make new runs incomparable to them.

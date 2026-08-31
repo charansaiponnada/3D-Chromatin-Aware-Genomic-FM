@@ -510,6 +510,80 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-31 (tenth entry) --- PHASE D LAUNCHED: four PI decisions
+taken, the structural arm's 55-token handicap removed}
+
+\textbf{First training since 2026-08-16.} Launched
+\code{scripts/run\_phase\_d.sh} at 17:51:54 UTC. Decisions recorded in
+\code{docs/PREREG\_PHASE\_D\_2026-08-31.md} \S0.1 and
+\code{docs/architecture\_spec.md} \S7 (Decision 10) \emph{before} launch, as the
+pre-registration requires.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+ & decision & flag \\
+\hline
+D-a & \code{use\_permeability=False} & \code{--no-permeability} \\
+D-b & T5c-dual, both arms & \code{--phi-granularity dual} \\
+D-c & 5 paired seeds per arm & \code{SEEDS="0 1 2 3 4"} \\
+D-d & window 65{,}536 & from the index \\
+--- & convergence, 8{,}000 hard cap & \code{--early-stop --steps 8000} \\
+--- & leakage-safe split & \code{--index dataset\_index\_multichrom.npz} \\
+\hline
+\end{tabular}
+\end{center}
+
+\textbf{D-a amends a decision of record and is the substantive one.} $p$
+imposes $\tau \le 1/p \approx 55$ tokens on the \emph{structural arm only} ---
+the baseline has no $p$ term --- so every comparison this project has run tested
+the hypothesis arm with roughly $8.5\times$ \emph{shorter} memory than the arm it
+was meant to beat. That is not a subtle bias; it is the mechanism switched off.
+D2 had already measured the gate as never engaging (mean $p$ 0.017234 /
+0.017193 / 0.017108 over 287{,}309{,}824 evaluations, all mass in one bin), so
+disabling it gives up nothing that was ever observed. Option D --- adding $p$ to
+the baseline --- is excluded by the standing rule against weakening the baseline.
+
+\textbf{D-c is what makes a positive expressible at all.} At 3v3 the exact
+two-sided permutation floor is 0.100, so Phase 4 could not have produced
+$p<0.05$ no matter what it measured. At 5v5 the floor is $2/252 = 0.008$.
+
+\textbf{Parameter accounting, measured under the launched configuration:}
+baseline \textbf{7{,}725{,}312}, structural-dual without $p$
+\textbf{7{,}758{,}386} --- $+0.428\%$ against a 5\% budget. Both confirmed in the
+running logs.
+
+\textbf{Two single-GPU lanes rather than DDP.} NCCL cannot initialise on this
+box, so DDP falls back to gloo, measured $1.75\times$ slower per step at
+32{,}768. A 65{,}536 run with gradient checkpointing peaks at 7.51\,GiB
+(\code{results/p5\_memcheck.json}), so two independent runs fit trivially in
+$2\times44.39$\,GiB and give true $2\times$ throughput with no allreduce.
+Lane 0 runs the five baselines, lane 1 the five structural-dual runs.
+
+\textbf{Verified before launch, not after:} \code{test\_model.py}
+\textbf{21/21}, \code{test\_phase4\_wiring.py} \textbf{60/60}, and an end-to-end
+\code{--smoke} run under the exact Phase D flag set confirming
+\code{use\_permeability: false}, \code{phi\_granularity: dual},
+\code{index\_schema: multichrom}, \code{split\_by: chromosome},
+\code{window: 65536} with \code{window\_arg\_matches\_index: true},
+\code{n\_train\_windows: 14600} / \code{n\_val\_windows: 2455}, and
+\code{p\_bias: None} in the $\tau$ diagnostic.
+
+\textbf{Projection, labelled as one.} At the measured 6.28 / 7.17\,s/step and an
+8{,}000-step cap, a lane runs $\approx 14$--$16$\,h per seed, so five seeds is
+$\approx 70$--$80$\,h wall per lane with the lanes in parallel --- about three
+days if every run hits the cap, less if the convergence criterion fires first.
+\textbf{No result may be read from this until runs reach
+\code{status: COMPLETED}.}
+
+\textbf{The idle culler remains the operational risk and is unmitigated.} It
+kills the entire user cgroup --- supervisor included --- after ten minutes
+without browser activity. \code{--resume} plus \code{--ckpt-every 120} bounds
+the loss to roughly eleven minutes of compute per run, but the supervisor must
+be relaunched by hand afterwards. \code{docs/ADMIN\_REQUEST\_idle\_culler.md}
+was drafted 2026-08-26 and has still not been sent.
+
+
 \subsection*{2026-08-31 (ninth entry) --- the owed standardisation sensitivity:
 keep($\varphi$) is provably scheme-invariant, and the transductive exposure is
 bounded but not zero}
