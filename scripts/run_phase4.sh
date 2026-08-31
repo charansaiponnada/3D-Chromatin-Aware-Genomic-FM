@@ -32,6 +32,10 @@
 set -u
 
 REPO=/home/jupyter-238w1a5447/3d-gen
+# Must match phase4_guard.sh's RUN_TAG. The completion sentinel is scoped to
+# this string so a console log from a different window/index cannot make a
+# fresh launch exit immediately (that bug cost a full 65 kb launch cycle).
+RUN_TAG="${RUN_TAG:-w65536_multichrom}"
 PY="$REPO/3d-gen/bin/python"
 OUT="$REPO/results/novel_model"
 SEEDS="0 1 2"
@@ -106,4 +110,4 @@ for S in $SEEDS; do
     done
 done
 
-echo "ALL SEEDS DONE $(date -u +%F_%H:%M:%S)"
+echo "ALL SEEDS DONE ${RUN_TAG} $(date -u +%F_%H:%M:%S)"

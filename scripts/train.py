@@ -85,7 +85,8 @@ sys.path.insert(0, str(REPO / "scripts"))
 from chromfm.model import BiMambaLM, ModelConfig, use_scan   # noqa: E402
 from phase1_dataset import (WindowDataset, PHI_CONTROLS,     # noqa: E402
                             PHI_CONTROL_SEED, S2_SHIFT_BP, PHI_GRANULARITIES,
-                            WINDOW as DATASET_WINDOW)
+                            WINDOW as DATASET_WINDOW, INDEX_DEFAULT,
+                            CHROM)
 
 # One line each, written into run_config.yaml so a run states what it is without
 # needing the spec open. Full definitions: architecture_spec.md 4.1.3.
@@ -315,11 +316,12 @@ def batch_struct(batch: dict, device, symmetry) -> dict:
 def make_loader(split: str, batch_size: int, rank: int, world: int,
                 seed: int, rc_augment: bool, num_workers: int,
                 shuffle: bool, structural: bool = False,
-                phi_control: str = "none", phi_granularity: str = "position"
+                phi_control: str = "none", phi_granularity: str = "position",
+                index: str = INDEX_DEFAULT
                 ) -> tuple[DataLoader, DistributedSampler | None]:
     ds = WindowDataset(split, structural=structural, rc_augment=rc_augment,
                        seed=seed, phi_control=phi_control,
-                       phi_granularity=phi_granularity)
+                       phi_granularity=phi_granularity, index=index)
     sampler = None
     if world > 1:
         sampler = DistributedSampler(ds, num_replicas=world, rank=rank,
@@ -386,6 +388,7 @@ class DeltaCapture:
         self.handles = []
         self.store: dict[str, torch.Tensor] = {}
         self.struct: dict[str, torch.Tensor] = {}
+        self.gate: dict[str, torch.Tensor] = {}
 
     def __enter__(self):
         for i, layer in enumerate(self.model.layers):
@@ -401,6 +404,17 @@ class DeltaCapture:
                     def shook(mod, inp, out, key=key):
                         self.struct[key] = out.detach()
                     self.handles.append(d.W_dstruct.register_forward_hook(shook))
+
+                # The permeability term clamps the SAME quantity tau measures:
+                # Abar = exp(Delta*A - p) with A < 0 is exp(-(Delta*|A| + p)),
+                # so tau = 1/(Delta*|A| + p) and can never exceed 1/p. Omitting
+                # it overstated the structural arm's horizon ~10x and made it
+                # non-comparable with the baseline, which has no p at all
+                # (found 2026-08-31; see project.tex).
+                if getattr(d, "w_gate", None) is not None:
+                    def ghook(mod, inp, out, key=key):
+                        self.gate[key] = out.detach()
+                    self.handles.append(d.w_gate.register_forward_hook(ghook))
         return self
 
     def dt_pre(self, key: str) -> torch.Tensor:
@@ -409,6 +423,12 @@ class DeltaCapture:
         if key in self.struct:
             v = v + self.struct[key]
         return v
+
+    def p(self, key: str) -> torch.Tensor | None:
+        """softplus(w_gate(s)) -- the extra log-decay, (b, l). None if absent."""
+        if key not in self.gate:
+            return None
+        return F.softplus(self.gate[key]).squeeze(-1)
 
     def __exit__(self, *exc):
         for h in self.handles:
@@ -420,7 +440,11 @@ class DeltaCapture:
 def empirical_tau(model: BiMambaLM, batch_tokens: torch.Tensor,
                   n_positions: int = 128, seed: int = 0,
                   struct_kwargs: dict | None = None) -> dict:
-    """tau = 1 / (Delta * |A|) in tokens, from Delta on real data.
+    """tau = 1 / (Delta * |A| + p) in tokens, from Delta on real data.
+
+    p is the permeability term, present only in the structural arm. It is
+    included here since 2026-08-31; before that both estimators omitted it and
+    overstated the structural horizon ~10x (project.tex, that date).
 
     Sub-samples positions because the full tensor is
     (batch, length, d_inner, d_state) and would not fit.
@@ -445,7 +469,11 @@ def empirical_tau(model: BiMambaLM, batch_tokens: torch.Tensor,
                                     device=dt_pre.device, generator=g)
                 delta = F.softplus(dt_pre[:, idx, :]).float()      # (b, k, d_inner)
                 absA = torch.exp(getattr(layer, name).A_log).float()  # (d_inner, n)
-                tau = 1.0 / (delta.unsqueeze(-1) * absA.unsqueeze(0).unsqueeze(0))
+                rate = delta.unsqueeze(-1) * absA.unsqueeze(0).unsqueeze(0)
+                p_t = cap.p(key)
+                if p_t is not None:
+                    rate = rate + p_t[:, idx].float()[:, :, None, None]
+                tau = 1.0 / rate
                 flat = tau.flatten()
                 per_layer[key] = {
                     "tau_median": float(flat.median()),
@@ -723,12 +751,12 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
         "train", args.batch_size, rank, world, args.seed,
         rc_augment=args.rc_augment, num_workers=args.num_workers, shuffle=True,
         structural=args.structural, phi_control=args.phi_control,
-        phi_granularity=args.phi_granularity)
+        phi_granularity=args.phi_granularity, index=args.index)
     val_loader, _ = make_loader(
         "val", args.eval_batch_size, rank, world, args.seed,
         rc_augment=False, num_workers=args.num_workers, shuffle=False,
         structural=args.structural, phi_control=args.phi_control,
-        phi_granularity=args.phi_granularity)
+        phi_granularity=args.phi_granularity, index=args.index)
 
     # phi's antisymmetric coordinates (directionality index, the two directional
     # contact masses) must flip sign when the window is reversed for the reverse
@@ -777,8 +805,10 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
             "effective_batch": {
                 "windows_per_optimizer_step":
                     args.batch_size * args.grad_accum * world,
+                # from the index, not --window: see the note in "data" below
                 "tokens_per_optimizer_step":
-                    args.batch_size * args.grad_accum * world * args.window,
+                    args.batch_size * args.grad_accum * world
+                    * int(train_loader.dataset.window),
                 "world_size": world,
                 "ddp_backend": backend,
             },
@@ -829,11 +859,35 @@ def worker(rank: int, world: int, args: argparse.Namespace) -> None:
             },
             "data": {
                 "source": "scripts/phase1_dataset.py WindowDataset",
-                "window": args.window,
+                # The TRUE window comes from the loaded index, not from
+                # --window, which defaults to 32768 and is not passed by
+                # run_phase4.sh. Recording args.window here wrote the wrong
+                # window and half the true token count into the one artefact
+                # whose job is provenance. Fixed 2026-08-31; args.window is
+                # kept alongside so a mismatch is visible rather than silent.
+                "window": int(train_loader.dataset.window),
+                "window_arg": args.window,
+                "window_arg_matches_index":
+                    int(args.window) == int(train_loader.dataset.window),
+                "index": train_loader.dataset.index_name,
+                "index_schema": ("multichrom"
+                                 if train_loader.dataset.multichrom
+                                 else "single-chrom"),
+                "split_by": ("chromosome"
+                             if train_loader.dataset.multichrom
+                             else "coordinate within one chromosome"),
+                "chrom_roles": (
+                    dict(zip(train_loader.dataset.chrom_names,
+                             train_loader.dataset.chrom_roles))
+                    if train_loader.dataset.multichrom else {CHROM: "all"}),
+                "phi_granularity": args.phi_granularity,
                 "structural_features_supplied": args.structural,
                 "phi_control": args.phi_control,
                 "phi_control_seed": (PHI_CONTROL_SEED if args.phi_control != "none"
                                      else None),
+                "phi_control_scope": ("per-chromosome"
+                                      if train_loader.dataset.multichrom
+                                      else "single-chromosome"),
                 "n_train_windows": len(train_loader.dataset),
                 "n_val_windows": len(val_loader.dataset),
             },
@@ -1053,6 +1107,15 @@ def parse() -> argparse.Namespace:
                    help="shuffled-structure control applied to phi before the "
                         "encoder (architecture_spec.md 4.1.3). Requires "
                         "--structural.")
+    p.add_argument("--index", default=INDEX_DEFAULT,
+                   help="dataset index filename under data/processed. "
+                        "'dataset_index.npz' (default) is the single-chromosome "
+                        "chr9 index whose splits are WITHIN one chromosome -- "
+                        "weakness 5, retained as pilot only. "
+                        "'dataset_index_multichrom.npz' splits BY chromosome "
+                        "(chr10-13 train, chr14-15 val, chr9 held out as test) "
+                        "and is the leakage-safe index Phase D must use. The "
+                        "two must never be pooled: different datasets.")
     p.add_argument("--phi-granularity", choices=PHI_GRANULARITIES,
                    default="position",
                    help="architecture_spec.md 4.1.3 decisions 8-9. 'position' "

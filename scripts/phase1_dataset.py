@@ -360,6 +360,7 @@ def apply_phi_control(phi: np.ndarray, usable: np.ndarray, control: str
     return ctl_phi, (ctl_usable & usable)
 
 
+INDEX_DEFAULT = "dataset_index.npz"
 PHI_GRANULARITIES = ("position", "window", "dual")
 
 
@@ -415,17 +416,47 @@ class WindowDataset:
 
     def __init__(self, split: str, structural: bool = True,
                  rc_augment: bool = False, seed: int = 0,
-                 phi_control: str = "none", phi_granularity: str = "position"):
+                 phi_control: str = "none", phi_granularity: str = "position",
+                 index: str = INDEX_DEFAULT):
         if phi_granularity not in PHI_GRANULARITIES:
             raise ValueError(f"phi_granularity={phi_granularity!r}; "
                              f"expected one of {PHI_GRANULARITIES}")
         self.phi_granularity = phi_granularity
-        z = np.load(PROCESSED / "dataset_index.npz", allow_pickle=True)
-        self.starts = z[split]
+        self.index_name = index
+        z = np.load(PROCESSED / index, allow_pickle=True)
+        # Two on-disk schemas. The single-chromosome index stores flat
+        # train/val/test start arrays with one phi and one usable mask; the
+        # multi-chromosome index stores {split}_starts + {split}_chrom_id and
+        # per-chromosome phi_{chrom} / usable_{chrom}. Detected, never
+        # guessed from the filename.
+        self.multichrom = "chrom_names" in z.files
         self.window = int(z["window"])
-        self.phi = z["phi"]
-        self.usable = z["usable"].astype(bool)
         self.symmetry = z["feature_symmetry"].astype(np.int8)
+
+        if self.multichrom:
+            self.chrom_names = [str(c) for c in z["chrom_names"]]
+            self.chrom_roles = [str(c) for c in z["chrom_roles"]]
+            self.starts = z[f"{split}_starts"]
+            self.chrom_id = z[f"{split}_chrom_id"].astype(np.int64)
+            self.phi_by_chrom = [z[f"phi_{c}"] for c in self.chrom_names]
+            self.usable_by_chrom = [z[f"usable_{c}"].astype(bool)
+                                    for c in self.chrom_names]
+            self.tokens_by_chrom = [
+                np.load(PROCESSED / f"tokens_{c}.npy", mmap_mode="r")
+                for c in self.chrom_names]
+            # The single-chromosome attributes are deliberately left None.
+            # phase5_*.py and test_phase4_wiring.py reach into ds.phi/ds.usable
+            # /ds.tokens directly; aliasing one chromosome here would let them
+            # keep running while silently describing 1/7th of the data. A
+            # TypeError at the first use is the correct outcome.
+            self.phi = self.usable = self.tokens = None
+        else:
+            self.starts = z[split]
+            self.chrom_id = None
+            self.phi = z["phi"]
+            self.usable = z["usable"].astype(bool)
+            self.tokens = np.load(PROCESSED / f"tokens_{CHROM}.npy",
+                                  mmap_mode="r")
         if phi_granularity == "dual":
             # T5c-dual: BOTH scales at once, concatenated on the feature axis
             # (d_struct_raw 8 -> 16). The window-pooled half's RC symmetry is
@@ -434,12 +465,24 @@ class WindowDataset:
             # the original mean, same as any single position -- so the
             # symmetry vector doubles by simple concatenation, not redefinition.
             self.symmetry = np.concatenate([self.symmetry, self.symmetry])
-        self.tokens = np.load(PROCESSED / f"tokens_{CHROM}.npy", mmap_mode="r")
         self.structural = structural
         self.phi_control = phi_control
         if structural:
-            self.phi, self.usable = apply_phi_control(
-                self.phi, self.usable, phi_control)
+            if self.multichrom:
+                # Applied PER CHROMOSOME. S1 GLOBAL-PERM permutes phi across
+                # all bins; with seven chromosomes "global" is ambiguous, and
+                # permuting across chromosomes would additionally destroy the
+                # per-chromosome standardisation the index records. Per
+                # chromosome keeps each control the same operation it was
+                # validated as on chr9. Recorded 2026-08-31.
+                pairs = [apply_phi_control(ph, us, phi_control)
+                         for ph, us in zip(self.phi_by_chrom,
+                                           self.usable_by_chrom)]
+                self.phi_by_chrom = [a for a, _ in pairs]
+                self.usable_by_chrom = [b for _, b in pairs]
+            else:
+                self.phi, self.usable = apply_phi_control(
+                    self.phi, self.usable, phi_control)
         elif phi_control != "none":
             raise ValueError(
                 f"phi_control={phi_control!r} with structural=False: the "
@@ -462,12 +505,19 @@ class WindowDataset:
 
     def __getitem__(self, i: int) -> dict:
         start = int(self.starts[i])
-        tok = np.asarray(self.tokens[start:start + self.window]).copy()
-        out = {"tokens": tok, "start": start}
+        if self.multichrom:
+            ci = int(self.chrom_id[i])
+            tokens, phi, usable = (self.tokens_by_chrom[ci],
+                                   self.phi_by_chrom[ci],
+                                   self.usable_by_chrom[ci])
+        else:
+            ci, tokens, phi, usable = -1, self.tokens, self.phi, self.usable
+        tok = np.asarray(tokens[start:start + self.window]).copy()
+        out = {"tokens": tok, "start": start, "chrom_id": ci}
 
         if self.structural:
             pos = np.arange(start, start + self.window)
-            s, valid = interpolate_phi(self.phi, self.usable, pos)
+            s, valid = interpolate_phi(phi, usable, pos)
             if self.phi_granularity == "window":
                 s, valid = pool_phi_window(s, valid)
             elif self.phi_granularity == "dual":

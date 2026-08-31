@@ -315,12 +315,36 @@ class BiMambaLM(nn.Module):
                 with torch.no_grad():
                     delta = F.softplus(d.dt_proj.bias)          # (d_inner,)
                     A = torch.exp(d.A_log)                      # |A|, (d_inner, n)
-                    tau = 1.0 / (delta[:, None] * A)
-                out[f"layer{i}.{name}"] = {
-                    "tau_median": float(tau.median()),
-                    "tau_p99": float(tau.flatten().quantile(0.99)),
-                    "tau_max": float(tau.max()),
+                    rate = delta[:, None] * A                   # Delta*|A|
+                    tau = 1.0 / rate
+                    # The permeability term is a SECOND clamp on this same
+                    # quantity, exactly as dt_floor is (see _init_dt). The
+                    # recurrence is Abar = exp(Delta*A - p) with A < 0, i.e.
+                    # exp(-(Delta*|A| + p)), so the decay scale is
+                    #     tau = 1 / (Delta*|A| + p),
+                    # which can never exceed 1/p no matter how small dt_min is.
+                    # Reporting tau without p overstates the structural arm's
+                    # horizon by ~10x and is not comparable with the baseline,
+                    # which has no p term at all. Both are emitted: the *_pfree
+                    # fields preserve continuity with results logged before
+                    # 2026-08-31, the unsuffixed fields are the real horizon.
+                    p_bias = None
+                    if getattr(d, "w_gate", None) is not None:
+                        p_bias = F.softplus(d.w_gate.bias).squeeze()
+                    rate_p = rate if p_bias is None else rate + p_bias
+                    tau_p = 1.0 / rate_p
+                rec = {
+                    "tau_median": float(tau_p.median()),
+                    "tau_p99": float(tau_p.flatten().quantile(0.99)),
+                    "tau_max": float(tau_p.max()),
+                    "tau_median_pfree": float(tau.median()),
+                    "tau_p99_pfree": float(tau.flatten().quantile(0.99)),
+                    "tau_max_pfree": float(tau.max()),
+                    "p_bias": None if p_bias is None else float(p_bias),
+                    "tau_ceiling_from_p": (
+                        None if p_bias is None else float(1.0 / p_bias)),
                 }
+                out[f"layer{i}.{name}"] = rec
         return out
 
 

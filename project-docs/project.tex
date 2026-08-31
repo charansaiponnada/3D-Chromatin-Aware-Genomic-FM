@@ -510,6 +510,297 @@ the trained memory horizon, and that measurement gates Phase 4.}
 
 Every substantive change to the project is recorded here with its reason.
 
+\subsection*{2026-08-31 (fifth entry) --- the multi-chromosome index is
+finally reachable from training, and three provenance defects are closed}
+
+No GPU. \code{dataset\_index\_multichrom.npz} was built on 2026-08-26 and
+\textbf{no code had ever read it}: \code{WindowDataset.\_\_init\_\_} hardcoded
+\code{np.load(PROCESSED / "dataset\_index.npz")} and the flat
+\code{train}/\code{val}/\code{test}/\code{phi}/\code{usable} keys. The
+leakage-safe split --- the review's essential item 5 --- was therefore not
+reachable by any training run. Closed:
+
+\begin{itemize}
+\item \code{WindowDataset} takes \code{index=} and \textbf{detects} the schema
+via \code{"chrom\_names" in z.files} rather than guessing from the filename.
+The multichrom path holds \code{phi}/\code{usable}/\code{tokens} as
+per-chromosome lists indexed by \code{\{split\}\_chrom\_id}; each item now also
+carries \code{chrom\_id} ($-1$ on the single-chromosome path).
+\item \textbf{The single-chromosome attributes are left \code{None} on the
+multichrom path, deliberately.} \code{phase5\_*.py} and
+\code{test\_phase4\_wiring.py} reach into \code{ds.phi}/\code{ds.usable}
+directly; aliasing one chromosome would let them keep running while silently
+describing one seventh of the data. A \code{TypeError} at first use is the
+correct outcome.
+\item $\varphi$ controls are applied \textbf{per chromosome}. S1
+GLOBAL-PERM is ambiguous across seven chromosomes, and permuting across them
+would additionally destroy the per-chromosome standardisation the index
+records. Recorded in \code{run\_config.yaml} as \code{phi\_control\_scope}.
+\item \code{train.py} gains \code{--index}, threaded through
+\code{make\_loader}.
+\end{itemize}
+
+Verified: train \code{n=14{,}600} on chr10--13, val \code{n=2{,}455} on
+chr14--15, test \code{n=1{,}647} on chr9 only --- no chromosome in two splits.
+\code{position}/\code{window}/\code{dual} granularities, S1 and S2, RC
+augmentation and both baseline guards all exercised on the new path.
+\code{test\_phase4\_wiring.py} \textbf{60/60}, \code{test\_model.py}
+\textbf{21/21}, both unchanged.
+
+\textbf{Three provenance defects closed in the same pass.} (i) The
+\code{--window} bug: \code{run\_config.yaml} recorded \code{args.window},
+which defaults to 32768 and is not passed by \code{run\_phase4.sh}, so a 65\,kb
+run wrote the wrong window and \emph{half its true token count} into the one
+artefact whose job is provenance. Both the recorded window and
+\code{tokens\_per\_optimizer\_step} now come from the loaded index;
+\code{window\_arg} and \code{window\_arg\_matches\_index} are kept beside them
+so a mismatch is visible rather than silent. (ii) \code{run\_config.yaml} now
+records \code{index}, \code{index\_schema}, \code{split\_by},
+\code{chrom\_roles} and \code{phi\_granularity} --- a run states which dataset
+it used. (iii) \code{phase4\_guard.sh}'s completion sentinel was a bare
+\code{\textasciicircum ALL SEEDS DONE}, which a log from a different
+configuration satisfied, so every 65\,kb launch exited immediately while
+appearing to have run. Both guard and supervisor now scope it to
+\code{RUN\_TAG} (default \code{w65536\_multichrom}); round-trip verified to
+match its own tag and reject a stale one.
+
+\subsection*{2026-08-31 (fourth entry) --- IMR90 FAILS the pre-registered B3
+gate on the one feature that motivated choosing it; K562 passes}
+
+No GPU. IMR90 chr14 acquired and featurised (\code{--cell-line IMR90}, set
+\code{4DNES1ZEJNRU}). The gate in \code{docs/B3\_DEPTH\_GATE.md}, fixed before
+any of these numbers existed, returns \textbf{FAIL}:
+
+\begin{center}
+\begin{tabular}{lrrr}
+\hline
+ & GM12878 & K562 & IMR90 \\
+\hline
+usable\_frac (gate $\geq 0.70$)      & 0.8039 & 0.8093 & 0.7999 (pass) \\
+$r$ insulation\_100kb (gate $\geq 0.95$) & 0.9971 & 0.9966 & \textbf{0.9973} (pass) \\
+$r$ compartment (gate $\geq 0.90$)  & 0.9711 & 0.9796 & \textbf{0.8815} (FAIL) \\
+\hline
+\end{tabular}
+\end{center}
+
+\textbf{The threshold was not moved.} The gate document states that partial
+failure is not rescued by lowering a threshold in it, and it has not been.
+
+\textbf{Diagnosis, which does not change the outcome.} Two checks were run to
+separate ``shallow map'' from ``our bug''. Within quartiles of $|$PC1$|$ the
+correlation is $0.9209 / 0.9857 / 0.9929 / 0.9196$ and sign agreement is
+$0.9680$ --- far above the pooled $0.8896$, which indicates a monotone
+non-linearity rather than noise. But Spearman only partly closes the gap:
+IMR90 $0.9254$ against GM12878 $0.9685$ and K562 $0.9703$. IMR90 is worst of
+the three on the rank statistic too, so the failure is real and not an artefact
+of choosing Pearson.
+
+\textbf{The informative asymmetry.} IMR90's insulation agreement is $0.9973$,
+the \emph{best} of the three lines, while its compartment agreement is the
+worst. A map starved by shallow sequencing would degrade both. This is
+therefore specific to the compartment eigenvector, not to map depth --- and
+\code{compartment\_pc1} is exactly the feature whose GM12878-vs-IMR90
+divergence ($r = 0.6035$, third entry) was the reason for preferring IMR90.
+The failure lands on the feature that motivated the choice.
+
+\textbf{Where this leaves B3, PI's call.} K562 is now the only line that
+passes, and it passes cleanly --- but it carries the CNV confound argued in the
+third entry, which is a real objection and not withdrawn. The options are: use
+K562 with the aneuploidy documented as a limitation; drop the second cell line
+and scope the paper to one; or investigate IMR90's compartment pipeline
+further, on the explicit rule that if no computational fault is found, IMR90
+stays out by the gate as written. Extending to chr15 would be new information
+for that decision, \emph{not} a re-run of the gate until it passes.
+
+Nothing is trained; no cross-cell-line claim is licensed either way.
+
+\subsection*{2026-08-31 (third entry) --- B3 second cell line: the depth
+caveat does not bind, and IMR90 beats K562 on the quantity that matters}
+
+No GPU. K562 chr14 acquired end to end (\code{--cell-line K562}); the
+7.9\,GB mcool was streamed over range reads, never downloaded. Band assembled:
+2{,}912{,}263 unique upper-triangle entries in 230.2\,s.
+
+\textbf{The depth gate was pre-registered before the numbers existed}
+(\code{docs/B3\_DEPTH\_GATE.md}, written while the band was still streaming)
+because \code{phase1\_acquire.py} warns that GM12878's set is 72 experiments
+merged against K562's 6, and asks for confirmation that the shallower map does
+not starve the balancing weights. \textbf{It does not.} K562 chr14 passes all
+three criteria, and its usable-bin fraction is marginally \emph{higher} than
+GM12878's on the same chromosome:
+
+\begin{center}
+\begin{tabular}{lrr}
+\hline
+ & GM12878 & K562 \\
+\hline
+usable\_frac (gate $\geq 0.70$) & 0.8039 & \textbf{0.8093} \\
+$r$ insulation\_100kb vs own 4DN track (gate $\geq 0.95$) & 0.9971 & 0.9966 \\
+$r$ compartment vs own 4DN track (gate $\geq 0.90$) & 0.9711 & 0.9796 \\
+\hline
+\end{tabular}
+\end{center}
+
+So depth does not decide which second line to use, and the choice falls to
+which line is more informative. Measured on chr14 at 5\,kb from the three
+lines' own 4DN processed tracks (\code{pybigtools}, Pearson on jointly finite
+bins):
+
+\begin{center}
+\begin{tabular}{lrr}
+\hline
+pair & insulation $r$ & compartment $r$ \\
+\hline
+GM12878 vs K562  & $+0.7513$ ($n{=}17{,}306$) & $+0.8250$ ($n{=}17{,}450$) \\
+GM12878 vs IMR90 & $+0.7629$ ($n{=}17{,}209$) & $\mathbf{+0.6035}$ ($n{=}17{,}350$) \\
+K562 vs IMR90    & $+0.7903$ ($n{=}17{,}279$) & $+0.6062$ ($n{=}17{,}350$) \\
+\hline
+\end{tabular}
+\end{center}
+
+IMR90 is markedly more divergent from GM12878 in A/B compartments
+($0.6035$ vs $0.8250$) while insulation is a near tie ($0.7629$ vs $0.7513$).
+\textbf{The insulation column is an internal control}: were the compartment gap
+driven by pipeline or depth differences between experiment sets, insulation
+should degrade alongside it, and it does not. The gap therefore reads as
+biological, and matches lineage --- GM12878 (lymphoblastoid) and K562
+(erythroleukemia) are both haematopoietic, whereas IMR90 is lung fibroblast.
+\code{compartment\_pc1} is one of the eight $\varphi$ features, and it is the
+one carrying cell-type identity.
+
+\textbf{Recommendation, PI's call: IMR90 as the B3 second line.} Beyond the
+divergence measured above, K562 is near-triploid with extensive copy-number
+variation; \code{log\_contact\_density} is a $\varphi$ feature and compartment
+calling is CNV-sensitive, so part of any GM12878-vs-K562 $\varphi$ difference
+would be karyotype rather than regulatory architecture --- the same class of
+benign explanation S4 exists to exclude. K562 also mismatches the GRCh38
+reference the model reads. IMR90 is karyotypically normal diploid and its set
+has 7 experiments against K562's 6.
+
+\textbf{Caveats.} One chromosome, one resolution, 4DN-processed tracks; the
+insulation control argues against a purely technical reading but does not
+exclude it. The K562 chr14 build is retained --- as a \emph{same-lineage}
+second line it is a useful gradient against IMR90's different-lineage contrast,
+should the effect ever need to be shown to scale with structural divergence.
+Nothing here licenses a cross-cell-line claim: no model has been trained.
+
+\subsection*{2026-08-31 --- the permeability term $p$ was missing from every
+$\tau$ ever reported: the structural arm's memory horizon is $\sim$51 tokens,
+not $\sim$487, and F4's fix never reached it}
+
+No GPU. Found while verifying an external peer review, which alleged a sign
+error in the $\tau$ equation. \textbf{The alleged sign error does not exist}:
+\code{architecture\_spec.md} line 173 reads $\tau = -1/(\Delta A - p)$ with
+$A < 0$, which is algebraically identical to the reviewer's proposed
+correction $1/(\Delta|A| + p)$; verified numerically, both give
+$55.09338328466751$ at $\Delta = 10^{-6}$, $|A| = 1$, $p = 0.018150$. The
+reviewer dropped the leading unary minus.
+
+Checking it surfaced a real and larger defect. \textbf{Both} $\tau$ estimators
+omit $p$ entirely. \code{BiMambaLM.tau\_stats()} computed
+\code{tau = 1.0 / (delta * A)}; \code{train.py::empirical\_tau} computed
+\code{tau = 1.0 / (delta * absA)}. \code{empirical\_tau} hooks
+\code{W\_dstruct} explicitly and carries a long docstring warning that reading
+$\tau$ from \code{dt\_proj} alone would be a silent error --- it guarded that
+trap and fell into the adjacent one. The omission is documented nowhere: the
+bias-only/empirical distinction in \code{phase3\_report.py} is about the
+input-dependent $\Delta$ term only, and F4's analysis in
+\code{architecture\_spec.md} \S4.1.4 never mentions $p$.
+
+\textbf{Why it matters.} $p$ is constructed only in the structural branch
+(\code{model.py}: \code{if self.c.structural and s is not None}), so the
+baseline has no $p$ term at all and its reported $\tau$ is correct. The
+structural arm carries $p = \mathrm{softplus}(b_g)$ at every position, and $p$
+clamps exactly the quantity \code{dt\_floor} clamps --- $\tau$ can never exceed
+$1/p$ however small \code{dt\_min} becomes. This is the F4 trap a second time,
+in a second constant.
+
+Recomputed from the three logged Phase 4 checkpoints
+(\code{results/novel\_model/w32768/structural\_seed\{0,1,2\}/checkpoint.pt},
+state dict loaded with \code{missing=0 unexpected=0}):
+
+\begin{center}
+\begin{tabular}{lrrr}
+\hline
+seed & trained $b_g$ range & $\tau$ median as reported & $\tau$ median with $p$ \\
+\hline
+0 & $[-4.1452, -3.9839]$ & 479.8 & 50.56 \\
+1 & $[-4.1107, -4.0066]$ & 487.6 & 51.24 \\
+2 & $[-4.1303, -3.9635]$ & 452.8 & 51.13 \\
+\hline
+\end{tabular}
+\end{center}
+
+The recorded claim ``every structural $\tau$ median exceeds every baseline
+$\tau$ median ($+52.6$ tokens); memory lengthened'' is therefore
+\textbf{inverted}. Against the baseline's 434.7, the structural arm's true
+median is $\sim$51 --- roughly $8.5\times$ \emph{shorter}. Retention of the
+slowest channel across one 32{,}768\,bp window: baseline
+$\exp(-10^{-6}\cdot 32768) = 0.9678$; structural, at the D2-measured
+$p = 0.017234$, $\exp(-(10^{-6}+0.017234)\cdot 32768) = 5.4\times10^{-246}$.
+
+\textbf{This supplies a mechanistic account of the Phase 4 result that no
+diagnostic had reached.} D2 recorded that the gate ``never engaged'' because
+$p$ never moved from its initialisation. That was read as $p$ being inert. It
+is not inert: it was never negligible. $b_g = -4$ was chosen (failure mode F2)
+to trade init-equivalence against gradient scale, and the note reasoned that
+$p = 0.018$ is ``negligible'' --- negligible per step, but it is applied at
+every one of 32{,}768 positions, and it is precisely the term F4's
+$\mathtt{dt\_min} = 10^{-6}$ was introduced to make small. The structural arm
+was handicapped relative to the baseline from step 0 by a constant neither arm
+was supposed to differ by, which is consistent with the sign of the measured
+result ($+0.0020$ bits \emph{worse}).
+
+\textbf{Fixed in code, no result overwritten.} \code{tau\_stats()} now emits
+$p$-inclusive \code{tau\_median/p99/max} alongside \code{*\_pfree} fields
+preserving continuity with everything logged before today, plus \code{p\_bias}
+and \code{tau\_ceiling\_from\_p}. New regression test
+\code{test\_tau\_includes\_permeability} asserts the $1/p$ ceiling holds, that
+raising $b_g$ shortens $\tau$ ($-4 \to 55.1$ tokens; $-1 \to 3.2$), and that
+the baseline reports no $p$ term. \code{scripts/test\_model.py} is
+\textbf{21/21} (was 17/17). \code{train.py::empirical\_tau} is patched too:
+\code{DeltaCapture} now hooks \code{w\_gate} and exposes
+\code{p = softplus(w\_gate(s))}, which enters the rate as
+$\Delta|A| + p$. Verified on untrained models at $l = 256$ --- structural
+$\tau$ median $49.14$, $\tau_{\max}$ $55.09$ (respecting the $1/p$ ceiling of
+$55.1$); baseline $\tau$ median $473.85$, $\tau_{\max}$ $1{,}233{,}002.62$.
+
+\textbf{Two things this does NOT establish, and neither may be asserted
+without a run.} It does not show the Phase 4 null would reverse with $p$
+removed; the logit perturbation from $p$ alone at initialisation is
+$3.686\times10^{-2}$ against an activation scale of $2.635\times10^{2}$
+(ratio $1.4\times10^{-4}$), measured on one model with all other weights held
+fixed, at $l = 256$. And whether $b_g$ should change is a
+\code{architecture\_spec.md} \S7 decision-of-record, so it is the PI's, not
+mine. It is filed as an open decision, not applied.
+
+\subsection*{2026-08-31 (second entry) --- provenance manifest, and the
+per-chromosome standardisation scope stated plainly}
+
+No GPU. Peer-review major comment 3 (``a reader cannot determine which code,
+index, granularity and checkpoint produced each reported result'') is correct
+and is now addressed by \code{scripts/build\_manifest.py}, which regenerates
+\code{results/MANIFEST.json} from artefacts on disk rather than hardcoding
+anything. It records the git commit and dirty flag, and for every index its
+SHA-256, schema, window and split sizes; for every run its
+\code{run\_config.yaml} status, window, structural flag, last logged step and
+checkpoint SHA-256 (first 64\,MiB).
+
+First run confirms all eleven logged runs carry \code{cfg\_window=32768} and
+\code{status: COMPLETED} at step 2000, except \code{smoke\_seed0} (step 300)
+and \code{baselines/baseline\_v2\_w65536\_seed0}, which is
+\code{STARTED -- no metrics yet} at step 100 with no checkpoint --- a dead
+65\,kb launch that must not be mistaken for evidence.
+
+On leakage: \code{dataset\_index\_multichrom.npz} records
+\code{phi\_standardisation = 'per-chromosome'}, i.e. each chromosome is
+$z$-scored against \emph{its own} usable bins. This is not train-only
+normalisation --- held-out chromosomes are normalised with their own
+statistics, which is transductive. It is defensible as a deployment assumption
+(a new chromosome arrives with its own Hi-C map) and was decided deliberately
+on 2026-08-26, but the global-standardisation sensitivity analysis the review
+asks for is genuinely owed and is not yet run.
+
 \subsection*{2026-08-30 --- T5c and T5c-dual: the per-window and joint
 conditioning arms, a real architecture change, Decisions 8--9}
 

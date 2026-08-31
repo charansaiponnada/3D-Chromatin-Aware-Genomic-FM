@@ -1,0 +1,294 @@
+{
+  "generated_by": "scripts/build_manifest.py",
+  "git_commit": "77bee1202e43e3ae986185186a240b2953c9d6f3",
+  "git_describe": "77bee12-dirty",
+  "git_dirty": true,
+  "python": "3.10.10",
+  "torch": "2.6.0+cu124",
+  "indices": [
+    {
+      "file": "dataset_index.npz",
+      "bytes": 593005,
+      "sha256": "c16f94bf0633bc395551eec413b6541e3d69f3684cc3197f9e3713d67621f9dc",
+      "schema": "single-chrom",
+      "window": 65536,
+      "n_train": 2713,
+      "n_val": 137,
+      "n_test": 122
+    },
+    {
+      "file": "dataset_index_multichrom.npz",
+      "bytes": 4071004,
+      "sha256": "1e5e59cd8104c08d338c654030df7cf5f64ec728cc07f552220bab41d3177bc3",
+      "schema": "multichrom",
+      "window": 65536,
+      "chrom_names": [
+        "chr9",
+        "chr10",
+        "chr11",
+        "chr12",
+        "chr13",
+        "chr14",
+        "chr15"
+      ],
+      "chrom_roles": [
+        "test",
+        "train",
+        "train",
+        "train",
+        "train",
+        "val",
+        "val"
+      ],
+      "phi_standardisation": "per-chromosome",
+      "n_train": 14600,
+      "n_val": 2455,
+      "n_test": 1647
+    },
+    {
+      "file": "dataset_index_w32768.npz",
+      "bytes": 595846,
+      "sha256": "77afe3abb6215984b5c412834b0880129b0c5a5453ee938d3e4884667727bbe7",
+      "schema": "single-chrom",
+      "window": 32768,
+      "n_train": 5422,
+      "n_val": 274,
+      "n_test": 243
+    }
+  ],
+  "runs": [
+    {
+      "run": "results/baselines/baseline_seed0",
+      "has_checkpoint": true,
+      "n_eval_records": 10,
+      "last_step": 2000,
+      "last_val_bits": 1.5163642026834607,
+      "metrics_sha256": "2630ba8b560e94699dc3bab5eaed88d6c493570dc91e74a2e1400112a7f9abcd",
+      "run_config": {
+        "status": "COMPLETED",
+        "seed": "0",
+        "steps": "2000",
+        "structural": "false",
+        "scan_backend": "",
+        "window": "32768",
+        "n_train_windows": "5422"
+      },
+      "run_config_sha256": "3ecfa4a1f6d0ae5e39b0f7e5d96dff9593b5ff74cf2488ce574041d1acc167b4",
+      "checkpoint_sha256": "46df62c456de7f368616474a266ffa890d2d46508d064005d29e87107d5830a5-first67108864B"
+    },
+    {
+      "run": "results/baselines/baseline_seed1",
+      "has_checkpoint": true,
+      "n_eval_records": 10,
+      "last_step": 2000,
+      "last_val_bits": 1.5238525239151737,
+      "metrics_sha256": "028223f13531ed1c357309a95280a328e9e2c217e8115c21348f0f816798ff7c",
+      "run_config": {
+        "status": "COMPLETED",
+        "seed": "1",
+        "steps": "2000",
+        "structural": "false",
+        "scan_backend": "",
+        "window": "32768",
+        "n_train_windows": "5422"
+      },
+      "run_config_sha256": "9b36cbe88085ea2b589cafcfe8e6aee6a2ec7668767438eb56b155c6d4ad97cb",
+      "checkpoint_sha256": "210882aad4e2e8ba8bc804c178236bd86878dc86335dfa19addd5b31a3e63d92-first67108864B"
+    },
+    {
+      "run": "results/baselines/baseline_seed2",
+      "has_checkpoint": true,
+      "n_eval_records": 10,
+      "last_step": 2000,
+      "last_val_bits": 1.5227498816403628,
+      "metrics_sha256": "85669dc87f5db2f7e26af9ec3ee498554c39132570e4ff7c6095733d72f9061d",
+      "run_config": {
+        "status": "COMPLETED",
+        "seed": "2",
+        "steps": "2000",
+        "structural": "false",
+        "scan_backend": "",
+        "window": "32768",
+        "n_train_windows": "5422"
+      },
+      "run_config_sha256": "3d34ffa2c92ca864385b1e06e306c40982917755a45166852637fb6e70b90187",
+      "checkpoint_sha256": "cd0e312566e802cbf6452be45af7478e99981ac45db36b47c0d2fa20b4b10afa-first67108864B"
+    },
+    {
+      "run": "results/baselines/baseline_v2_w65536_seed0",
+      "has_checkpoint": false,
+      "n_eval_records": 1,
+      "last_step": 100,
+      "last_val_bits": 1.536026604670634,
+      "metrics_sha256": "b9f790a0dea9b5e173afe5f6c1edf9026049f638283b076138278a8cc8071873",
+      "run_config": {
+        "status": "STARTED -- no metrics yet",
+        "seed": "0",
+        "steps": "1000",
+        "structural": "false",
+        "use_permeability": "true",
+        "dt_min": "1.0e-06",
+        "dt_max": "0.1",
+        "dt_floor": "1.0e-07",
+        "scan_backend": "",
+        "window": "65536",
+        "n_train_windows": "2713"
+      },
+      "run_config_sha256": "15cc9ba9ca19183055dd58db188d725f51ab8905b51148a14883e98685f60052"
+    },
+    {
+      "run": "results/baselines/smoke_seed0",
+      "has_checkpoint": true,
+      "n_eval_records": 3,
+      "last_step": 300,
+      "last_val_bits": 1.7744227900733538,
+      "metrics_sha256": "1acc7d60295b92f9f1a7362002b61a58f64d7c915b5ce22970a9de127945137f",
+      "run_config": {
+        "status": "COMPLETED",
+        "seed": "0",
+        "steps": "300",
+        "structural": "false",
+        "scan_backend": "",
+        "window": "32768",
+        "n_train_windows": "5422"
+      },
+      "run_config_sha256": "4c63f9c4c694caee17546ce79999a524571a82d4d63d0595c18da572807676bf",
+      "checkpoint_sha256": "a520a32dcd0151e25253a106fd7a329bc73e8e44eca9198fbbeb0a6ae77566b6"
+    },
+    {
+      "run": "results/baselines/w32768/baseline_v2_seed0",
+      "has_checkpoint": true,
+      "n_eval_records": 10,
+      "last_step": 2000,
+      "last_val_bits": 1.5196040981522114,
+      "metrics_sha256": "9b3eb5118898db3da7023a52812f76ac2afac9d6aa3ea14697f9769c5e7da201",
+      "run_config": {
+        "status": "COMPLETED",
+        "seed": "0",
+        "steps": "2000",
+        "structural": "false",
+        "dt_min": "1.0e-06",
+        "dt_max": "0.1",
+        "dt_floor": "1.0e-07",
+        "scan_backend": "",
+        "window": "32768",
+        "n_train_windows": "5422"
+      },
+      "run_config_sha256": "7e44858a4c113e30841532d8276c1137191e931fdb38ae34e3ff01ba758a752a",
+      "checkpoint_sha256": "a682e4329e13f07305390de0f86bcf6ca3262183f4d1e6956fa9743fc39040d0-first67108864B"
+    },
+    {
+      "run": "results/baselines/w32768/baseline_v2_seed1",
+      "has_checkpoint": true,
+      "n_eval_records": 10,
+      "last_step": 2000,
+      "last_val_bits": 1.5172281793143345,
+      "metrics_sha256": "a9bf08475965530ff673c0819e4326a7d68a4c09b5d8f4d9e0e23a0721c76d09",
+      "run_config": {
+        "status": "COMPLETED",
+        "seed": "1",
+        "steps": "2000",
+        "structural": "false",
+        "dt_min": "1.0e-06",
+        "dt_max": "0.1",
+        "dt_floor": "1.0e-07",
+        "scan_backend": "",
+        "window": "32768",
+        "n_train_windows": "5422"
+      },
+      "run_config_sha256": "ef944088185e6329c44a45474906af7e60fbb9ea51e066091ac7ed7e74f5b4f6",
+      "checkpoint_sha256": "402b09f95d3a0c29c988313ccf5b2ba70e5f46d86204ff423d8e919717bd097e-first67108864B"
+    },
+    {
+      "run": "results/baselines/w32768/baseline_v2_seed2",
+      "has_checkpoint": true,
+      "n_eval_records": 10,
+      "last_step": 2000,
+      "last_val_bits": 1.52226346525393,
+      "metrics_sha256": "3fdc469dad2887876df8b3f18cd0c3e3e022ef5ab3d69162372d93fb24297e8b",
+      "run_config": {
+        "status": "COMPLETED",
+        "seed": "2",
+        "steps": "2000",
+        "structural": "false",
+        "dt_min": "1.0e-06",
+        "dt_max": "0.1",
+        "dt_floor": "1.0e-07",
+        "scan_backend": "",
+        "window": "32768",
+        "n_train_windows": "5422"
+      },
+      "run_config_sha256": "d90070586b0a0a4463c758305479aa0ba70e1122e90cdee66e0a5cd35025e2f1",
+      "checkpoint_sha256": "c71f17772b2b9d3419f4b0c0f9553ef7124210a9379aa9b7a1105bde34b6dc88-first67108864B"
+    },
+    {
+      "run": "results/novel_model/w32768/structural_seed0",
+      "has_checkpoint": true,
+      "n_eval_records": 10,
+      "last_step": 2000,
+      "last_val_bits": 1.5265923601554279,
+      "metrics_sha256": "fbd30d239c7a4e2f907b5010525a2ed630447bd12c76be03f00e2d4c03d8c740",
+      "run_config": {
+        "status": "COMPLETED",
+        "seed": "0",
+        "steps": "2000",
+        "structural": "true",
+        "use_permeability": "true",
+        "dt_min": "1.0e-06",
+        "dt_max": "0.1",
+        "dt_floor": "1.0e-07",
+        "scan_backend": "",
+        "window": "32768",
+        "n_train_windows": "5422"
+      },
+      "run_config_sha256": "48e1e15bb92af592b0e8b00f76eb359a1acaf59511db2dd2333d15de0da2b1fe",
+      "checkpoint_sha256": "4299474151775a0420dd5f953ce34a897ed6916fbdcc6e54a4d8b0c7e686ec0c-first67108864B"
+    },
+    {
+      "run": "results/novel_model/w32768/structural_seed1",
+      "has_checkpoint": true,
+      "n_eval_records": 10,
+      "last_step": 2000,
+      "last_val_bits": 1.5176630280735766,
+      "metrics_sha256": "9dd12b88e98deef6ad0f6e7871e7b3ec17a11709ba59b322b21282f4d05166e8",
+      "run_config": {
+        "status": "COMPLETED",
+        "seed": "1",
+        "steps": "2000",
+        "structural": "true",
+        "use_permeability": "true",
+        "dt_min": "1.0e-06",
+        "dt_max": "0.1",
+        "dt_floor": "1.0e-07",
+        "scan_backend": "",
+        "window": "32768",
+        "n_train_windows": "5422"
+      },
+      "run_config_sha256": "e1ddbb16c90cae3e666805e626c1567eb501c3c4197b375f2bc3cbb7ae19ff5c",
+      "checkpoint_sha256": "0777c14b323fbf90ed4474f85edf7d5b15dda2251ec195f77725fe13d5d9222a-first67108864B"
+    },
+    {
+      "run": "results/novel_model/w32768/structural_seed2",
+      "has_checkpoint": true,
+      "n_eval_records": 10,
+      "last_step": 2000,
+      "last_val_bits": 1.5208647132105615,
+      "metrics_sha256": "0b0d278503478951a753f0d3f98560ed83a979b3e674645ea5dc9d16f7b645b9",
+      "run_config": {
+        "status": "COMPLETED",
+        "seed": "2",
+        "steps": "2000",
+        "structural": "true",
+        "use_permeability": "true",
+        "dt_min": "1.0e-06",
+        "dt_max": "0.1",
+        "dt_floor": "1.0e-07",
+        "scan_backend": "",
+        "window": "32768",
+        "n_train_windows": "5422"
+      },
+      "run_config_sha256": "db6d3bd5aa92b0214b80a69345f9ddb03bee009b598a000a904acce2c32d22ec",
+      "checkpoint_sha256": "b6a073c1e18c5833ade68b82c626c978319e14f9c5167e01fdd5d9bd1ded4649-first67108864B"
+    }
+  ]
+}

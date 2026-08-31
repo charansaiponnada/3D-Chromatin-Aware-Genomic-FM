@@ -197,11 +197,51 @@ def test_tau_stats():
           f"(a 5 kb bin is 5,000; 100 kb is TAD scale -- see F4)")
 
 
+def test_tau_includes_permeability():
+    """tau must account for p, which clamps the SAME quantity dt_floor does.
+
+    The recurrence is Abar = exp(Delta*A - p) with A < 0, i.e.
+    exp(-(Delta*|A| + p)), so the decay scale is 1/(Delta*|A| + p) and can
+    never exceed 1/p. Reporting 1/(Delta*|A|) for the structural arm overstates
+    its horizon by ~10x and makes it non-comparable with the baseline, which
+    carries no p term at all. This is the exact shape of the F4 dt_floor trap:
+    a second constant silently capping the horizon dt_min was lowered to create.
+    Regression guard added 2026-08-31 after the defect was found in logged runs.
+    """
+    m = BiMambaLM(ModelConfig(structural=True))
+    st = m.tau_stats()
+    ceil = min(v["tau_ceiling_from_p"] for v in st.values())
+    tau_max = max(v["tau_max"] for v in st.values())
+    tau_max_pfree = max(v["tau_max_pfree"] for v in st.values())
+    check("structural tau respects the 1/p ceiling", tau_max <= ceil * 1.001,
+          f"tau_max {tau_max:,.1f} vs ceiling {ceil:,.1f}")
+    check("p-free tau is the larger, overstated number",
+          tau_max_pfree > 100 * tau_max,
+          f"pfree {tau_max_pfree:,.0f} vs with-p {tau_max:,.1f}")
+
+    # increasing p must shorten the measured horizon (reviewer-requested guard)
+    import torch.nn as nn
+    before = max(v["tau_max"] for v in m.tau_stats().values())
+    for lay in m.layers:
+        for d in ("fwd", "rev"):
+            nn.init.constant_(getattr(lay, d).w_gate.bias, -1.0)
+    after = max(v["tau_max"] for v in m.tau_stats().values())
+    check("larger p shortens tau", after < before,
+          f"b_g -4 -> {before:,.1f} tokens; b_g -1 -> {after:,.1f} tokens")
+
+    # the baseline must be unaffected: it has no p term at all
+    b = BiMambaLM(ModelConfig(structural=False))
+    bs = b.tau_stats()
+    check("baseline reports no p term",
+          all(v["p_bias"] is None for v in bs.values()), "p_bias None in 32/32")
+
+
 def main():
     print("BiMamba model tests (CPU, small L)\n")
     for fn in (test_param_match, test_forward_shapes, test_init_equivalence,
                test_structure_changes_output, test_gradient_reaches_structural_pathway,
-               test_invalid_masking, test_rc_symmetry_applied, test_tau_stats):
+               test_invalid_masking, test_rc_symmetry_applied, test_tau_stats,
+               test_tau_includes_permeability):
         print(f"{fn.__name__}:")
         fn()
         print()
