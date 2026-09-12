@@ -1,32 +1,22 @@
-# Core pipeline + training. Install torch FIRST with the CUDA build that matches
-# the box, then this file:
-#   pip install torch --index-url https://download.pytorch.org/whl/cu124
-#   pip install -r requirements.txt
-#
-# Versions are the ones the pipeline was developed and verified against.
+# Laptop (Phases 0-2, CPU only):  pip install -e .
+# GPU box: install the CUDA torch build FIRST, then this file:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+#   pip install -e .
 
-numpy>=1.26
+# --- core ---
+numpy>=1.26,<3
+pandas>=2.1
+pyyaml>=6.0
 scipy>=1.11
+tqdm>=4.66
+
+# --- genomics ---
+cooler>=0.9.3          # .cool / .mcool contact matrices
+pyfaidx>=0.8.1         # random access into hg38 without loading 3.1 GB
+h5py>=3.10
 requests>=2.31
 
-# Hi-C access. cooler reads the 27 GB .mcool remotely through fsspec, so the
-# matrix is never downloaded.
-cooler==0.10.4
-bioframe==0.8.0
-h5py>=3.11
-fsspec>=2024.6
-aiohttp>=3.9
-
-# bigWig reading for validating our features against 4DN's own tracks.
-# pybigtools is used instead of pyBigWig because it ships wheels everywhere.
-pybigtools>=0.3
-
-matplotlib>=3.8
-
-# Custom selective-scan kernel. Linux + CUDA only; there is no Windows wheel,
-# which is why the kernel is unverified on the development machine.
-triton>=3.0 ; sys_platform == "linux"
-
-# Document builds only (not needed for training)
-pypdf>=5.0
-reportlab>=4.0
+# --- model ---
+# 2.6 is the floor for Python 3.13 wheels. On 3.11 anything >=2.2 works, but
+# pinning the higher floor keeps one requirements file valid on both.
+torch>=2.6

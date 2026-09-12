@@ -1,0 +1,97 @@
+{
+  "_comment": [
+    "The only data artefact git carries. Everything under data/raw and",
+    "data/processed is rebuilt from here by scripts/build_data.py, because",
+    "hg38 is 3.1 GB and a single .mcool is 5-30 GB.",
+    "",
+    "Accessions were verified live against the 4DN API in an earlier phase of",
+    "this project (commit dc7e195) rather than guessed. Download URLs use the",
+    "portal's @@download endpoint, which redirects to S3 -- more durable than",
+    "pinning the S3 object UUID.",
+    "",
+    "Depth caveat: GM12878's map is built from 72 experiments. K562 has 6 and",
+    "IMR90 has 7, so both companion maps are markedly shallower. That matters",
+    "for the held-out cell-line test and must be disclosed alongside any",
+    "cross-cell-line result."
+  ],
+
+  "assembly": {
+    "name": "hg38",
+    "fasta_url": "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz",
+    "chrom_sizes_url": "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.chrom.sizes",
+    "note": "UCSC naming ('chr1'), which matches 4DN's mcool bin table."
+  },
+
+  "cell_lines": {
+    "GM12878": {
+      "experiment_set": "4DNES3JX38V5",
+      "description": "in situ Hi-C, MboI, bio-dATP; 72 experiments (deepest map)",
+      "role": "primary",
+      "mcool": {
+        "accession": "4DNFIXP4QG5B",
+        "url": "https://data.4dnucleome.org/files-processed/4DNFIXP4QG5B/@@download/4DNFIXP4QG5B.mcool",
+        "mirror": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/d6abea45-b0bb-4154-9854-1d3075b98097/4DNFIXP4QG5B.mcool"
+      },
+      "boundaries_bed": {
+        "accession": "4DNFIVK5JOFU",
+        "url": "https://data.4dnucleome.org/files-processed/4DNFIVK5JOFU/@@download/4DNFIVK5JOFU.bed.gz",
+        "md5": "ebdf5462f5d150b6818c2bf2ab570ea7",
+        "role": "TAD boundary calls, used for loop/boundary evaluation only"
+      },
+      "insulation_bw": {
+        "accession": "4DNFIBMOGOZC",
+        "url": "https://data.4dnucleome.org/files-processed/4DNFIBMOGOZC/@@download/4DNFIBMOGOZC.bw",
+        "md5": "06a391048266b9c53a89588748b7e1ae"
+      },
+      "compartments_bw": {
+        "accession": "4DNFILYQ1PAY",
+        "url": "https://data.4dnucleome.org/files-processed/4DNFILYQ1PAY/@@download/4DNFILYQ1PAY.bw",
+        "md5": "ba73062524e460539390cd6513a068d1"
+      }
+    },
+
+    "K562": {
+      "experiment_set": "4DNESI7DEJTM",
+      "description": "in situ Hi-C, MboI, bio-dATP, higher crosslinker; 6 experiments",
+      "role": "held-out cell line",
+      "mcool": {
+        "accession": "4DNFI18UHVRO",
+        "url": "https://data.4dnucleome.org/files-processed/4DNFI18UHVRO/@@download/4DNFI18UHVRO.mcool"
+      },
+      "boundaries_bed": {
+        "accession": "4DNFI4EFYN3Q",
+        "url": "https://data.4dnucleome.org/files-processed/4DNFI4EFYN3Q/@@download/4DNFI4EFYN3Q.bed.gz"
+      },
+      "insulation_bw": {
+        "accession": "4DNFIXU7QLG6",
+        "url": "https://data.4dnucleome.org/files-processed/4DNFIXU7QLG6/@@download/4DNFIXU7QLG6.bw"
+      },
+      "compartments_bw": {
+        "accession": "4DNFIWUAO2QI",
+        "url": "https://data.4dnucleome.org/files-processed/4DNFIWUAO2QI/@@download/4DNFIWUAO2QI.bw"
+      }
+    },
+
+    "IMR90": {
+      "experiment_set": "4DNES1ZEJNRU",
+      "description": "in situ Hi-C, MboI, bio-dATP; 7 experiments",
+      "role": "optional third cell line",
+      "mcool": {
+        "accession": "4DNFIJTOIGOI",
+        "url": "https://data.4dnucleome.org/files-processed/4DNFIJTOIGOI/@@download/4DNFIJTOIGOI.mcool"
+      },
+      "boundaries_bed": {
+        "accession": "4DNFIMNT2VYL",
+        "url": "https://data.4dnucleome.org/files-processed/4DNFIMNT2VYL/@@download/4DNFIMNT2VYL.bed.gz"
+      },
+      "insulation_bw": {
+        "accession": "4DNFIZFI8U3R",
+        "url": "https://data.4dnucleome.org/files-processed/4DNFIZFI8U3R/@@download/4DNFIZFI8U3R.bw"
+      },
+      "compartments_bw": {
+        "accession": "4DNFIHM89EGL",
+        "url": "https://data.4dnucleome.org/files-processed/4DNFIHM89EGL/@@download/4DNFIHM89EGL.bw"
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+# OPTIONAL. Nothing in this project requires these.
+#
+# chromgraph/model.py implements a diagonal state-space layer in pure PyTorch,
+# evaluated by FFT convolution, so there is no fused CUDA kernel to install and
+# the model runs unchanged on a laptop CPU. These are here only if you later
+# want to benchmark the fused implementation against it.
+#
+# Both compile CUDA kernels and cannot install without a GPU toolchain. On
+# Python 3.13 they may have no wheel at all and will try to build from source.
+mamba-ssm>=2.2.0
+causal-conv1d>=1.4.0
