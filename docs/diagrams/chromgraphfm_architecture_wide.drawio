@@ -1,0 +1,99 @@
+<mxfile host="app.diagrams.net" agent="ChromGraphFM" type="device">
+  <diagram name="ChromGraphFM-wide" id="arch-wide">
+    <mxGraphModel dx="1600" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t" value="ChromGraphFM — contact-biased sequence representation learning" style="text;html=1;align=center;fontSize=19;fontStyle=1;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="30" y="10" width="1340" height="28" as="geometry" /></mxCell>
+
+        <mxCell id="lane1" value="SEQUENCE STREAM" style="text;html=1;align=left;fontSize=11;fontStyle=1;fontColor=#888888;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="32" y="56" width="240" height="16" as="geometry" /></mxCell>
+        <mxCell id="lane2" value="STRUCTURE STREAM" style="text;html=1;align=left;fontSize=11;fontStyle=1;fontColor=#888888;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="32" y="446" width="240" height="16" as="geometry" /></mxCell>
+
+        <!-- ===== sequence lane ===== -->
+        <mxCell id="dna" value="&lt;b&gt;DNA Sequence&lt;/b&gt;&#10;128 × 5 kb windows&#10;&lt;font style=&quot;font-size:11px&quot; color=&quot;#777777&quot;&gt;hg38 · A/C/G/T/N&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1.8;fontSize=14;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="30" y="78" width="210" height="86" as="geometry" /></mxCell>
+        <mxCell id="emb" value="Nucleotide Embedding&#10;+ Positional Encoding" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=14;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="280" y="78" width="200" height="86" as="geometry" /></mxCell>
+        <mxCell id="mamba" value="&lt;b&gt;Bi-Mamba Local&#10;DNA Encoder&lt;/b&gt; × L&#10;&lt;font style=&quot;font-size:11px&quot; color=&quot;#777777&quot;&gt;RC-equivariant&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="520" y="78" width="210" height="86" as="geometry" /></mxCell>
+        <mxCell id="hi" value="Window Embeddings&#10;&lt;b&gt;h&lt;sub&gt;i&lt;/sub&gt;&lt;/b&gt;&#160; (graph nodes)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="770" y="78" width="200" height="86" as="geometry" /></mxCell>
+
+        <!-- ===== structure lane ===== -->
+        <mxCell id="hic" value="&lt;b&gt;Hi-C Contact Map&lt;/b&gt;&#10;5 kb bins, ICE-normalised&#10;&lt;font style=&quot;font-size:11px&quot; color=&quot;#777777&quot;&gt;4DN / ENCODE&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1.8;fontSize=14;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="30" y="468" width="210" height="86" as="geometry" /></mxCell>
+        <mxCell id="gb" value="&lt;b&gt;Sparse Graph Builder&lt;/b&gt;&#10;&lt;font style=&quot;font-size:11px&quot; color=&quot;#777777&quot;&gt;top-16 distal + ±3 local&#10;15% of edges held out as targets&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="280" y="468" width="200" height="86" as="geometry" /></mxCell>
+        <mxCell id="ef" value="Edge Features&#10;&lt;b&gt;c&lt;sub&gt;ij&lt;/sub&gt; , d&lt;sub&gt;ij&lt;/sub&gt; , r&lt;/b&gt; , cell type" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="520" y="468" width="210" height="86" as="geometry" /></mxCell>
+        <mxCell id="sd" value="&lt;b&gt;Structure Dropout&lt;/b&gt;&#160;(p = 0.3)&#10;&lt;font style=&quot;font-size:11px&quot; color=&quot;#777777&quot;&gt;whole graph dropped →&#10;Hi-C-free inference&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;dashed=1;fontSize=14;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="770" y="468" width="200" height="86" as="geometry" /></mxCell>
+
+        <!-- ===== encoder block ===== -->
+        <mxCell id="block" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;dashed=1;dashPattern=6 4;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="700" y="196" width="330" height="248" as="geometry" /></mxCell>
+        <mxCell id="blab" value="Structure-Conditioned Encoder Block&#160;&#160;&#160;&lt;b&gt;N ×&lt;/b&gt;" style="text;html=1;align=left;fontSize=12;fontColor=#444444;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="712" y="200" width="310" height="18" as="geometry" /></mxCell>
+
+        <mxCell id="mha" value="&lt;b&gt;Contact-Biased&#10;Multi-Head Attention&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="740" y="352" width="250" height="62" as="geometry" /></mxCell>
+        <mxCell id="an1" value="Add &amp;amp; Norm" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="740" y="316" width="250" height="26" as="geometry" /></mxCell>
+        <mxCell id="ffn" value="Feed Forward" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="740" y="268" width="250" height="38" as="geometry" /></mxCell>
+        <mxCell id="an2" value="Add &amp;amp; Norm" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="740" y="228" width="250" height="26" as="geometry" /></mxCell>
+
+        <mxCell id="bias" value="&lt;b&gt;Edge Bias&lt;/b&gt;&#10;b&lt;sub&gt;HiC&lt;/sub&gt;(c&lt;sub&gt;ij&lt;/sub&gt;) + b&lt;sub&gt;dist&lt;/sub&gt;(d&lt;sub&gt;ij&lt;/sub&gt;) + b&lt;sub&gt;scale&lt;/sub&gt;(r)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="1058" y="352" width="290" height="62" as="geometry" /></mxCell>
+        <mxCell id="eq" value="a&lt;sub&gt;ij&lt;/sub&gt; = softmax&lt;sub&gt;j&lt;/sub&gt; ( q&lt;sub&gt;i&lt;/sub&gt;ᵀk&lt;sub&gt;j&lt;/sub&gt; / √d&#160; +&#160; bias&lt;sub&gt;ij&lt;/sub&gt; )&#160;&#160;&#160;over sparse graph edges only" style="text;html=1;align=center;fontSize=13;fontColor=#7a5a8a;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="700" y="422" width="648" height="20" as="geometry" /></mxCell>
+
+        <!-- ===== outputs ===== -->
+        <mxCell id="z" value="&lt;b&gt;Structure-Informed Representations z&lt;sub&gt;i&lt;/sub&gt;&lt;/b&gt;&#10;&lt;font style=&quot;font-size:11px&quot; color=&quot;#4a7a3a&quot;&gt;transferable — reusable without Hi-C at inference&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="1058" y="228" width="290" height="62" as="geometry" /></mxCell>
+
+        <mxCell id="h1" value="Masked DNA Reconstruction" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="1058" y="78" width="290" height="34" as="geometry" /></mxCell>
+        <mxCell id="h2" value="Contact-Aware Contrastive&#160;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;(distance-matched)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="1058" y="122" width="290" height="34" as="geometry" /></mxCell>
+        <mxCell id="h3" value="Contact Prediction&#160;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;(on held-out edges)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="1058" y="166" width="290" height="34" as="geometry" /></mxCell>
+
+        <mxCell id="loss" value="&lt;b&gt;L&lt;/b&gt; = 1.0·L&lt;sub&gt;DNA&lt;/sub&gt; + 0.5·L&lt;sub&gt;contrast&lt;/sub&gt; + 1.0·L&lt;sub&gt;contact&lt;/sub&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;fontFamily=Helvetica;arcSize=16;" vertex="1" parent="1">
+          <mxGeometry x="1058" y="468" width="290" height="42" as="geometry" /></mxCell>
+
+        <mxCell id="foot" value="&lt;b&gt;Novel here:&lt;/b&gt; contact-biased attention&#160;·&#160;learned edge bias&#160;·&#160;structure dropout&#160;·&#160;held-out target edges&#160;&#160;&#160;&#160;&#160;&lt;b&gt;Controls:&lt;/b&gt; B0 DNA-only&#160;·&#160;B1 random graph&#160;·&#160;B2 distance-only&#160;·&#160;B3 shuffled Hi-C&#160;·&#160;B4 late fusion&#160;·&#160;B5 align-only" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=12;fontFamily=Helvetica;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="30" y="596" width="1340" height="40" as="geometry" /></mxCell>
+
+        <!-- ===== edges ===== -->
+        <mxCell id="e1" style="endArrow=classic;html=1;strokeWidth=1.8;" edge="1" parent="1" source="dna" target="emb"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="endArrow=classic;html=1;strokeWidth=1.8;" edge="1" parent="1" source="emb" target="mamba"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="endArrow=classic;html=1;strokeWidth=1.8;" edge="1" parent="1" source="mamba" target="hi"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" value="Q, K, V" style="endArrow=classic;html=1;strokeWidth=1.8;fontSize=11;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="hi" target="an2"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="e5" style="endArrow=classic;html=1;strokeWidth=1.8;" edge="1" parent="1" source="hic" target="gb"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" style="endArrow=classic;html=1;strokeWidth=1.8;" edge="1" parent="1" source="gb" target="ef"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" style="endArrow=classic;html=1;strokeWidth=1.8;" edge="1" parent="1" source="ef" target="sd"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" style="endArrow=classic;html=1;rounded=1;strokeWidth=1.8;strokeColor=#9673a6;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="sd" target="bias">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1203" y="511" /></Array></mxGeometry></mxCell>
+        <mxCell id="e9" style="endArrow=classic;html=1;strokeWidth=1.8;strokeColor=#9673a6;" edge="1" parent="1" source="bias" target="mha"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="e10" style="endArrow=classic;html=1;strokeWidth=1.8;" edge="1" parent="1" source="mha" target="an1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e11" style="endArrow=classic;html=1;strokeWidth=1.8;" edge="1" parent="1" source="an1" target="ffn"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e12" style="endArrow=classic;html=1;strokeWidth=1.8;" edge="1" parent="1" source="ffn" target="an2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e13" style="endArrow=classic;html=1;strokeWidth=1.8;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="an2" target="z"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="e14" style="endArrow=classic;html=1;rounded=1;strokeWidth=1.6;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="z" target="h3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e15" style="endArrow=classic;html=1;strokeWidth=1.6;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="h3" target="h2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e16" style="endArrow=classic;html=1;strokeWidth=1.6;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="h2" target="h1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e17" value="held-out target edges" style="endArrow=classic;html=1;rounded=1;strokeWidth=1.4;dashed=1;strokeColor=#b85450;fontSize=11;fontColor=#b85450;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="gb" target="h3">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="380" y="578" /><mxPoint x="1378" y="578" /><mxPoint x="1378" y="183" /></Array></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

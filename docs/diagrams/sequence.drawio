@@ -1,0 +1,63 @@
+<mxfile host="app.diagrams.net" agent="ChromGraphFM" type="device">
+  <diagram name="Sequence" id="sequence">
+    <mxGraphModel dx="1300" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1180" pageHeight="720" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t" value="Sequence Diagram — one pretraining run end to end" style="text;html=1;align=center;fontSize=16;fontStyle=1;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="30" y="8" width="1120" height="24" as="geometry" /></mxCell>
+
+        <!-- lifelines -->
+        <mxCell id="ll1" value="Researcher" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;collapsible=0;outlineConnect=0;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="40" y="48" width="140" height="640" as="geometry" /></mxCell>
+        <mxCell id="ll2" value="build_data.py" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;collapsible=0;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="215" y="48" width="140" height="640" as="geometry" /></mxCell>
+        <mxCell id="ll3" value="4DN / ENCODE" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;collapsible=0;outlineConnect=0;fillColor=#ffffff;strokeColor=#333333;fontSize=12;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="390" y="48" width="140" height="640" as="geometry" /></mxCell>
+        <mxCell id="ll4" value="build_graphs.py" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;collapsible=0;outlineConnect=0;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="565" y="48" width="140" height="640" as="geometry" /></mxCell>
+        <mxCell id="ll5" value="pretrain.py" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;collapsible=0;outlineConnect=0;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="740" y="48" width="140" height="640" as="geometry" /></mxCell>
+        <mxCell id="ll6" value="evaluate.py" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;collapsible=0;outlineConnect=0;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="915" y="48" width="140" height="640" as="geometry" /></mxCell>
+
+        <!-- messages -->
+        <mxCell id="m1" value="1: build(manifest.json)" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=11;fontFamily=Helvetica;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="110" y="140" as="sourcePoint" /><mxPoint x="285" y="140" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="m2" value="2: stream .mcool (HTTP range)" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=11;fontFamily=Helvetica;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="285" y="180" as="sourcePoint" /><mxPoint x="460" y="180" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="m3" value="3: 5 kb pixels + bin table" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;fontSize=11;fontFamily=Helvetica;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="460" y="215" as="sourcePoint" /><mxPoint x="285" y="215" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="m4" value="4: verify md5 · write *_qc.json" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;fontSize=11;fontFamily=Helvetica;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="285" y="255" as="sourcePoint" /><mxPoint x="110" y="255" as="targetPoint" /></mxGeometry></mxCell>
+
+        <mxCell id="m5" value="5: build_graphs(bins, arm)" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=11;fontFamily=Helvetica;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="110" y="300" as="sourcePoint" /><mxPoint x="635" y="300" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="m6" value="6: top-k edges · hold out 15% as targets · apply control corruption" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=11;align=left;fontFamily=Helvetica;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="635" y="335" as="sourcePoint" /><mxPoint x="695" y="335" as="targetPoint" />
+          <Array as="points"><mxPoint x="700" y="335" /><mxPoint x="700" y="360" /><mxPoint x="635" y="360" /></Array></mxGeometry></mxCell>
+
+        <mxCell id="m7" value="7: pretrain(config, shards)" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=11;fontFamily=Helvetica;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="110" y="405" as="sourcePoint" /><mxPoint x="810" y="405" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="m8" value="8: write run_config.yaml BEFORE step 1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;fontSize=11;fontFamily=Helvetica;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="810" y="440" as="sourcePoint" /><mxPoint x="110" y="440" as="targetPoint" /></mxGeometry></mxCell>
+
+        <!-- loop frame -->
+        <mxCell id="loop" value="loop&#160;&#160;[step &amp;lt; train.steps]" style="shape=umlFrame;whiteSpace=wrap;html=1;width=150;height=24;fillColor=none;strokeColor=#999999;fontSize=11;align=left;verticalAlign=top;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="600" y="460" width="330" height="120" as="geometry" /></mxCell>
+        <mxCell id="m9" value="9: contact-biased forward&#10;(graph dropped with p = 0.3)" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=11;align=left;fontFamily=Helvetica;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="810" y="510" as="sourcePoint" /><mxPoint x="870" y="510" as="targetPoint" />
+          <Array as="points"><mxPoint x="880" y="510" /><mxPoint x="880" y="535" /><mxPoint x="810" y="535" /></Array></mxGeometry></mxCell>
+        <mxCell id="m10" value="10: L_DNA + L_contrast + L_contact · step" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=11;align=left;fontFamily=Helvetica;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="810" y="558" as="sourcePoint" /><mxPoint x="870" y="558" as="targetPoint" />
+          <Array as="points"><mxPoint x="880" y="558" /><mxPoint x="880" y="572" /><mxPoint x="810" y="572" /></Array></mxGeometry></mxCell>
+
+        <mxCell id="m11" value="11: checkpoint" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=11;fontFamily=Helvetica;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="810" y="610" as="sourcePoint" /><mxPoint x="985" y="610" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="m12" value="12: metrics.json (held-out chr · loops · Hi-C-free probe)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;fontSize=11;fontFamily=Helvetica;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="985" y="655" as="sourcePoint" /><mxPoint x="110" y="655" as="targetPoint" /></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

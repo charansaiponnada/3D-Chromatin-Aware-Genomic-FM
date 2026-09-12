@@ -1,0 +1,97 @@
+<mxfile host="app.diagrams.net" agent="ChromGraphFM" type="device">
+  <diagram name="Activity" id="activity">
+    <mxGraphModel dx="1200" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="960" pageHeight="1080" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t" value="Activity Diagram — ChromGraphFM experiment workflow" style="text;html=1;align=center;fontSize=16;fontStyle=1;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="30" y="10" width="900" height="24" as="geometry" /></mxCell>
+
+        <mxCell id="start" value="" style="ellipse;html=1;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="450" y="50" width="30" height="30" as="geometry" /></mxCell>
+
+        <mxCell id="a1" value="Resolve accessions from data/manifest.json" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="330" y="102" width="270" height="40" as="geometry" /></mxCell>
+        <mxCell id="a2" value="Stream Hi-C · bin at 5 kb · extract 5 kb DNA windows" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="330" y="164" width="270" height="40" as="geometry" /></mxCell>
+
+        <mxCell id="d1" value="QC gate&#10;passes?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="405" y="226" width="120" height="76" as="geometry" /></mxCell>
+        <mxCell id="fix" value="Diagnose coordinate /&#10;normalisation fault" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=11;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="90" y="244" width="200" height="40" as="geometry" /></mxCell>
+
+        <mxCell id="a3" value="Build sparse contact graph&#10;top-16 distal + ±3 local" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="330" y="324" width="270" height="44" as="geometry" /></mxCell>
+        <mxCell id="a4" value="Hold out 15% of edges as prediction targets" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="330" y="390" width="270" height="40" as="geometry" /></mxCell>
+
+        <!-- fork -->
+        <mxCell id="fork" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="180" y="456" width="580" height="8" as="geometry" /></mxCell>
+
+        <mxCell id="b_full" value="&lt;b&gt;Ours&lt;/b&gt;: real Hi-C&#10;contact-biased attention" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="180" y="486" width="170" height="46" as="geometry" /></mxCell>
+        <mxCell id="b_ctrl" value="Controls B0–B5&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;shuffled · distance-only · random&#10;· DNA-only · late fusion · align-only&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;dashed=1;fontSize=11;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="400" y="486" width="200" height="46" as="geometry" /></mxCell>
+        <mxCell id="b_seed" value="Seeds 0, 1, 2&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;control_seed fixed separately&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=11;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="640" y="486" width="170" height="46" as="geometry" /></mxCell>
+
+        <mxCell id="a5" value="Pretrain: masked DNA + distance-matched contrastive + contact prediction&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;matched parameters, data and steps across every arm&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="240" y="552" width="450" height="52" as="geometry" /></mxCell>
+
+        <!-- join bar. NOTE: the cell id must not be literally "join" -- the draw.io
+             CLI exporter fails on that id with a bare "Export failed". -->
+        <mxCell id="joinbar" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="180" y="620" width="580" height="8" as="geometry" /></mxCell>
+
+        <mxCell id="a6" value="Evaluate on held-out chromosomes (chr3, chr13, chr17) and held-out cell line" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="240" y="650" width="450" height="44" as="geometry" /></mxCell>
+
+        <mxCell id="d2" value="Real Hi-C beats shuffled Hi-C?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="365" y="716" width="200" height="86" as="geometry" /></mxCell>
+
+        <mxCell id="a_no" value="Report the null honestly.&#10;Tune graph sparsity, focus on&#10;long-range strata, re-test." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=11;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="60" y="736" width="230" height="52" as="geometry" /></mxCell>
+
+        <mxCell id="a7" value="Downstream: loop AUPRC · enhancer–promoter linking · Hi-C-free probe" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="240" y="828" width="450" height="44" as="geometry" /></mxCell>
+        <mxCell id="a8" value="Interpret: CTCF motif enrichment at high-attention contact anchors" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="240" y="892" width="450" height="44" as="geometry" /></mxCell>
+        <mxCell id="a9" value="Write results/&amp;lt;run&amp;gt;/metrics.json + run_config.yaml" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontFamily=Helvetica;arcSize=40;" vertex="1" parent="1">
+          <mxGeometry x="290" y="956" width="350" height="40" as="geometry" /></mxCell>
+
+        <mxCell id="end" value="" style="ellipse;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="450" y="1016" width="30" height="30" as="geometry" /></mxCell>
+
+        <!-- flows -->
+        <mxCell id="f1" style="endArrow=classic;html=1;strokeWidth=1.5;" edge="1" parent="1" source="start" target="a1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f2" style="endArrow=classic;html=1;strokeWidth=1.5;" edge="1" parent="1" source="a1" target="a2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f3" style="endArrow=classic;html=1;strokeWidth=1.5;" edge="1" parent="1" source="a2" target="d1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f4" value="no" style="endArrow=classic;html=1;strokeWidth=1.5;fontSize=11;" edge="1" parent="1" source="d1" target="fix"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f5" style="endArrow=classic;html=1;rounded=1;strokeWidth=1.5;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="fix" target="a2">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="190" y="184" /></Array></mxGeometry></mxCell>
+        <mxCell id="f6" value="yes" style="endArrow=classic;html=1;strokeWidth=1.5;fontSize=11;" edge="1" parent="1" source="d1" target="a3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f7" style="endArrow=classic;html=1;strokeWidth=1.5;" edge="1" parent="1" source="a3" target="a4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f8" style="endArrow=classic;html=1;strokeWidth=1.5;" edge="1" parent="1" source="a4" target="fork"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f9" style="endArrow=classic;html=1;strokeWidth=1.5;exitX=0.13;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="fork" target="b_full"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f10" style="endArrow=classic;html=1;strokeWidth=1.5;exitX=0.53;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="fork" target="b_ctrl"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f11" style="endArrow=classic;html=1;strokeWidth=1.5;exitX=0.87;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="fork" target="b_seed"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f13" style="endArrow=classic;html=1;strokeWidth=1.5;" edge="1" parent="1" source="a5" target="a6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f14" style="endArrow=classic;html=1;strokeWidth=1.5;" edge="1" parent="1" source="a6" target="d2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f15" value="no" style="endArrow=classic;html=1;strokeWidth=1.5;fontSize=11;" edge="1" parent="1" source="d2" target="a_no"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f16" value="yes" style="endArrow=classic;html=1;strokeWidth=1.5;fontSize=11;" edge="1" parent="1" source="d2" target="a7"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f17" style="endArrow=classic;html=1;rounded=1;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="a_no" target="a9">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="175" y="976" /></Array></mxGeometry></mxCell>
+        <mxCell id="f18" style="endArrow=classic;html=1;strokeWidth=1.5;" edge="1" parent="1" source="a7" target="a8"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f19" style="endArrow=classic;html=1;strokeWidth=1.5;" edge="1" parent="1" source="a8" target="a9"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f20" style="endArrow=classic;html=1;strokeWidth=1.5;" edge="1" parent="1" source="a9" target="end"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="j1" style="endArrow=classic;html=1;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="b_full" target="a5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="j2" style="endArrow=classic;html=1;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="b_ctrl" target="a5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="j3" style="endArrow=classic;html=1;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="b_seed" target="a5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="j4" style="endArrow=classic;html=1;strokeWidth=1.5;" edge="1" parent="1" source="a5" target="joinbar"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="j5" style="endArrow=classic;html=1;strokeWidth=1.5;" edge="1" parent="1" source="joinbar" target="a6"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

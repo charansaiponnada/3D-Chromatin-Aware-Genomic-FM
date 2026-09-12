@@ -1,0 +1,71 @@
+<mxfile host="app.diagrams.net" agent="ChromGraphFM" type="device">
+  <diagram name="SDLC" id="sdlc">
+    <mxGraphModel dx="1200" dy="700" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1060" pageHeight="520" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t" value="SDLC Model — Incremental with a decision gate per phase" style="text;html=1;align=center;fontSize=16;fontStyle=1;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="30" y="10" width="1000" height="24" as="geometry" /></mxCell>
+        <mxCell id="t2" value="Each increment is a working, evaluable artefact. No phase starts until the previous phase's gate is met — the gate, not the calendar, decides." style="text;html=1;align=center;fontSize=11;fontColor=#666666;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="30" y="34" width="1000" height="18" as="geometry" /></mxCell>
+
+        <mxCell id="p0" value="&lt;b&gt;Phase 0&lt;/b&gt;&#10;Scaffold&#10;&amp;amp; config" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="128" height="76" as="geometry" /></mxCell>
+        <mxCell id="p1" value="&lt;b&gt;Phase 1&lt;/b&gt;&#10;Data build&#10;&amp;amp; QC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="188" y="80" width="128" height="76" as="geometry" /></mxCell>
+        <mxCell id="p2" value="&lt;b&gt;Phase 2&lt;/b&gt;&#10;Contact graphs&#10;&amp;amp; controls" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="336" y="80" width="128" height="76" as="geometry" /></mxCell>
+        <mxCell id="p3" value="&lt;b&gt;Phase 3&lt;/b&gt;&#10;Baseline B0&#10;&amp;amp; eval harness" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="484" y="80" width="128" height="76" as="geometry" /></mxCell>
+        <mxCell id="p4" value="&lt;b&gt;Phase 4&lt;/b&gt;&#10;Contact-biased&#10;model" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="632" y="80" width="128" height="76" as="geometry" /></mxCell>
+        <mxCell id="p5" value="&lt;b&gt;Phase 5&lt;/b&gt;&#10;Matched sweep&#10;B0–B5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="780" y="80" width="128" height="76" as="geometry" /></mxCell>
+        <mxCell id="p6" value="&lt;b&gt;Phase 6&lt;/b&gt;&#10;Interpretation&#10;&amp;amp; write-up" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="920" y="80" width="120" height="76" as="geometry" /></mxCell>
+
+        <mxCell id="g0" value="gate: config rejects a chromosome leak" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;dashed=1;fontSize=10;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="40" y="196" width="128" height="62" as="geometry" /></mxCell>
+        <mxCell id="g1" value="gate: bins, windows and coordinates align at 5 inspected loci" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;dashed=1;fontSize=10;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="188" y="196" width="128" height="62" as="geometry" /></mxCell>
+        <mxCell id="g2" value="gate: target edges provably absent from input edges" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;dashed=1;fontSize=10;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="336" y="196" width="128" height="62" as="geometry" /></mxCell>
+        <mxCell id="g3" value="gate: B0 trains, checkpoints and evaluates end to end" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;dashed=1;fontSize=10;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="484" y="196" width="128" height="62" as="geometry" /></mxCell>
+        <mxCell id="g4" value="&lt;b&gt;STOP GATE&lt;/b&gt;&#10;real Hi-C &amp;gt; shuffled Hi-C, or the claim dies here" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;dashed=1;fontSize=10;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="632" y="196" width="128" height="62" as="geometry" /></mxCell>
+        <mxCell id="g5" value="gate: gain survives 3 seeds and held-out cell line" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;dashed=1;fontSize=10;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="780" y="196" width="128" height="62" as="geometry" /></mxCell>
+        <mxCell id="g6" value="gate: every number traces to a tracked file" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;dashed=1;fontSize=10;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="920" y="196" width="120" height="62" as="geometry" /></mxCell>
+
+        <mxCell id="lane" value="Increment delivers:" style="text;html=1;align=left;fontSize=11;fontStyle=1;fontColor=#666666;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="40" y="292" width="200" height="16" as="geometry" /></mxCell>
+        <mxCell id="del" value="runnable config + split validator&#160;&#160;→&#160;&#160;reproducible dataset + QC report&#160;&#160;→&#160;&#160;graphs + six control corruptions&#160;&#160;→&#160;&#160;baseline number&#160;&#160;→&#160;&#160;the mechanism&#160;&#160;→&#160;&#160;the comparison&#160;&#160;→&#160;&#160;the paper" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#cccccc;fontSize=11;fontFamily=Helvetica;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="312" width="1000" height="30" as="geometry" /></mxCell>
+
+        <mxCell id="why" value="&lt;b&gt;Why incremental and not waterfall:&lt;/b&gt; the central result is a comparison, so every phase must produce something measurable against a control. A waterfall plan would&#10;reach its first measurement in the final weeks, leaving no time to act on a null. &lt;b&gt;Why not agile sprints:&lt;/b&gt; the deliverable is a fixed scientific claim, not a changing backlog." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;fontSize=11;align=left;fontFamily=Helvetica;arcSize=6;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="362" width="1000" height="60" as="geometry" /></mxCell>
+
+        <mxCell id="fb" value="feedback: a failed gate returns to the previous increment, never skips forward" style="endArrow=classic;html=1;rounded=1;strokeWidth=1.4;dashed=1;strokeColor=#b85450;fontSize=10;fontColor=#b85450;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="g4" target="g1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="696" y="278" /><mxPoint x="252" y="278" /></Array></mxGeometry></mxCell>
+
+        <mxCell id="e0" style="endArrow=classic;html=1;strokeWidth=1.6;" edge="1" parent="1" source="p0" target="p1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e1" style="endArrow=classic;html=1;strokeWidth=1.6;" edge="1" parent="1" source="p1" target="p2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="endArrow=classic;html=1;strokeWidth=1.6;" edge="1" parent="1" source="p2" target="p3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="endArrow=classic;html=1;strokeWidth=1.6;" edge="1" parent="1" source="p3" target="p4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="endArrow=classic;html=1;strokeWidth=1.6;" edge="1" parent="1" source="p4" target="p5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" style="endArrow=classic;html=1;strokeWidth=1.6;" edge="1" parent="1" source="p5" target="p6"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="v0" style="endArrow=classic;html=1;strokeWidth=1.2;strokeColor=#999999;" edge="1" parent="1" source="p0" target="g0"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="v1" style="endArrow=classic;html=1;strokeWidth=1.2;strokeColor=#999999;" edge="1" parent="1" source="p1" target="g1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="v2" style="endArrow=classic;html=1;strokeWidth=1.2;strokeColor=#999999;" edge="1" parent="1" source="p2" target="g2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="v3" style="endArrow=classic;html=1;strokeWidth=1.2;strokeColor=#999999;" edge="1" parent="1" source="p3" target="g3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="v4" style="endArrow=classic;html=1;strokeWidth=1.2;strokeColor=#b85450;" edge="1" parent="1" source="p4" target="g4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="v5" style="endArrow=classic;html=1;strokeWidth=1.2;strokeColor=#999999;" edge="1" parent="1" source="p5" target="g5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="v6" style="endArrow=classic;html=1;strokeWidth=1.2;strokeColor=#999999;" edge="1" parent="1" source="p6" target="g6"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

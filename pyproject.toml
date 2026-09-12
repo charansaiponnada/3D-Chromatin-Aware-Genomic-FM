@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chromgraph"
+version = "0.1.0"
+description = "End-to-end Hi-C-conditioned genomic representation learning"
+requires-python = ">=3.10"
+dynamic = ["dependencies"]
+
+[tool.setuptools]
+packages = ["chromgraph"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }

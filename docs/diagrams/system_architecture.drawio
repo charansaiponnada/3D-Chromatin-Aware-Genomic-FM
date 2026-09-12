@@ -1,0 +1,78 @@
+<mxfile host="app.diagrams.net" agent="ChromGraphFM" type="device">
+  <diagram name="SystemArchitecture" id="sysarch">
+    <mxGraphModel dx="1400" dy="800" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1120" pageHeight="620" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t" value="ChromGraphFM — System Architecture" style="text;html=1;align=center;fontSize=17;fontStyle=1;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="40" y="12" width="1040" height="26" as="geometry" /></mxCell>
+
+        <mxCell id="l1" value="ACQUISITION" style="text;html=1;align=left;fontSize=10;fontStyle=1;fontColor=#888888;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="42" y="52" width="200" height="14" as="geometry" /></mxCell>
+        <mxCell id="l2" value="PREPROCESSING&#160;&#160;(Phases 1–2 · laptop, CPU)" style="text;html=1;align=left;fontSize=10;fontStyle=1;fontColor=#888888;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="42" y="188" width="320" height="14" as="geometry" /></mxCell>
+        <mxCell id="l3" value="PRETRAINING&#160;&#160;(Phases 3–4 · L40S cluster)" style="text;html=1;align=left;fontSize=10;fontStyle=1;fontColor=#888888;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="42" y="330" width="320" height="14" as="geometry" /></mxCell>
+        <mxCell id="l4" value="EVALUATION&#160;&#160;(Phases 5–6)" style="text;html=1;align=left;fontSize=10;fontStyle=1;fontColor=#888888;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="42" y="470" width="320" height="14" as="geometry" /></mxCell>
+
+        <mxCell id="a1" value="4DN / ENCODE&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;Hi-C .mcool, ICE-normalised&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1.6;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="40" y="72" width="230" height="52" as="geometry" /></mxCell>
+        <mxCell id="a2" value="UCSC hg38&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;reference FASTA + .fai&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1.6;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="300" y="72" width="200" height="52" as="geometry" /></mxCell>
+        <mxCell id="a3" value="CTCF ChIA-PET / HiChIP loops&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;evaluation labels only — unseen in pretraining&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1.6;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="530" y="72" width="290" height="52" as="geometry" /></mxCell>
+        <mxCell id="a4" value="data/manifest.json&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;accessions · URLs · md5 — the only thing git carries&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="850" y="72" width="230" height="52" as="geometry" /></mxCell>
+
+        <mxCell id="p1" value="Stream &amp;amp; bin&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;cooler · 5 kb · never densified&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="40" y="208" width="200" height="54" as="geometry" /></mxCell>
+        <mxCell id="p2" value="Extract DNA windows&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;pyfaidx · 5 kb per node · N-filtered&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="270" y="208" width="220" height="54" as="geometry" /></mxCell>
+        <mxCell id="p3" value="&lt;b&gt;Sparse contact graph builder&lt;/b&gt;&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;top-16 distal + ±3 local · 15% target edges held out&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="520" y="208" width="300" height="54" as="geometry" /></mxCell>
+        <mxCell id="p4" value="Sharded samples&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;128 nodes × 5 kb = 640 kb&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="850" y="208" width="230" height="54" as="geometry" /></mxCell>
+
+        <mxCell id="qc" value="QC gate:&#160; coordinate alignment&#160;·&#160; P(s) decay preserved&#160;·&#160; split disjointness&#160;·&#160; N-content&#160;&#160;→&#160;&#160;data/*_qc.json" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontSize=11;fontFamily=Helvetica;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="278" width="1040" height="28" as="geometry" /></mxCell>
+
+        <mxCell id="m1" value="&lt;b&gt;ChromGraphFM&lt;/b&gt;&#10;Bi-Mamba encoder&#10;+ contact-biased attention&#10;+ structure dropout" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="40" y="350" width="230" height="96" as="geometry" /></mxCell>
+        <mxCell id="m2" value="Three self-supervised objectives&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;masked DNA&#160;· distance-matched contrastive&#160;· contact prediction&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="300" y="350" width="250" height="96" as="geometry" /></mxCell>
+        <mxCell id="m3" value="&lt;b&gt;Control arms — matched params, data, steps&lt;/b&gt;&#10;&lt;font style=&quot;font-size:11px&quot;&gt;B0 DNA-only&#160;·&#160;B1 random graph&#160;·&#160;B2 distance-only&#10;B3 shuffled Hi-C&#160;·&#160;B4 late fusion&#160;·&#160;B5 contrastive-align only&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;dashed=1;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="580" y="350" width="300" height="96" as="geometry" /></mxCell>
+        <mxCell id="m4" value="Checkpoint&#10;+ run_config.yaml&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;written before step 1&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="910" y="350" width="170" height="96" as="geometry" /></mxCell>
+
+        <mxCell id="e1" value="Contact-map prediction&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;distance-stratified r&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="40" y="490" width="195" height="52" as="geometry" /></mxCell>
+        <mxCell id="e2" value="Loop detection&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;AUPRC, distance-matched&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="252" y="490" width="195" height="52" as="geometry" /></mxCell>
+        <mxCell id="e3" value="Enhancer–promoter linking&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;top-k recall, &amp;gt; 100 kb&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="464" y="490" width="200" height="52" as="geometry" /></mxCell>
+        <mxCell id="e4" value="&lt;b&gt;Hi-C-free probe&lt;/b&gt;&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;graph removed at inference&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="681" y="490" width="195" height="52" as="geometry" /></mxCell>
+        <mxCell id="e5" value="CTCF motif enrichment&#10;&lt;font style=&quot;font-size:10px&quot; color=&quot;#777777&quot;&gt;at high-attention anchors&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontFamily=Helvetica;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="893" y="490" width="187" height="52" as="geometry" /></mxCell>
+
+        <mxCell id="out" value="results/&amp;lt;run&amp;gt;/metrics.json&#160;&#160;·&#160;&#160;every reported number traces to a tracked file" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontFamily=Helvetica;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="562" width="1040" height="28" as="geometry" /></mxCell>
+
+        <mxCell id="x1" style="endArrow=classic;html=1;strokeWidth=1.6;" edge="1" parent="1" source="a1" target="p1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="x2" style="endArrow=classic;html=1;strokeWidth=1.6;" edge="1" parent="1" source="a2" target="p2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="x3" style="endArrow=classic;html=1;strokeWidth=1.6;" edge="1" parent="1" source="p1" target="p3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="x4" style="endArrow=classic;html=1;strokeWidth=1.6;" edge="1" parent="1" source="p2" target="p3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="x5" style="endArrow=classic;html=1;strokeWidth=1.6;" edge="1" parent="1" source="p3" target="p4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="x7" style="endArrow=classic;html=1;strokeWidth=1.6;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="p4" target="m4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="x8" style="endArrow=classic;html=1;strokeWidth=1.6;" edge="1" parent="1" source="m1" target="m2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="x9" style="endArrow=classic;html=1;strokeWidth=1.6;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="m3" target="m2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="x10" style="endArrow=classic;html=1;strokeWidth=1.6;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="m4" target="e5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="x11" style="endArrow=classic;html=1;rounded=1;strokeWidth=1.6;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="m1" target="e1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="20" y="398" /><mxPoint x="20" y="470" /><mxPoint x="137" y="470" /></Array></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
