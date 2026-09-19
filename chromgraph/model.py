@@ -52,7 +52,9 @@ def scatter_softmax(scores: torch.Tensor, index: torch.Tensor, n: int) -> torch.
     peak = peak.scatter_reduce(0, idx, scores, reduce="amax", include_self=True)
     peak = torch.nan_to_num(peak, neginf=0.0)
     exp = (scores - peak[index]).exp()
-    denom = torch.zeros_like(peak).index_add_(0, index, exp)
+    # Buffers take the dtype of what is added into them: under bf16 autocast
+    # exp() runs in float32 while scores/values can be bf16.
+    denom = exp.new_zeros(peak.shape).index_add_(0, index, exp)
     return exp / (denom[index] + 1e-12)
 
 
@@ -250,7 +252,7 @@ class ContactBiasedAttention(nn.Module):
         score = (q[dst] * k[src]).sum(-1) / math.sqrt(self.dh) + bias   # (E, H)
         attn = self.drop(scatter_softmax(score, dst, n))
         msg = attn.unsqueeze(-1) * v[src]                               # (E, H, dh)
-        out = torch.zeros_like(v).index_add_(0, dst, msg)
+        out = msg.new_zeros(v.shape).index_add_(0, dst, msg)   # msg is fp32 under autocast
         return self.proj(out.reshape(n, -1))
 
 
