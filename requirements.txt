@@ -1,7 +1,9 @@
 # Laptop (Phases 0-2, CPU only):  pip install -e .
-# GPU box: install the CUDA torch build FIRST, then this file:
-#   pip install torch --index-url https://download.pytorch.org/whl/cu121
-#   pip install -e .
+# GPU box (Linux): plain `pip install -e .` already pulls a CUDA build of torch.
+#   Verified: torch 2.14.0+cu130 on 2x L40S, driver CUDA 13.0.
+#   Older driver? install torch first from a matching index, e.g.
+#   pip install torch --index-url https://download.pytorch.org/whl/cu126
+#   (cu121 stops at torch 2.5.1, below the floor below -- do not use it.)
 
 # --- core ---
 numpy>=1.26,<3

@@ -15,10 +15,19 @@ python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\a
 pip install -e .
 ```
 
-On the GPU box, install the CUDA build of torch **first**, then the rest:
+On a Linux GPU box, plain `pip install -e .` already pulls a CUDA build of
+torch (verified: torch 2.14.0+cu130 on 2× L40S, driver CUDA 13.0). Check it:
 
 ```bash
-pip install torch --index-url https://download.pytorch.org/whl/cu121
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+```
+
+Only if the driver is older than the default wheel's CUDA, install torch first
+from a matching index, then the rest. **Not cu121** — it stops at torch 2.5.1,
+below the `torch>=2.6` floor, and pip will silently replace it.
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cu126
 pip install -e .
 ```
 
