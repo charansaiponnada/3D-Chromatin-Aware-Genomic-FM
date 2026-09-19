@@ -78,8 +78,13 @@ chromosome.
 
 **Check the QC before going further.** In each `qc.json`:
 
-- `mean_oe_by_separation` should be **1.0 at every separation** — that is the
-  detrending invariant, and if it is not 1.0 the distance correction is broken.
+- `ps_slope_10kb_1mb` — the log-log slope of P(s). Mammalian Hi-C is roughly
+  **-0.75 to -1.2**. Near 0 or positive means `expected` is wrong.
+- `spearman_oe_vs_separation` should be **near 0**. Strongly negative means the
+  distance trend survived detrending.
+- (Mean O/E ≈ 1.0 is *not* a check — it holds by construction and once hid a
+  real bias: averaging only observed pixels flattened long-range P(s) by
+  0.14–0.39. `expected` now divides by every ICE-valid pair, zeros included.)
 - `frac_usable` should be around 0.9. Much lower means ICE filtered most bins.
 - `checksums` are the reproducibility gate — see step 4.
 
