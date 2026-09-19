@@ -193,6 +193,36 @@ def contact_loss(model, out, batch) -> torch.Tensor:
     return F.binary_cross_entropy_with_logits(logits, batch["tgt_strength"][tgt_mask])
 
 
+N_NEGATIVES = 16
+
+
+def contrastive_pairs(tgt_index: np.ndarray, tgt_mask: np.ndarray, n: int,
+                      rng: np.random.Generator, count: int = N_NEGATIVES):
+    """Every held-out positive in the batch, each with distance-matched negatives.
+
+    Returns (batch_k, pos (M, 2), neg (M, count, 2), neg_ok (M, count)). A
+    positive whose separation leaves room for fewer than `count` negatives
+    keeps the ones that exist; padded slots are masked out. A positive with no
+    negative at all is dropped -- there is nothing to contrast it against.
+    """
+    ks, pos, neg, ok = [], [], [], []
+    for k in range(tgt_index.shape[0]):
+        for t in np.flatnonzero(tgt_mask[k]):
+            pi, pj = int(tgt_index[k, 0, t]), int(tgt_index[k, 1, t])
+            negatives = distance_matched_negatives(n, pi, pj, count=count, rng=rng)
+            m = negatives.shape[1]
+            if m == 0:
+                continue
+            pad = np.zeros((2, count), np.int64)
+            pad[:, :m] = negatives
+            ks.append(k); pos.append((pi, pj)); neg.append(pad.T)
+            ok.append(np.arange(count) < m)
+    if not ks:
+        return None
+    return (np.asarray(ks, np.int64), np.asarray(pos, np.int64),
+            np.stack(neg), np.stack(ok))
+
+
 def contrastive_loss(model, out, batch, cfg: Config,
                      rng: np.random.Generator) -> torch.Tensor:
     """Touching pairs should look alike; distance-matched pairs should not.
@@ -206,35 +236,32 @@ def contrastive_loss(model, out, batch, cfg: Config,
     they would sit further apart than the positives on average, and the model
     could minimise this by measuring distance -- which it can already read off
     the input.
+
+    EVERY held-out positive contributes, each against its own negatives, and the
+    loss is the mean over positives. Using one random positive per sample threw
+    away ~99.5% of them (about 220 per 128-window sample): 8 noisy terms per
+    optimiser step, and at step 2000 the validation loss sat at chance
+    (2.8322 vs ln 17 = 2.8332).
     """
     tgt_mask = batch["tgt_mask"]
     if not tgt_mask.any():
         return out.z.sum() * 0.0
 
     z = F.normalize(model.project(out.z), dim=-1)
-    b, n = z.shape[0], z.shape[1]
-    tau = cfg.train.temperature
-    terms = []
-
-    for k in range(b):
-        present = tgt_mask[k].nonzero(as_tuple=True)[0]
-        if present.numel() == 0:
-            continue
-        pick = present[int(rng.integers(present.numel()))]
-        pi = int(batch["tgt_index"][k, 0, pick])
-        pj = int(batch["tgt_index"][k, 1, pick])
-        negatives = distance_matched_negatives(n, pi, pj, count=16, rng=rng)
-        if negatives.shape[1] == 0:
-            continue
-        neg = torch.from_numpy(negatives).to(z.device)
-        pos_sim = (z[k, pi] * z[k, pj]).sum() / tau
-        neg_sim = (z[k, neg[0]] * z[k, neg[1]]).sum(-1) / tau
-        logits = torch.cat([pos_sim.view(1), neg_sim])
-        terms.append(-F.log_softmax(logits, dim=0)[0])
-
-    if not terms:
+    n = z.shape[1]
+    pairs = contrastive_pairs(batch["tgt_index"].cpu().numpy(),
+                              tgt_mask.cpu().numpy(), n, rng)
+    if pairs is None:
         return out.z.sum() * 0.0
-    return torch.stack(terms).mean()
+
+    ks, pos, neg, ok = (torch.from_numpy(a).to(z.device) for a in pairs)
+    tau = cfg.train.temperature
+    pos_sim = (z[ks, pos[:, 0]] * z[ks, pos[:, 1]]).sum(-1) / tau            # (M,)
+    kk = ks.unsqueeze(1).expand_as(ok)
+    neg_sim = (z[kk, neg[..., 0]] * z[kk, neg[..., 1]]).sum(-1) / tau        # (M, C)
+    neg_sim = neg_sim.masked_fill(~ok, float("-inf"))
+    logits = torch.cat([pos_sim.unsqueeze(1), neg_sim], dim=1)
+    return -F.log_softmax(logits.float(), dim=1)[:, 0].mean()
 
 
 def compute_losses(model, out, batch, cfg: Config, rng) -> Losses:

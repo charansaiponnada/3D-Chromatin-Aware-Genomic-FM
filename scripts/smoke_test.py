@@ -32,6 +32,7 @@ from chromgraph.evaluate import (average_precision, contact_metrics,     # noqa:
 from chromgraph.graph import ARMS, build_sample, sample_starts           # noqa: E402
 from chromgraph.model import build_model, scatter_softmax                # noqa: E402
 from chromgraph.train import (ShardDataset, collate, compute_losses,     # noqa: E402
+                              contrastive_loss, contrastive_pairs,
                               pick_device, to_device, train)
 
 failures: list[str] = []
@@ -261,6 +262,25 @@ def main() -> int:
         check("all three losses are finite",
               all(np.isfinite(v) for v in losses.items().values()),
               json.dumps({k: round(v, 4) for k, v in losses.items().items()}))
+
+        # The contrastive term must use EVERY held-out positive. Taking one per
+        # sample discarded ~99.5% of them and left the validation loss at chance.
+        tgt_np, idx_np = batch["tgt_mask"].cpu().numpy(), batch["tgt_index"].cpu().numpy()
+        n_nodes = batch["seq"].shape[1]
+        expect = sum(1 for k in range(tgt_np.shape[0]) for t in np.flatnonzero(tgt_np[k])
+                     if n_nodes - abs(int(idx_np[k, 1, t]) - int(idx_np[k, 0, t])) - 1 > 0)
+        pairs = contrastive_pairs(idx_np, tgt_np, n_nodes, np.random.default_rng(0))
+        used = 0 if pairs is None else len(pairs[0])
+        check("the contrastive loss uses every held-out positive",
+              used == expect and used > tgt_np.shape[0], f"{used} of {expect}")
+        # Identical embeddings carry no information, so the loss must be exactly
+        # chance: ln(1 + negatives) per positive, averaged.
+        flat = type("Flat", (), {"project": staticmethod(lambda z: torch.ones_like(z))})()
+        chance = float(np.mean([np.log1p(row.sum()) for row in pairs[3]]))
+        got = float(contrastive_loss(flat, out, batch, cfg, np.random.default_rng(0)))
+        check("identical embeddings give exactly chance contrastive loss",
+              abs(got - chance) < 1e-4, f"{got:.5f} vs chance {chance:.5f}")
+
         losses.total.backward()
         grads = [p.grad for p in model.parameters() if p.grad is not None]
         check("gradients reach the parameters", len(grads) > 0, f"{len(grads)} tensors")
