@@ -245,13 +245,19 @@ def build_chromosome(cfg: Config, manifest: dict, cell_line: str, chrom: str,
     entry = manifest["cell_lines"][cell_line]["mcool"]
     mcool = root / "raw" / f"{entry['accession']}.mcool"
     if not mcool.exists():
+        # A .mcool with no md5 in the manifest is fetched unverified, which is
+        # the one case download()'s "a silently truncated .mcool produces a
+        # dataset that looks fine and is wrong" guard cannot catch. Pass the
+        # digest through when the manifest has one. Only reached when the file
+        # is absent, so a present .mcool is never re-hashed.
+        expect = entry.get("md5")
         try:
-            download(entry["url"], mcool)
+            download(entry["url"], mcool, expect_md5=expect)
         except Exception as primary:                       # noqa: BLE001
             if "mirror" not in entry:
                 raise
             print(f"    portal fetch failed ({primary}); trying mirror")
-            download(entry["mirror"], mcool)
+            download(entry["mirror"], mcool, expect_md5=expect)
 
     print(f"  {cell_line} {chrom}: reading contacts")
     band = read_band(mcool, chrom, bin_size, band_bp)

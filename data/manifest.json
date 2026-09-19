@@ -9,6 +9,13 @@
     "portal's @@download endpoint, which redirects to S3 -- more durable than",
     "pinning the S3 object UUID.",
     "",
+    "GM12878's mcool md5 was computed from the fully downloaded file on the",
+    "L40S box and cross-checked against S3's own multipart ETag",
+    "(55f2a41867b297a031091266680da249-3268, 8 MiB parts), so it attests to the",
+    "bytes S3 stores, not merely to one local copy. K562 and IMR90 have no md5",
+    "because those files have not been downloaded yet -- add each one only from",
+    "a file that has actually been fetched and checked, never from a guess.",
+    "",
     "Depth caveat: GM12878's map is built from 72 experiments. K562 has 6 and",
     "IMR90 has 7, so both companion maps are markedly shallower. That matters",
     "for the held-out cell-line test and must be disclosed alongside any",
@@ -30,7 +37,9 @@
       "mcool": {
         "accession": "4DNFIXP4QG5B",
         "url": "https://data.4dnucleome.org/files-processed/4DNFIXP4QG5B/@@download/4DNFIXP4QG5B.mcool",
-        "mirror": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/d6abea45-b0bb-4154-9854-1d3075b98097/4DNFIXP4QG5B.mcool"
+        "mirror": "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/d6abea45-b0bb-4154-9854-1d3075b98097/4DNFIXP4QG5B.mcool",
+        "md5": "a4ff0d005aa78bcd544977b29f152ee6",
+        "bytes": 27408885254
       },
       "boundaries_bed": {
         "accession": "4DNFIVK5JOFU",
