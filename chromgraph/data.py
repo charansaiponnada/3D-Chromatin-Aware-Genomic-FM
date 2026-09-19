@@ -196,31 +196,48 @@ def read_band(mcool_path: Path, chrom: str, bin_size: int, band_bp: int) -> Cont
     order = np.lexsort((col, row))
     row, col, raw = row[order], col[order], raw[order]
 
-    oe, strength, expected = detrend(row, col, raw, max_sep)
+    # Bins ICE kept (finite weight). Every pair of them at separation s counts
+    # toward expected[s], observed or not -- an unobserved pair is a zero.
+    weight = clr.bins().fetch(chrom)["weight"].to_numpy()
+    valid = np.isfinite(weight)
+
+    oe, strength, expected = detrend(row, col, raw, max_sep, valid)
     return ContactBand(n_bins, bin_size, chrom, row, col, raw, oe, strength, expected)
 
 
+def valid_pairs_by_separation(valid: np.ndarray, max_sep: int) -> np.ndarray:
+    """n[s] = number of bin pairs (i, i+s) where both bins passed ICE."""
+    n = np.zeros(max_sep + 1, dtype=np.int64)
+    for s in range(1, min(max_sep, valid.size - 1) + 1):
+        n[s] = np.count_nonzero(valid[:-s] & valid[s:])
+    return n
+
+
 def detrend(row: np.ndarray, col: np.ndarray, raw: np.ndarray,
-            max_sep: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+            max_sep: int, valid: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Divide out the distance-decay curve P(s).
 
-    expected[s] is the mean balanced count over all observed pixels at
-    separation s. Dividing by it leaves a value near 1 for "as much contact as
-    is normal at this distance" and above 1 for a genuine enrichment.
+    expected[s] = total balanced count at separation s / number of VALID bin
+    pairs at s, counting pairs the matrix never observed as zeros. Averaging
+    only the observed pixels instead overstates expected wherever the map is
+    sparse -- long range, above ~500 kb -- which flattens P(s), deflates O/E
+    there, and biases which distal edges top-k selects.
 
-    This single step is what stops the model from learning "near things touch",
-    which it can already read off the input.
+    Dividing by it leaves a value near 1 for "as much contact as is normal at
+    this distance" and above 1 for a genuine enrichment. This single step is
+    what stops the model from learning "near things touch", which it can
+    already read off the input.
     """
     sep = (col - row).astype(np.int64)
     expected = np.ones(max_sep + 1, dtype=np.float32)
     if sep.size:
         total = np.bincount(sep, weights=raw.astype(np.float64), minlength=max_sep + 1)
-        count = np.bincount(sep, minlength=max_sep + 1)
+        pairs = valid_pairs_by_separation(valid, max_sep)
         with np.errstate(invalid="ignore", divide="ignore"):
-            mean = np.where(count > 0, total / np.maximum(count, 1), 1.0)
-        # A separation with no observed pixels keeps expected = 1 rather than 0,
-        # so a later division can never produce inf.
-        expected = np.where(mean > 0, mean, 1.0).astype(np.float32)[: max_sep + 1]
+            mean = np.where(pairs > 0, total[: max_sep + 1] / np.maximum(pairs, 1), 1.0)
+        # A separation with no valid pairs or no contact keeps expected = 1
+        # rather than 0, so a later division can never produce inf.
+        expected = np.where(mean > 0, mean, 1.0).astype(np.float32)
 
     oe = (raw / expected[sep]).astype(np.float32)
     strength = (oe / (1.0 + oe)).astype(np.float32)
@@ -301,12 +318,21 @@ def quality_report(cfg: Config, cell_line: str, chrom: str, band: ContactBand,
         if s < band.expected.size:
             ps_curve[str(s)] = float(band.expected[s])
 
-    # The invariant detrending must satisfy: mean O/E is 1 at every separation.
-    oe_by_sep = {}
-    for s in (1, 5, 20, 50):
-        m = sep == s
-        if m.any():
-            oe_by_sep[str(s)] = float(band.oe[m].mean())
+    # Two checks that can actually fail. (Mean O/E over observed pixels is
+    # ~1 by construction and caught nothing, so it is gone.)
+    #  - P(s) log-log slope, 10 kb .. 1 Mb: mammalian Hi-C is roughly -0.75 to
+    #    -1.2. Near 0 or positive means expected is wrong.
+    #  - Spearman(O/E, separation): near 0 if the distance trend is removed;
+    #    strongly negative if it survived detrending.
+    from scipy.stats import spearmanr
+    s_lo = max(1, 10_000 // band.bin_size)
+    s_hi = min(band.expected.size - 1, 1_000_000 // band.bin_size)
+    s = np.arange(s_lo, s_hi + 1)
+    ps_slope = (float(np.polyfit(np.log10(s), np.log10(band.expected[s]), 1)[0])
+                if s.size >= 2 else None)
+    rng = np.random.default_rng(0)
+    pick = rng.choice(sep.size, size=min(sep.size, 1_000_000), replace=False)
+    oe_sep_rho = float(spearmanr(band.oe[pick], sep[pick])[0]) if sep.size > 2 else None
 
     return {
         "cell_line": cell_line,
@@ -320,7 +346,8 @@ def quality_report(cfg: Config, cell_line: str, chrom: str, band: ContactBand,
         "n_frac_over_threshold": int((n_frac > cfg.data.max_n_frac).sum()),
         "max_separation_bins": int(sep.max()) if sep.size else 0,
         "expected_by_separation": ps_curve,
-        "mean_oe_by_separation": oe_by_sep,
+        "ps_slope_10kb_1mb": ps_slope,
+        "spearman_oe_vs_separation": oe_sep_rho,
         "strength_min": float(band.strength.min()) if band.strength.size else 0.0,
         "strength_max": float(band.strength.max()) if band.strength.size else 0.0,
         "checksums": {

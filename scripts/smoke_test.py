@@ -26,7 +26,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chromgraph.config import load_config                                # noqa: E402
-from chromgraph.data import N_CODE                                       # noqa: E402
+from chromgraph.data import N_CODE, detrend                              # noqa: E402
 from chromgraph.evaluate import (average_precision, contact_metrics,     # noqa: E402
                                  pearson)
 from chromgraph.graph import ARMS, build_sample, sample_starts           # noqa: E402
@@ -105,12 +105,8 @@ def write_fake_chromosome(root: Path, cell_line: str, chrom: str, cfg,
     both_anchor = is_anchor[row] & is_anchor[col] & ((col - row) == loop_sep)
     raw[both_anchor] *= 5.0
 
-    sep = (col - row).astype(np.int64)
-    total = np.bincount(sep, weights=raw.astype(np.float64), minlength=max_sep + 1)
-    count = np.bincount(sep, minlength=max_sep + 1)
-    expected = np.where(count > 0, total / np.maximum(count, 1), 1.0).astype(np.float32)
-    oe = (raw / expected[sep]).astype(np.float32)
-    strength = (oe / (1.0 + oe)).astype(np.float32)
+    # The real detrend, not a copy of it.
+    oe, strength, expected = detrend(row, col, raw, max_sep, np.ones(n_bins, bool))
 
     n_frac = (seq == N_CODE).mean(axis=1).astype(np.float32)
     coverage = np.bincount(row, weights=raw.astype(np.float64), minlength=n_bins)
@@ -162,6 +158,18 @@ def main() -> int:
         })
         for chrom in ("chrA", "chrB", "chrC"):
             write_fake_chromosome(tmp, "FAKE", chrom, cfg)
+
+        print("PHASE 1  detrending")
+        # 4 valid bins, 3 pairs at separation 1, only one observed (count 6).
+        # Unobserved pairs are zeros: expected[1] = 6/3 = 2, not 6/1 = 6.
+        _, _, exp = detrend(np.array([0]), np.array([1]), np.array([6.0], np.float32),
+                            1, np.ones(4, bool))
+        check("expected counts unobserved valid pairs as zeros",
+              abs(float(exp[1]) - 2.0) < 1e-6, f"expected[1] = {float(exp[1])}")
+        _, _, exp = detrend(np.array([0]), np.array([1]), np.array([6.0], np.float32),
+                            1, np.array([True, True, False, False]))
+        check("ICE-filtered bins are excluded from the denominator",
+              abs(float(exp[1]) - 6.0) < 1e-6, f"expected[1] = {float(exp[1])}")
 
         print("PHASE 2  graph construction")
         from chromgraph.data import load_chromosome
