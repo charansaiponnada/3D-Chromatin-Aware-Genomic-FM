@@ -364,6 +364,8 @@ def train(cfg: Config, run_name: str, device: torch.device,
         if step % cfg.train.log_every == 0 or step == steps - 1:
             rate = (step - start_step + 1) / max(1e-9, time.time() - t0)
             row = {"step": step, "lr": lr_at(step, cfg), "steps_per_sec": rate, **agg}
+            if str(device).startswith("cuda"):
+                row["peak_vram_gb"] = torch.cuda.max_memory_allocated() / 2**30
             history.append(row)
             print(f"  step {step:>6}  total {agg['total']:.4f}  "
                   f"dna {agg['dna']:.4f}  contrast {agg['contrast']:.4f}  "
