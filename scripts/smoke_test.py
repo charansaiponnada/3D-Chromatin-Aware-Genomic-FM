@@ -26,7 +26,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chromgraph.config import load_config                                # noqa: E402
-from chromgraph.data import N_CODE, detrend                              # noqa: E402
+from chromgraph.data import N_CODE, detrend, oe_separation_rho           # noqa: E402
 from chromgraph.evaluate import (average_precision, contact_metrics,     # noqa: E402
                                  pearson)
 from chromgraph.graph import ARMS, build_sample, sample_starts           # noqa: E402
@@ -170,6 +170,23 @@ def main() -> int:
                             1, np.array([True, True, False, False]))
         check("ICE-filtered bins are excluded from the denominator",
               abs(float(exp[1]) - 6.0) < 1e-6, f"expected[1] = {float(exp[1])}")
+
+        # Spearman QC is confined to separations a graph can hold. Pixels past
+        # that limit must not move it, however they are distributed.
+        rr = np.array([0, 0, 1, 1, 2], np.int64)
+        cc = np.array([1, 2, 2, 3, 4], np.int64)
+        oo = np.array([1.0, 0.5, 1.2, 0.8, 1.0])
+        ok = np.ones(20, bool)
+        base = oe_separation_rho(rr, cc, oo, ok, max_sep=2)
+        far = oe_separation_rho(np.r_[rr, 0, 3], np.r_[cc, 15, 19],
+                                np.r_[oo, 50.0, 90.0], ok, max_sep=2)
+        check("Spearman QC ignores separations no graph can hold",
+              base["observed"] == far["observed"] and base["with_zeros"] == far["with_zeros"],
+              f"rho = {base['observed']:+.4f}")
+        # 20 valid bins: 19 pairs at s=1, 18 at s=2 -> 37 in the zeros variant.
+        check("the zeros variant counts every unobserved ICE-valid pair",
+              base["n_with_zeros"] == 37 and base["n_observed"] == 5,
+              f"{base['n_observed']} observed, {base['n_with_zeros']} with zeros")
 
         print("PHASE 2  graph construction")
         from chromgraph.data import load_chromosome

@@ -150,6 +150,7 @@ class ContactBand:
     strength: np.ndarray     # float32 in (0, 1), oe / (1 + oe)
     expected: np.ndarray     # float32, expected value per separation s (index = s)
     coverage: np.ndarray = field(default_factory=lambda: np.empty(0, np.float32))
+    valid: np.ndarray = field(default_factory=lambda: np.empty(0, bool))  # ICE-kept bins
 
 
 def read_band(mcool_path: Path, chrom: str, bin_size: int, band_bp: int) -> ContactBand:
@@ -202,7 +203,57 @@ def read_band(mcool_path: Path, chrom: str, bin_size: int, band_bp: int) -> Cont
     valid = np.isfinite(weight)
 
     oe, strength, expected = detrend(row, col, raw, max_sep, valid)
-    return ContactBand(n_bins, bin_size, chrom, row, col, raw, oe, strength, expected)
+    return ContactBand(n_bins, bin_size, chrom, row, col, raw, oe, strength, expected,
+                       valid=valid)
+
+
+def oe_separation_rho(row: np.ndarray, col: np.ndarray, oe: np.ndarray,
+                      valid: np.ndarray, max_sep: int,
+                      sample: int = 1_000_000, seed: int = 0) -> dict:
+    """Spearman(O/E, separation) over separations 1..max_sep only.
+
+    `max_sep` should be the longest edge a training graph can hold
+    (nodes_per_sample - 1). Beyond it the pixels never reach the model, and on
+    sparse long-range data they distort the statistic: with zeros in
+    `expected`, the mean O/E over *observed* pixels at s is 1/obs_frac(s),
+    which rises as the map thins out -- a selection effect, not a residual
+    distance trend.
+
+    Two values, because neither alone is the whole picture:
+      observed    -- over stored (nonzero) pixels. The gated number.
+      with_zeros  -- unobserved ICE-valid pairs included as O/E = 0. Detrending
+                     equalises the mean at each s, not the distribution shape,
+                     so on sparse data this leans negative even when correct.
+    """
+    from scipy.stats import spearmanr
+
+    sep = (col - row).astype(np.int64)
+    keep = (sep >= 1) & (sep <= max_sep)
+    s_obs, oe_obs = sep[keep], oe[keep].astype(np.float64)
+
+    both = valid[row[keep]] & valid[col[keep]] if valid.size else np.ones(s_obs.size, bool)
+    pairs = valid_pairs_by_separation(valid, max_sep) if valid.size else None
+    if pairs is not None:
+        seen = np.bincount(s_obs[both], minlength=max_sep + 1)[: max_sep + 1]
+        zeros = np.maximum(pairs - seen, 0)
+        zeros[0] = 0
+        s_all = np.concatenate([s_obs[both], np.repeat(np.arange(max_sep + 1), zeros)])
+        oe_all = np.concatenate([oe_obs[both], np.zeros(int(zeros.sum()))])
+    else:
+        s_all, oe_all = s_obs, oe_obs
+
+    rng = np.random.default_rng(seed)
+
+    def rho(x: np.ndarray, s: np.ndarray) -> float | None:
+        if s.size < 3:
+            return None
+        if s.size > sample:
+            pick = rng.choice(s.size, size=sample, replace=False)
+            x, s = x[pick], s[pick]
+        return float(spearmanr(x, s)[0])
+
+    return {"observed": rho(oe_obs, s_obs), "with_zeros": rho(oe_all, s_all),
+            "n_observed": int(s_obs.size), "n_with_zeros": int(s_all.size)}
 
 
 def valid_pairs_by_separation(valid: np.ndarray, max_sep: int) -> np.ndarray:
@@ -323,16 +374,16 @@ def quality_report(cfg: Config, cell_line: str, chrom: str, band: ContactBand,
     #  - P(s) log-log slope, 10 kb .. 1 Mb: mammalian Hi-C is roughly -0.75 to
     #    -1.2. Near 0 or positive means expected is wrong.
     #  - Spearman(O/E, separation): near 0 if the distance trend is removed;
-    #    strongly negative if it survived detrending.
-    from scipy.stats import spearmanr
+    #    strongly negative if it survived detrending. See oe_separation_rho.
     s_lo = max(1, 10_000 // band.bin_size)
     s_hi = min(band.expected.size - 1, 1_000_000 // band.bin_size)
     s = np.arange(s_lo, s_hi + 1)
     ps_slope = (float(np.polyfit(np.log10(s), np.log10(band.expected[s]), 1)[0])
                 if s.size >= 2 else None)
-    rng = np.random.default_rng(0)
-    pick = rng.choice(sep.size, size=min(sep.size, 1_000_000), replace=False)
-    oe_sep_rho = float(spearmanr(band.oe[pick], sep[pick])[0]) if sep.size > 2 else None
+    # Spearman only over separations a training graph can hold: a sample is
+    # nodes_per_sample contiguous bins, so no edge is longer than that minus 1.
+    graph_max = min(cfg.data.nodes_per_sample - 1, band.expected.size - 1)
+    rho = oe_separation_rho(band.row, band.col, band.oe, band.valid, graph_max)
 
     return {
         "cell_line": cell_line,
@@ -347,7 +398,9 @@ def quality_report(cfg: Config, cell_line: str, chrom: str, band: ContactBand,
         "max_separation_bins": int(sep.max()) if sep.size else 0,
         "expected_by_separation": ps_curve,
         "ps_slope_10kb_1mb": ps_slope,
-        "spearman_oe_vs_separation": oe_sep_rho,
+        "spearman_oe_vs_separation": rho["observed"],
+        "spearman_oe_vs_separation_with_zeros": rho["with_zeros"],
+        "spearman_separation_range_bins": [1, int(graph_max)],
         "strength_min": float(band.strength.min()) if band.strength.size else 0.0,
         "strength_max": float(band.strength.max()) if band.strength.size else 0.0,
         "checksums": {
