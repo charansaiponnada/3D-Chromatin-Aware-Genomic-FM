@@ -340,6 +340,11 @@ class ChromGraphFM(nn.Module):
         total = b * n
 
         h = self.encoder(seq.reshape(total, -1))                 # (B*N, d)
+        # The reconstruction target is the window's REAL encoding. Masking
+        # below overwrites h, so keep the original: returning the overwritten
+        # h made the target the mask token itself, which the residual stream
+        # copies straight through -- a loss near 0 that learns nothing.
+        h_true = h
 
         masked = torch.zeros(total, dtype=torch.bool, device=h.device)
         if mask_frac > 0 and self.training:
@@ -357,7 +362,7 @@ class ChromGraphFM(nn.Module):
         if batch.get("late_fusion", False):
             z = self.late_fusion(torch.cat([z, batch["node_hic_feat"].reshape(total, 3)], -1))
 
-        return ModelOutput(z=z.view(b, n, -1), h=h.view(b, n, -1),
+        return ModelOutput(z=z.view(b, n, -1), h=h_true.view(b, n, -1),
                            masked_nodes=masked.view(b, n),
                            h_recon=self.recon(z).view(b, n, -1),
                            dropped_structure=dropped)

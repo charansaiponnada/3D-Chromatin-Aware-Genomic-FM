@@ -240,6 +240,22 @@ def main() -> int:
         check("masking actually masked something", bool(out.masked_nodes.any()),
               f"{int(out.masked_nodes.sum())} of {b * n} windows")
 
+        # The masked-window target must be the window's real encoding. When it
+        # was the overwritten h, the target WAS the mask token: the residual
+        # stream copied it through, the loss fell to ~3e-5, and nothing was
+        # learned -- while "the masked-window loss decreases" still passed.
+        k = out.masked_nodes & batch["node_ok"]
+        gap = float((out.h[k] - model.mask_token).abs().max()) if k.any() else 0.0
+        check("the masked-window target is the real encoding, not the mask token",
+              gap > 1e-3, f"max |target - mask_token| = {gap:.3f}")
+        # An untrained model knows nothing about a hidden window, so it cannot
+        # beat predicting the mean encoding. If it does, the answer is leaking.
+        with torch.no_grad():
+            recon = float(torch.mean((out.h_recon[k] - out.h[k]) ** 2))
+            mean_guess = float(torch.mean((out.h[batch["node_ok"]].mean(0) - out.h[k]) ** 2))
+        check("an untrained model cannot beat guessing the mean for a masked window",
+              recon > mean_guess, f"recon/mean-guess = {recon / max(mean_guess, 1e-12):.2f}")
+
         rng = np.random.default_rng(0)
         losses = compute_losses(model, out, batch, cfg, rng)
         check("all three losses are finite",
