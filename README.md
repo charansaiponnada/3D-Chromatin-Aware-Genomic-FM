@@ -5,7 +5,6 @@ contact graphs bias attention *inside* the sequence encoder during
 self-supervised pretraining, rather than being fused in after the sequence
 representation has already been learned.
 
-B.Tech Mini Project 23CS7552 — VR Siddhartha Engineering College, Dept. of CSE.
 
 ## The question
 
