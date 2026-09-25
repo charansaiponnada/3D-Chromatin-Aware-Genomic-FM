@@ -1,0 +1,44 @@
+size 27,408,885,254 bytes  accept-ranges='bytes'  workers=16 chunk=32MiB
+  20/817 chunks  0.62/25.53 GiB  3.6 MiB/s  eta 118 min
+  40/817 chunks  1.25/25.53 GiB  3.8 MiB/s  eta 110 min
+  60/817 chunks  1.88/25.53 GiB  3.8 MiB/s  eta 107 min
+  80/817 chunks  2.50/25.53 GiB  3.9 MiB/s  eta 101 min
+  100/817 chunks  3.12/25.53 GiB  3.6 MiB/s  eta 107 min
+  120/817 chunks  3.75/25.53 GiB  3.6 MiB/s  eta 102 min
+  140/817 chunks  4.38/25.53 GiB  3.7 MiB/s  eta 96 min
+  160/817 chunks  5.00/25.53 GiB  3.9 MiB/s  eta 90 min
+  180/817 chunks  5.62/25.53 GiB  4.0 MiB/s  eta 85 min
+  200/817 chunks  6.25/25.53 GiB  4.1 MiB/s  eta 80 min
+  220/817 chunks  6.88/25.53 GiB  4.2 MiB/s  eta 77 min
+  240/817 chunks  7.50/25.53 GiB  4.2 MiB/s  eta 73 min
+  260/817 chunks  8.12/25.53 GiB  4.3 MiB/s  eta 69 min
+  280/817 chunks  8.75/25.53 GiB  4.4 MiB/s  eta 65 min
+  300/817 chunks  9.38/25.53 GiB  4.6 MiB/s  eta 60 min
+  320/817 chunks  10.00/25.53 GiB  4.7 MiB/s  eta 56 min
+  340/817 chunks  10.62/25.53 GiB  4.8 MiB/s  eta 53 min
+  360/817 chunks  11.25/25.53 GiB  4.7 MiB/s  eta 52 min
+  380/817 chunks  11.88/25.53 GiB  4.8 MiB/s  eta 48 min
+  400/817 chunks  12.50/25.53 GiB  4.9 MiB/s  eta 45 min
+  420/817 chunks  13.12/25.53 GiB  5.0 MiB/s  eta 42 min
+  440/817 chunks  13.75/25.53 GiB  5.1 MiB/s  eta 39 min
+  460/817 chunks  14.38/25.53 GiB  5.2 MiB/s  eta 36 min
+  480/817 chunks  15.00/25.53 GiB  5.4 MiB/s  eta 33 min
+  500/817 chunks  15.62/25.53 GiB  5.5 MiB/s  eta 31 min
+  520/817 chunks  16.25/25.53 GiB  5.6 MiB/s  eta 28 min
+  540/817 chunks  16.88/25.53 GiB  5.8 MiB/s  eta 26 min
+  560/817 chunks  17.50/25.53 GiB  5.9 MiB/s  eta 23 min
+  580/817 chunks  18.12/25.53 GiB  6.0 MiB/s  eta 21 min
+  600/817 chunks  18.75/25.53 GiB  6.2 MiB/s  eta 19 min
+  620/817 chunks  19.38/25.53 GiB  6.3 MiB/s  eta 17 min
+  640/817 chunks  20.00/25.53 GiB  6.4 MiB/s  eta 15 min
+  660/817 chunks  20.62/25.53 GiB  6.6 MiB/s  eta 13 min
+  680/817 chunks  21.25/25.53 GiB  6.7 MiB/s  eta 11 min
+  700/817 chunks  21.88/25.53 GiB  6.8 MiB/s  eta 9 min
+  720/817 chunks  22.50/25.53 GiB  6.9 MiB/s  eta 7 min
+  740/817 chunks  23.12/25.53 GiB  7.0 MiB/s  eta 6 min
+  760/817 chunks  23.75/25.53 GiB  7.1 MiB/s  eta 4 min
+  780/817 chunks  24.38/25.53 GiB  7.2 MiB/s  eta 3 min
+  800/817 chunks  25.00/25.53 GiB  7.3 MiB/s  eta 1 min
+  817/817 chunks  25.53/25.53 GiB  7.4 MiB/s  eta 0 min
+OK data/raw/4DNFIXP4QG5B.mcool  27,408,885,254 bytes in 58.9 min (7.4 MiB/s)
+EXIT=0

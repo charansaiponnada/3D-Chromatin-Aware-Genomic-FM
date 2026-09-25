@@ -1,0 +1,27 @@
+building 1 cell line(s) x 5 chromosome(s) at 5000 bp into /home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/data
+  GM12878 chr10: reading contacts
+  GM12878 chr10: extracting sequence
+    have  hg38.fa
+  GM12878 chr10: 26760 bins, 8359414 pixels, 25880 usable
+  GM12878 chr11: reading contacts
+  GM12878 chr11: extracting sequence
+    have  hg38.fa
+  GM12878 chr11: 27018 bins, 8490239 pixels, 25881 usable
+  GM12878 chr3: reading contacts
+  GM12878 chr3: extracting sequence
+    have  hg38.fa
+  GM12878 chr3: 39660 bins, 12502874 pixels, 38885 usable
+  GM12878 chr13: reading contacts
+  GM12878 chr13: extracting sequence
+    have  hg38.fa
+  GM12878 chr13: 22873 bins, 5959856 pixels, 19081 usable
+  GM12878 chr17: reading contacts
+  GM12878 chr17: extracting sequence
+    have  hg38.fa
+  GM12878 chr17: 16652 bins, 4937361 pixels, 15412 usable
+
+wrote /home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/data/build_summary.json
+
+The checksums in each qc.json are the reproducibility gate: build the
+same chromosome on another machine and they must match exactly.
+EXIT=0

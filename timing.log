@@ -1,0 +1,64 @@
+=== GPU state before ===
+index, memory.used [MiB]
+0, 0 MiB
+1, 0 MiB
+=== RUN 1: timing_2x4 (base.yaml: batch 2 x accum 4) ===
+arm full  seed 0  device cuda
+context 128 windows x 5000 bp = 640 kb
+  model: 7.29M parameters
+  step      0  total 2.5628  dna 0.0421  contrast 3.6529  contact 0.6942  (0.54 it/s)
+  step     50  total 2.0697  dna 0.0084  contrast 2.7781  contact 0.6722  (0.81 it/s)
+  step     99  total 2.0948  dna 0.0038  contrast 2.8544  contact 0.6638  (0.81 it/s)
+  done in 2.0 min -> /home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/results/timing_2x4
+
+results in /home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/results/timing_2x4
+next:  python scripts/evaluate.py --run timing_2x4
+RUN1_EXIT=0
+=== GPU state between ===
+index, memory.used [MiB]
+0, 0 MiB
+1, 0 MiB
+=== RUN 2: timing_8x1 (timing_b8x1.yaml: batch 8 x accum 1) ===
+arm full  seed 0  device cuda
+context 128 windows x 5000 bp = 640 kb
+  model: 7.29M parameters
+[W919 13:14:12.897140288 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 331350016 bytes (free: 60096512, total: 47665709056).
+[W919 13:14:12.903081969 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 331350016 bytes (free: 267714560, total: 47665709056).
+Traceback (most recent call last):
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/scripts/pretrain.py", line 76, in <module>
+    raise SystemExit(main())
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/scripts/pretrain.py", line 69, in main
+    out = train(cfg, run_name, device, max_steps=args.steps)
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/chromgraph/train.py", line 353, in train
+    out_model = model(batch, mask_frac=cfg.train.mask_frac,
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/chromgraph/model.py", line 342, in forward
+    h = self.encoder(seq.reshape(total, -1))                 # (B*N, d)
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/chromgraph/model.py", line 187, in forward
+    h = block(h)
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/chromgraph/model.py", line 164, in forward
+    f = self.fwd(h)
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/chromgraph/model.py", line 139, in forward
+    y = torch.fft.irfft(torch.fft.rfft(u32, n=size) * torch.fft.rfft(k, n=size),
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 316.00 MiB. GPU 0 has a total capacity of 44.39 GiB of which 255.31 MiB is free. Including non-PyTorch memory, this process has 44.13 GiB memory in use. Of the allocated memory 43.46 GiB is allocated by PyTorch, and 188.82 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)
+RUN2_EXIT=1
+=== GPU state after ===
+index, memory.used [MiB]
+0, 0 MiB
+1, 0 MiB
+TIMING_DONE

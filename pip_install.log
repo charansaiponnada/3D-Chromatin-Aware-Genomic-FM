@@ -1,0 +1,169 @@
+Obtaining file:///home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Collecting cooler>=0.9.3
+  Downloading cooler-0.10.4-py3-none-any.whl (109 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 109.3/109.3 kB 4.7 MB/s eta 0:00:00
+Collecting pandas>=2.1
+  Downloading pandas-2.3.3-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (12.8 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.8/12.8 MB 5.3 MB/s eta 0:00:00
+Collecting numpy<3,>=1.26
+  Downloading numpy-2.2.6-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (16.8 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.8/16.8 MB 5.0 MB/s eta 0:00:00
+Collecting requests>=2.31
+  Downloading requests-2.34.2-py3-none-any.whl (73 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 73.1/73.1 kB 12.4 MB/s eta 0:00:00
+Collecting torch>=2.6
+  Using cached torch-2.14.0-cp310-cp310-manylinux_2_28_x86_64.whl (554.6 MB)
+Collecting scipy>=1.11
+  Downloading scipy-1.15.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (37.7 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 37.7/37.7 MB 7.2 MB/s eta 0:00:00
+Collecting pyyaml>=6.0
+  Downloading pyyaml-6.0.3-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (770 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 770.3/770.3 kB 13.7 MB/s eta 0:00:00
+Collecting h5py>=3.10
+  Downloading h5py-3.16.0-cp310-cp310-manylinux_2_28_x86_64.whl (5.1 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.1/5.1 MB 13.3 MB/s eta 0:00:00
+Collecting pyfaidx>=0.8.1
+  Downloading pyfaidx-0.9.0.4-py3-none-any.whl (29 kB)
+Collecting tqdm>=4.66
+  Downloading tqdm-4.70.1-py3-none-any.whl (80 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 80.2/80.2 kB 10.0 MB/s eta 0:00:00
+Collecting multiprocess
+  Downloading multiprocess-0.70.19-py310-none-any.whl (134 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 134.9/134.9 kB 10.7 MB/s eta 0:00:00
+Collecting cytoolz
+  Downloading cytoolz-1.1.0-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (2.7 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.7/2.7 MB 6.8 MB/s eta 0:00:00
+Collecting simplejson
+  Downloading simplejson-4.1.2-cp310-cp310-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (175 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 175.8/175.8 kB 5.1 MB/s eta 0:00:00
+Collecting asciitree
+  Downloading asciitree-0.3.3.tar.gz (4.0 kB)
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Collecting click>=7
+  Downloading click-8.5.0-py3-none-any.whl (125 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 125.3/125.3 kB 3.5 MB/s eta 0:00:00
+Collecting tzdata>=2022.7
+  Downloading tzdata-2026.4-py2.py3-none-any.whl (347 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 347.5/347.5 kB 3.1 MB/s eta 0:00:00
+Collecting python-dateutil>=2.8.2
+  Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 229.9/229.9 kB 3.6 MB/s eta 0:00:00
+Collecting pytz>=2020.1
+  Downloading pytz-2026.3.post1-py2.py3-none-any.whl (508 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 508.3/508.3 kB 4.6 MB/s eta 0:00:00
+Collecting packaging
+  Downloading packaging-26.3-py3-none-any.whl (129 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 130.0/130.0 kB 4.9 MB/s eta 0:00:00
+Collecting certifi>=2023.5.7
+  Downloading certifi-2026.7.22-py3-none-any.whl (136 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 137.0/137.0 kB 4.7 MB/s eta 0:00:00
+Collecting charset_normalizer<4,>=2
+  Downloading charset_normalizer-3.5.1-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (261 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 261.6/261.6 kB 4.6 MB/s eta 0:00:00
+Collecting idna<4,>=2.5
+  Downloading idna-3.20-py3-none-any.whl (69 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 69.6/69.6 kB 3.8 MB/s eta 0:00:00
+Collecting urllib3<3,>=1.26
+  Downloading urllib3-2.8.0-py3-none-any.whl (135 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 135.7/135.7 kB 4.0 MB/s eta 0:00:00
+Collecting networkx>=2.5.1
+  Downloading networkx-3.4.2-py3-none-any.whl (1.7 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.7/1.7 MB 2.8 MB/s eta 0:00:00
+Collecting filelock
+  Downloading filelock-4.0.1-py3-none-any.whl (106 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 106.2/106.2 kB 4.2 MB/s eta 0:00:00
+Collecting nvidia-nvshmem-cu13==3.4.5
+  Using cached nvidia_nvshmem_cu13-3.4.5-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (60.4 MB)
+Collecting sympy>=1.13.3
+  Downloading sympy-1.14.0-py3-none-any.whl (6.3 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.3/6.3 MB 7.3 MB/s eta 0:00:00
+Collecting nvidia-cudnn-cu13==9.24.0.43
+  Using cached nvidia_cudnn_cu13-9.24.0.43-py3-none-manylinux_2_27_x86_64.whl (553.1 MB)
+Collecting triton~=3.8.0
+  Using cached triton-3.8.0-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (247.8 MB)
+Collecting setuptools>=77.0.3
+  Using cached setuptools-84.0.0-py3-none-any.whl (818 kB)
+Collecting typing-extensions>=4.10.0
+  Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.6/45.6 kB 11.2 MB/s eta 0:00:00
+Collecting nvidia-cusparselt-cu13==0.8.1
+  Using cached nvidia_cusparselt_cu13-0.8.1-py3-none-manylinux2014_x86_64.whl (170.1 MB)
+Collecting cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.3
+  Using cached cuda_toolkit-13.0.3.0-py2.py3-none-any.whl (2.5 kB)
+Collecting fsspec>=0.8.5
+  Downloading fsspec-2026.9.0-py3-none-any.whl (221 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 221.7/221.7 kB 10.0 MB/s eta 0:00:00
+Collecting cuda-bindings<14,>=13.0.3
+  Downloading cuda_bindings-13.4.2-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (7.2 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 7.2/7.2 MB 8.6 MB/s eta 0:00:00
+Collecting jinja2
+  Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 134.9/134.9 kB 7.7 MB/s eta 0:00:00
+Collecting nvidia-nccl-cu13==2.30.7
+  Using cached nvidia_nccl_cu13-2.30.7-py3-none-manylinux_2_18_x86_64.whl (216.0 MB)
+Collecting nvidia-cufile==1.15.1.6.*
+  Using cached nvidia_cufile-1.15.1.6-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (1.2 MB)
+Collecting nvidia-nvtx==13.0.85.*
+  Using cached nvidia_nvtx-13.0.85-py3-none-manylinux1_x86_64.manylinux_2_5_x86_64.whl (148 kB)
+Collecting nvidia-cuda-nvrtc==13.0.88.*
+  Using cached nvidia_cuda_nvrtc-13.0.88-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl (90.2 MB)
+Collecting nvidia-cuda-cupti==13.0.85.*
+  Using cached nvidia_cuda_cupti-13.0.85-py3-none-manylinux_2_25_x86_64.whl (10.7 MB)
+Collecting nvidia-cusparse==12.6.3.3.*
+  Using cached nvidia_cusparse-12.6.3.3-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (145.9 MB)
+Collecting nvidia-cusolver==12.0.4.66.*
+  Using cached nvidia_cusolver-12.0.4.66-py3-none-manylinux_2_27_x86_64.whl (200.9 MB)
+Collecting nvidia-cublas==13.1.1.3.*
+  Using cached nvidia_cublas-13.1.1.3-py3-none-manylinux_2_27_x86_64.whl (423.1 MB)
+Collecting nvidia-nvjitlink<14,>=13.0.88
+  Downloading nvidia_nvjitlink-13.4.92-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl (42.5 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 42.5/42.5 MB 11.3 MB/s eta 0:00:00
+Collecting nvidia-cufft==12.0.0.61.*
+  Using cached nvidia_cufft-12.0.0.61-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (214.1 MB)
+Collecting nvidia-cuda-runtime==13.0.96.*
+  Using cached nvidia_cuda_runtime-13.0.96-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (2.2 MB)
+Collecting nvidia-curand==10.4.0.35.*
+  Using cached nvidia_curand-10.4.0.35-py3-none-manylinux_2_27_x86_64.whl (59.5 MB)
+Collecting cuda-pathfinder>=1.4.2
+  Downloading cuda_pathfinder-1.8.2-py3-none-any.whl (62 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 62.6/62.6 kB 20.1 MB/s eta 0:00:00
+Collecting six>=1.5
+  Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+Collecting mpmath<1.4,>=1.1.0
+  Downloading mpmath-1.3.0-py3-none-any.whl (536 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 536.2/536.2 kB 17.6 MB/s eta 0:00:00
+Collecting toolz>=0.8.0
+  Downloading toolz-1.1.0-py3-none-any.whl (58 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 58.1/58.1 kB 21.9 MB/s eta 0:00:00
+Collecting MarkupSafe>=2.0
+  Downloading markupsafe-3.0.3-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (20 kB)
+Collecting dill>=0.4.1
+  Downloading dill-0.4.1-py3-none-any.whl (120 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 120.0/120.0 kB 17.6 MB/s eta 0:00:00
+Building wheels for collected packages: chromgraph
+  Building editable for chromgraph (pyproject.toml): started
+  Building editable for chromgraph (pyproject.toml): finished with status 'done'
+  Created wheel for chromgraph: filename=chromgraph-0.1.0-0.editable-py3-none-any.whl size=2861 sha256=60db6869056e1c64018121b070f3b33ced60b14a95f0bb0abc31d4de54e0ab60
+  Stored in directory: /tmp/pip-ephem-wheel-cache-rdcg6btd/wheels/db/2e/73/55dde7a0a254deb736ec1e1c2bf721570751a6c1ad24d78dd6
+Successfully built chromgraph
+Installing collected packages: pytz, nvidia-cusparselt-cu13, mpmath, cuda-toolkit, asciitree, urllib3, tzdata, typing-extensions, triton, tqdm, toolz, sympy, six, simplejson, setuptools, pyyaml, packaging, nvidia-nvtx, nvidia-nvshmem-cu13, nvidia-nvjitlink, nvidia-nccl-cu13, nvidia-curand, nvidia-cufile, nvidia-cuda-runtime, nvidia-cuda-nvrtc, nvidia-cuda-cupti, numpy, networkx, MarkupSafe, idna, fsspec, filelock, dill, cuda-pathfinder, click, charset_normalizer, certifi, scipy, requests, python-dateutil, pyfaidx, nvidia-cusparse, nvidia-cufft, nvidia-cublas, multiprocess, jinja2, h5py, cytoolz, cuda-bindings, pandas, nvidia-cusolver, nvidia-cudnn-cu13, cooler, torch, chromgraph
+  DEPRECATION: asciitree is being installed using the legacy 'setup.py install' method, because it does not have a 'pyproject.toml' and the 'wheel' package is not installed. pip 23.1 will enforce this behaviour change. A possible replacement is to enable the '--use-pep517' option. Discussion can be found at https://github.com/pypa/pip/issues/8559
+  Running setup.py install for asciitree: started
+  Running setup.py install for asciitree: finished with status 'done'
+  Attempting uninstall: setuptools
+    Found existing installation: setuptools 65.5.0
+    Uninstalling setuptools-65.5.0:
+      Successfully uninstalled setuptools-65.5.0
+Successfully installed MarkupSafe-3.0.3 asciitree-0.3.3 certifi-2026.7.22 charset_normalizer-3.5.1 chromgraph-0.1.0 click-8.5.0 cooler-0.10.4 cuda-bindings-13.4.2 cuda-pathfinder-1.8.2 cuda-toolkit-13.0.3.0 cytoolz-1.1.0 dill-0.4.1 filelock-4.0.1 fsspec-2026.9.0 h5py-3.16.0 idna-3.20 jinja2-3.1.6 mpmath-1.3.0 multiprocess-0.70.19 networkx-3.4.2 numpy-2.2.6 nvidia-cublas-13.1.1.3 nvidia-cuda-cupti-13.0.85 nvidia-cuda-nvrtc-13.0.88 nvidia-cuda-runtime-13.0.96 nvidia-cudnn-cu13-9.24.0.43 nvidia-cufft-12.0.0.61 nvidia-cufile-1.15.1.6 nvidia-curand-10.4.0.35 nvidia-cusolver-12.0.4.66 nvidia-cusparse-12.6.3.3 nvidia-cusparselt-cu13-0.8.1 nvidia-nccl-cu13-2.30.7 nvidia-nvjitlink-13.4.92 nvidia-nvshmem-cu13-3.4.5 nvidia-nvtx-13.0.85 packaging-26.3 pandas-2.3.3 pyfaidx-0.9.0.4 python-dateutil-2.9.0.post0 pytz-2026.3.post1 pyyaml-6.0.3 requests-2.34.2 scipy-1.15.3 setuptools-84.0.0 simplejson-4.1.2 six-1.17.0 sympy-1.14.0 toolz-1.1.0 torch-2.14.0 tqdm-4.70.1 triton-3.8.0 typing-extensions-4.16.0 tzdata-2026.4 urllib3-2.8.0
+
+[notice] A new release of pip available: 22.3.1 -> 26.2.1
+[notice] To update, run: python3 -m pip install --upgrade pip

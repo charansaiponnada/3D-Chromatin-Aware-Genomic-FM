@@ -1,0 +1,72 @@
+seed: 0
+control_seed: 20260815
+data:
+  assembly: hg38
+  bin_size: 5000
+  nodes_per_sample: 128
+  cell_lines:
+  - GM12878
+  chroms_train:
+  - chr1
+  - chr2
+  - chr4
+  - chr5
+  - chr6
+  - chr7
+  - chr8
+  - chr9
+  - chr12
+  - chr14
+  - chr15
+  - chr16
+  - chr18
+  - chr19
+  - chr20
+  - chr21
+  - chr22
+  chroms_val:
+  - chr10
+  - chr11
+  chroms_test:
+  - chr3
+  - chr13
+  - chr17
+  pilot_chroms:
+  - chr20
+  - chr21
+  top_k_edges: 16
+  local_radius: 3
+  min_separation: 5
+  held_out_edge_frac: 0.15
+  max_n_frac: 0.5
+model:
+  d_model: 256
+  conv_depth: 5
+  encoder_layers: 6
+  d_state: 16
+  d_conv: 4
+  expand: 2
+  block_layers: 4
+  n_heads: 8
+  d_ff: 1024
+  dropout: 0.1
+  structure_dropout: 0.3
+train:
+  arm: full
+  steps: 20000
+  batch_size: 2
+  lr: 0.0003
+  warmup_steps: 1000
+  weight_decay: 0.01
+  grad_clip: 1.0
+  grad_accum_steps: 4
+  precision: bf16
+  grad_checkpoint: false
+  mask_frac: 0.15
+  temperature: 0.1
+  lambda_dna: 1.0
+  lambda_contrast: 0.5
+  lambda_contact: 1.0
+  ckpt_every: 500
+  eval_every: 500
+  log_every: 50

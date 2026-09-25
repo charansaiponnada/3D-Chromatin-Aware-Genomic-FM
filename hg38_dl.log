@@ -1,0 +1,5 @@
+size 983,659,424 bytes  accept-ranges='bytes'  workers=8 chunk=32MiB
+  20/30 chunks  0.62/0.92 GiB  1.9 MiB/s  eta 3 min
+  30/30 chunks  0.92/0.92 GiB  1.9 MiB/s  eta 0 min
+OK data/raw/hg38.fa.gz  983,659,424 bytes in 8.0 min (1.9 MiB/s)
+EXIT=0

@@ -1,0 +1,103 @@
+# ChromGraphFM base configuration.
+# Every run writes a resolved copy of this next to its metrics. Never edit a
+# config a run is using; copy it and override.
+
+seed: 0
+
+# Controls (shuffles, random graphs) draw from a FIXED seed, deliberately not
+# the training seed: every training seed must see the SAME corrupted structure,
+# or seed variance and shuffle variance are confounded.
+control_seed: 20260815
+
+data:
+  assembly: hg38
+
+  # One graph node == one Hi-C bin == one DNA window. Keeping these equal
+  # avoids a pooling layer between the sequence encoder and the graph, and
+  # avoids an off-by-one class of coordinate bugs. 5 kb is the primary
+  # Hi-C resolution.
+  bin_size: 5000
+
+  # 128 nodes x 5 kb = 640 kb of genomic context per sample.
+  nodes_per_sample: 128
+
+  cell_lines: [GM12878]
+
+  # Chromosome-level splits. NEVER split windows randomly: Hi-C is
+  # autocorrelated over megabases and a random split leaks structure.
+  chroms_train: [chr1, chr2, chr4, chr5, chr6, chr7, chr8, chr9, chr12,
+                 chr14, chr15, chr16, chr18, chr19, chr20, chr21, chr22]
+  chroms_val:   [chr10, chr11]
+  chroms_test:  [chr3, chr13, chr17]
+
+  # Laptop pilot build: 1 cell line, 2 small chromosomes. Proves the pipeline
+  # without a full-genome download. The cluster runs the full list above.
+  pilot_chroms: [chr20, chr21]
+
+  # Sparse graph. Attention runs over these edges only.
+  top_k_edges: 16      # strongest distal contacts kept per node
+  local_radius: 3      # plus +/- this many sequential neighbours
+  min_separation: 5    # bins; distal edges closer than this are "local", not distal
+
+  # Fraction of contact edges withheld from the graph and used ONLY as
+  # prediction targets. Without this the contact head copies its own input.
+  held_out_edge_frac: 0.15
+
+  max_n_frac: 0.5      # drop a node if more than this fraction of its DNA is N
+
+model:
+  d_model: 256
+
+  # Strided convolutions before the state-space layers. At depth 5 a 5 kb
+  # window is reduced from 5000 positions to about 160 before any sequence
+  # model runs, which is roughly a 30x cut in the dominant cost of training.
+  # This is what Akita, Enformer and C.Origami all do, and convolutions are
+  # what detect motifs anyway, so little is lost.
+  conv_depth: 5
+
+  # Local DNA encoder (bidirectional Mamba over each node's 5 kb).
+  encoder_layers: 6
+  d_state: 16
+  d_conv: 4
+  expand: 2
+
+  # Structure-conditioned blocks (the "N x" box in the architecture diagram).
+  block_layers: 4
+  n_heads: 8
+  d_ff: 1024
+  dropout: 0.1
+
+  # Probability the ENTIRE contact graph is dropped for a sample during
+  # pretraining. Without this, removing Hi-C at inference is out of
+  # distribution and the Hi-C-free claim cannot be tested.
+  structure_dropout: 0.3
+
+train:
+  # b0_dna_only | b1_random_graph | b2_distance_only | b3_shuffled_hic
+  # | b4_late_fusion | b5_contrastive_only | full
+  arm: full
+
+  steps: 20000
+
+  # One sample is 128 windows x 5 kb of DNA through the encoder. At batch 8
+  # the activations do not fit in 24 GB; effective batch comes from
+  # accumulation instead.
+  batch_size: 4
+  grad_accum_steps: 2
+  lr: 3.0e-4
+  warmup_steps: 1000
+  weight_decay: 0.01
+  grad_clip: 1.0
+  precision: bf16        # cpu falls back to fp32
+  grad_checkpoint: false
+
+  mask_frac: 0.15        # masked-DNA objective
+  temperature: 0.1       # contrastive
+
+  lambda_dna: 1.0
+  lambda_contrast: 0.5
+  lambda_contact: 1.0
+
+  ckpt_every: 500
+  eval_every: 500
+  log_every: 50

@@ -1,0 +1,8 @@
+{
+  "commit": "b60ed634c2c83ecd1842a0f3edb933169131c766",
+  "arm": "full",
+  "seed": 0,
+  "control_seed": 20260815,
+  "device": "cuda",
+  "started": "2026-09-25T14:06:18"
+}

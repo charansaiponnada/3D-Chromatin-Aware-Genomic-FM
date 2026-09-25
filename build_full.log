@@ -1,0 +1,74 @@
+building 1 cell line(s) x 22 chromosome(s) at 5000 bp into /home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/data
+  GM12878 chr1: reading contacts
+  GM12878 chr1: extracting sequence
+    have  hg38.fa
+  GM12878 chr1: 49792 bins, 14209550 pixels, 44228 usable
+  GM12878 chr2: reading contacts
+  GM12878 chr2: extracting sequence
+    have  hg38.fa
+  GM12878 chr2: 48439 bins, 14929722 pixels, 47056 usable
+  GM12878 chr4: reading contacts
+  GM12878 chr4: extracting sequence
+    have  hg38.fa
+  GM12878 chr4: 38043 bins, 11533022 pixels, 37350 usable
+  GM12878 chr5: reading contacts
+  GM12878 chr5: extracting sequence
+    have  hg38.fa
+  GM12878 chr5: 36308 bins, 11109542 pixels, 35004 usable
+  GM12878 chr6: reading contacts
+  GM12878 chr6: extracting sequence
+    have  hg38.fa
+  GM12878 chr6: 34162 bins, 10707164 pixels, 33516 usable
+  GM12878 chr7: reading contacts
+  GM12878 chr7: extracting sequence
+    have  hg38.fa
+  GM12878 chr7: 31870 bins, 9604212 pixels, 30595 usable
+  GM12878 chr8: reading contacts
+  GM12878 chr8: extracting sequence
+    have  hg38.fa
+  GM12878 chr8: 29028 bins, 8905902 pixels, 28169 usable
+  GM12878 chr9: reading contacts
+  GM12878 chr9: extracting sequence
+    have  hg38.fa
+  GM12878 chr9: 27679 bins, 7087703 pixels, 22332 usable
+  GM12878 chr12: reading contacts
+  GM12878 chr12: extracting sequence
+    have  hg38.fa
+  GM12878 chr12: 26656 bins, 8391779 pixels, 25942 usable
+  GM12878 chr14: reading contacts
+  GM12878 chr14: extracting sequence
+    have  hg38.fa
+  GM12878 chr14: 21409 bins, 5577601 pixels, 17374 usable
+  GM12878 chr15: reading contacts
+  GM12878 chr15: extracting sequence
+    have  hg38.fa
+  GM12878 chr15: 20399 bins, 4978708 pixels, 15536 usable
+  GM12878 chr16: reading contacts
+  GM12878 chr16: extracting sequence
+    have  hg38.fa
+  GM12878 chr16: 18068 bins, 4730158 pixels, 15053 usable
+  GM12878 chr18: reading contacts
+  GM12878 chr18: extracting sequence
+    have  hg38.fa
+  GM12878 chr18: 16075 bins, 4689319 pixels, 14895 usable
+  GM12878 chr19: reading contacts
+  GM12878 chr19: extracting sequence
+    have  hg38.fa
+  GM12878 chr19: 11724 bins, 3601470 pixels, 10957 usable
+  GM12878 chr20: already built
+  GM12878 chr21: already built
+  GM12878 chr22: reading contacts
+  GM12878 chr22: extracting sequence
+    have  hg38.fa
+  GM12878 chr22: 10164 bins, 2179752 pixels, 6744 usable
+  GM12878 chr10: already built
+  GM12878 chr11: already built
+  GM12878 chr3: already built
+  GM12878 chr13: already built
+  GM12878 chr17: already built
+
+wrote /home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/data/build_summary.json
+
+The checksums in each qc.json are the reproducibility gate: build the
+same chromosome on another machine and they must match exactly.
+EXIT=0

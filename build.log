@@ -1,0 +1,33 @@
+DRIVER: waiting for downloads to finish
+DRIVER: both files present
+-rw-r--r-- 1 jupyter-238w1a5447 jupyter-238w1a5447 27408885254 Sep 19 13:08 data/raw/4DNFIXP4QG5B.mcool
+-rw-r--r-- 1 jupyter-238w1a5447 jupyter-238w1a5447   983659424 Sep 19 12:17 data/raw/hg38.fa.gz
+DRIVER: verifying mcool integrity (size + S3 multipart ETag)
+file        data/raw/4DNFIXP4QG5B.mcool
+bytes       27,408,885,254
+expected    27,408,885,254
+size match  YES
+parts       3268
+etag got    55f2a41867b297a031091266680da249-3268
+etag expect 55f2a41867b297a031091266680da249-3268
+ETAG MATCH  YES
+plain md5   a4ff0d005aa78bcd544977b29f152ee6
+DRIVER: mcool integrity OK
+DRIVER: starting pilot build
+building 1 cell line(s) x 2 chromosome(s) at 5000 bp into /home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/data
+  GM12878 chr20: reading contacts
+  GM12878 chr20: extracting sequence
+    have  hg38.fa.gz
+    gunzip hg38.fa.gz (about 3.1 GB uncompressed)
+    indexing hg38.fa
+  GM12878 chr20: 12889 bins, 3982395 pixels, 12124 usable
+  GM12878 chr21: reading contacts
+  GM12878 chr21: extracting sequence
+    have  hg38.fa
+  GM12878 chr21: 9342 bins, 2045209 pixels, 6775 usable
+
+wrote /home/jupyter-238w1a5447/3D-Chromatin-Aware-Genomic-FM/data/build_summary.json
+
+The checksums in each qc.json are the reproducibility gate: build the
+same chromosome on another machine and they must match exactly.
+DRIVER: build exit=0

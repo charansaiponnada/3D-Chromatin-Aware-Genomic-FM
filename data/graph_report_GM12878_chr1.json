@@ -1,0 +1,58 @@
+[
+  {
+    "arm": "b0_dna_only",
+    "edges": 378.0,
+    "distal": 0.0,
+    "targets": 211.625,
+    "strength_mean": null,
+    "sep_mean": null
+  },
+  {
+    "arm": "b1_random_graph",
+    "edges": 1513.875,
+    "distal": 1135.875,
+    "targets": 211.625,
+    "strength_mean": 0.6448806375265121,
+    "sep_mean": 45.76632194638387
+  },
+  {
+    "arm": "b2_distance_only",
+    "edges": 1513.875,
+    "distal": 1135.875,
+    "targets": 211.625,
+    "strength_mean": 0.5,
+    "sep_mean": 46.93032818426218
+  },
+  {
+    "arm": "b3_shuffled_hic",
+    "edges": 1513.875,
+    "distal": 1135.875,
+    "targets": 211.625,
+    "strength_mean": 0.6453671976923943,
+    "sep_mean": 46.93032818426218
+  },
+  {
+    "arm": "b4_late_fusion",
+    "edges": 378.0,
+    "distal": 0.0,
+    "targets": 211.625,
+    "strength_mean": null,
+    "sep_mean": null
+  },
+  {
+    "arm": "b5_contrastive_only",
+    "edges": 378.0,
+    "distal": 0.0,
+    "targets": 211.625,
+    "strength_mean": null,
+    "sep_mean": null
+  },
+  {
+    "arm": "full",
+    "edges": 1513.875,
+    "distal": 1135.875,
+    "targets": 211.625,
+    "strength_mean": 0.6453671827912331,
+    "sep_mean": 46.93032818426218
+  }
+]
