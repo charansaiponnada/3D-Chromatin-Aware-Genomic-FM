@@ -1,0 +1,144 @@
+{
+  "run": "b3_shuffled_hic_seed0",
+  "arm": "b3_shuffled_hic",
+  "seed": 0,
+  "step": 20000,
+  "cell_lines": [
+    "GM12878"
+  ],
+  "settings": {
+    "val/hic_free": {
+      "n_edges": 84261,
+      "short": {
+        "n": 4009,
+        "pearson": 0.30252695083618164,
+        "spearman": 0.30245289706713363,
+        "mse": 0.0019651404581964016,
+        "auprc": 0.9642783955057593,
+        "positive_rate": 0.9366425542529309
+      },
+      "medium": {
+        "n": 20764,
+        "pearson": 0.3109517991542816,
+        "spearman": 0.30879627254128167,
+        "mse": 0.0027507080230861902,
+        "auprc": 0.9865215055235447,
+        "positive_rate": 0.9783760354459642
+      },
+      "long": {
+        "n": 59488,
+        "pearson": 0.1848372370004654,
+        "spearman": 0.19360880267868796,
+        "mse": 0.004143647383898497,
+        "auprc": 0.9904644217677226,
+        "positive_rate": 0.9890398063474987
+      },
+      "overall": {
+        "pearson": 0.33271315693855286,
+        "spearman": 0.3324947052308223,
+        "mse": 0.0036967427004128695,
+        "auprc": 0.9899388353293365
+      }
+    },
+    "val/with_hic": {
+      "n_edges": 84261,
+      "short": {
+        "n": 4009,
+        "pearson": 0.3632369935512543,
+        "spearman": 0.3737865982345195,
+        "mse": 0.0019008653471246362,
+        "auprc": 0.96260479981794,
+        "positive_rate": 0.9366425542529309
+      },
+      "medium": {
+        "n": 20764,
+        "pearson": 0.46966618299484253,
+        "spearman": 0.4639782666491207,
+        "mse": 0.002415061229839921,
+        "auprc": 0.9906539772828781,
+        "positive_rate": 0.9783760354459642
+      },
+      "long": {
+        "n": 59488,
+        "pearson": 0.5334326028823853,
+        "spearman": 0.502019447935354,
+        "mse": 0.003057680558413267,
+        "auprc": 0.9958690991729136,
+        "positive_rate": 0.9890398063474987
+      },
+      "overall": {
+        "pearson": 0.563765823841095,
+        "spearman": 0.5406485703988652,
+        "mse": 0.002844283590093255,
+        "auprc": 0.9945622647110981
+      }
+    },
+    "test/hic_free": {
+      "n_edges": 118964,
+      "short": {
+        "n": 5213,
+        "pearson": 0.25220024585723877,
+        "spearman": 0.2610199048948344,
+        "mse": 0.0020129296462982893,
+        "auprc": 0.9543205992072693,
+        "positive_rate": 0.9342029541530789
+      },
+      "medium": {
+        "n": 28564,
+        "pearson": 0.2967759072780609,
+        "spearman": 0.29621647638091886,
+        "mse": 0.002724058460444212,
+        "auprc": 0.9855427461891574,
+        "positive_rate": 0.9760887830836017
+      },
+      "long": {
+        "n": 85187,
+        "pearson": 0.16966111958026886,
+        "spearman": 0.17999516724446651,
+        "mse": 0.003911681938916445,
+        "auprc": 0.989960436377826,
+        "positive_rate": 0.9884254639792457
+      },
+      "overall": {
+        "pearson": 0.32728832960128784,
+        "spearman": 0.32891215256693823,
+        "mse": 0.0035433226730674505,
+        "auprc": 0.9894107062926432
+      }
+    },
+    "test/with_hic": {
+      "n_edges": 118964,
+      "short": {
+        "n": 5213,
+        "pearson": 0.35970571637153625,
+        "spearman": 0.37179445176226833,
+        "mse": 0.0019035140285268426,
+        "auprc": 0.9568036874788803,
+        "positive_rate": 0.9342029541530789
+      },
+      "medium": {
+        "n": 28564,
+        "pearson": 0.4393019378185272,
+        "spearman": 0.4223698624100694,
+        "mse": 0.00246000406332314,
+        "auprc": 0.98823452375053,
+        "positive_rate": 0.9760887830836017
+      },
+      "long": {
+        "n": 85187,
+        "pearson": 0.49382147192955017,
+        "spearman": 0.458455153735297,
+        "mse": 0.0030189843382686377,
+        "auprc": 0.9938587132607892,
+        "positive_rate": 0.9884254639792457
+      },
+      "overall": {
+        "pearson": 0.5368451476097107,
+        "spearman": 0.5126352668104049,
+        "mse": 0.0028358895797282457,
+        "auprc": 0.9927583485463953
+      }
+    }
+  },
+  "note": "hic_free is the headline setting: every arm runs on sequence alone, so the only difference between them is what shaped their weights during pretraining. with_hic is an upper bound measured with privileged input and must not be compared against a sequence-only baseline."
+}

@@ -1,8 +1,8 @@
 {
   "commit": "26c3212ed68104b748a592429fc54e9bcd9434cd",
-  "arm": "b3_shuffled_hic",
+  "arm": "b2_distance_only",
   "seed": 0,
   "control_seed": 20260815,
   "device": "cuda",
-  "started": "2026-09-29T13:54:35"
+  "started": "2026-09-29T14:08:47"
 }
