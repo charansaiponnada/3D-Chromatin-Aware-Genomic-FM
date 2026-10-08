@@ -304,6 +304,7 @@ class ModelOutput:
     masked_nodes: torch.Tensor
     h_recon: torch.Tensor
     dropped_structure: torch.Tensor
+    z_free: torch.Tensor | None = None
 
 
 class ChromGraphFM(nn.Module):
@@ -334,7 +335,7 @@ class ChromGraphFM(nn.Module):
         return sum(p.numel() for p in self.parameters())
 
     def forward(self, batch: dict, mask_frac: float = 0.0,
-                use_structure: bool = True) -> ModelOutput:
+                use_structure: bool = True, free_pass: bool = False) -> ModelOutput:
         seq = batch["seq"]                       # (B, N, L)
         b, n, _ = seq.shape
         total = b * n
@@ -359,6 +360,19 @@ class ChromGraphFM(nn.Module):
         for block in self.blocks:
             z = block(z, src, dst, bias)
 
+        # Structure distillation: the same (masked) encodings through the same
+        # blocks with the distal graph removed -- exactly the Hi-C-free setting
+        # the headline metric is measured in. The encoder runs once; only the
+        # blocks run twice.
+        z_free = None
+        if free_pass:
+            fsrc, fdst, fstrength, fsep, _ = self._edges(batch, b, n, use_structure=False)
+            fbias = self.edge_bias(fstrength, fsep) if fsrc.numel() else \
+                torch.zeros(0, self.cfg.model.n_heads, device=h.device, dtype=h.dtype)
+            z_free = h
+            for block in self.blocks:
+                z_free = block(z_free, fsrc, fdst, fbias)
+
         if batch.get("late_fusion", False):
             # The fused Hi-C features get the same treatment as the graph:
             # dropped per sample with p in training, and zeroed when the
@@ -375,7 +389,8 @@ class ChromGraphFM(nn.Module):
         return ModelOutput(z=z.view(b, n, -1), h=h_true.view(b, n, -1),
                            masked_nodes=masked.view(b, n),
                            h_recon=self.recon(z).view(b, n, -1),
-                           dropped_structure=dropped)
+                           dropped_structure=dropped,
+                           z_free=None if z_free is None else z_free.view(b, n, -1))
 
     def _edges(self, batch: dict, b: int, n: int, use_structure: bool):
         """Flatten the batch's edges into one graph, applying structure dropout.

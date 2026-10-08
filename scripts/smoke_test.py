@@ -32,7 +32,7 @@ from chromgraph.evaluate import (average_precision, contact_metrics,     # noqa:
 from chromgraph.graph import ARMS, build_sample, sample_starts           # noqa: E402
 from chromgraph.model import build_model, scatter_softmax                # noqa: E402
 from chromgraph.train import (ShardDataset, collate, compute_losses,     # noqa: E402
-                              contrastive_loss, contrastive_pairs,
+                              contact_loss, contrastive_loss, contrastive_pairs,
                               pick_device, to_device, train)
 
 failures: list[str] = []
@@ -316,6 +316,30 @@ def main() -> int:
               bool(torch.isfinite(z_without).all()),
               "which is what makes Hi-C-free inference testable")
 
+        print("\n     v2: structure distillation and log(O/E) contact target")
+        with torch.no_grad():
+            both = model(batch, use_structure=True, free_pass=True)
+        check("the distillation pass IS the Hi-C-free forward pass",
+              torch.allclose(both.z_free, z_without, atol=1e-5)
+              and torch.allclose(both.z, z_with, atol=1e-5),
+              "same encoder output, distal graph removed")
+
+        class _Head(torch.nn.Module):          # returns a fixed logit per target
+            def __init__(self, logit):
+                super().__init__()
+                self.logit = logit
+            def forward(self, zi, zj, sep):
+                return self.logit
+        tmask = batch["tgt_mask"]
+        st = batch["tgt_strength"][tmask].float().clamp(1e-4, 1 - 1e-4)
+        exact = torch.log(st) - torch.log1p(-st)
+        stub = type("M", (), {"contact_head": _Head(exact)})()
+        check("log_oe loss is zero when the logit equals log(O/E)",
+              float(contact_loss(stub, both, batch, "log_oe")) < 1e-8)
+        stub.contact_head = _Head(exact + 0.5)
+        check("log_oe loss is plain MSE on the logit",
+              abs(float(contact_loss(stub, both, batch, "log_oe")) - 0.25) < 1e-4)
+
         print("\n     softmax identities (same ones the explainer proves)")
         scores = torch.randn(50, 2)
         index = torch.randint(0, 8, (50,))
@@ -370,6 +394,19 @@ def main() -> int:
               steps_logged[0] == 0 and steps_logged == sorted(set(steps_logged))
               and steps_logged[-1] == 43,
               f"{len(resumed)} rows, steps {steps_logged[0]}..{steps_logged[-1]}")
+
+        print("\n     v2 recipe trains")
+        import copy
+        cfg_v2 = copy.deepcopy(cfg)
+        cfg_v2.train.contact_target = "log_oe"
+        cfg_v2.train.lambda_distill = 1.0
+        run_v2 = train(cfg_v2, "smoke_v2", device, max_steps=20,
+                       out_root=tmp / "results", data_root=tmp)
+        h2 = json.loads((run_v2 / "history.json").read_text(encoding="utf-8"))
+        check("v2 logs a distillation term", all("distill" in r for r in h2))
+        check("v2 losses are finite",
+              all(np.isfinite([r["total"], r["distill"], r["contact"]]).all() for r in h2),
+              f"distill {h2[0]['distill']:.4f} -> {h2[-1]['distill']:.4f}")
 
         print("\nPHASE 5  metrics")
         pred = np.array([0.9, 0.8, 0.2, 0.1, 0.6])

@@ -16,6 +16,7 @@ an artefact:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -201,16 +202,20 @@ def collect_comparison(root: Path | None = None, split: str = "val") -> dict:
     table: dict = {}
     for metrics_file in sorted(root.glob("*/metrics.json")):
         report = json.loads(metrics_file.read_text(encoding="utf-8"))
-        arm = report["arm"]
-        table.setdefault(arm, []).append(report)
+        # Group by run name without its seed, not by arm: full_seed0 and
+        # full_v2_seed0 share an arm but are different recipes, and averaging
+        # them into one row would be a number about no model at all.
+        group = re.sub(r"_seed\d+$", "", report["run"])
+        table.setdefault(group, []).append(report)
 
     summary: dict = {}
-    for arm, reports in table.items():
+    for group, reports in table.items():
         key = f"{split}/hic_free"
         values = [r["settings"].get(key, {}).get("long", {}).get("pearson")
                   for r in reports]
         values = [v for v in values if v is not None and not np.isnan(v)]
-        summary[arm] = {
+        summary[group] = {
+            "arm": reports[0]["arm"],
             "split": split,
             "n_seeds": len(reports),
             "contact_r_long_hic_free_mean": float(np.mean(values)) if values else None,

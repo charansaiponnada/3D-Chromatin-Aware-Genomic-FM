@@ -140,11 +140,15 @@ class Losses:
     contrast: torch.Tensor
     contact: torch.Tensor
     total: torch.Tensor
+    distill: torch.Tensor | None = None
 
     def items(self) -> dict[str, float]:
         # detach first: these are read for logging while the graph is still live
-        return {"dna": float(self.dna.detach()), "contrast": float(self.contrast.detach()),
-                "contact": float(self.contact.detach()), "total": float(self.total.detach())}
+        row = {"dna": float(self.dna.detach()), "contrast": float(self.contrast.detach()),
+               "contact": float(self.contact.detach()), "total": float(self.total.detach())}
+        if self.distill is not None:
+            row["distill"] = float(self.distill.detach())
+        return row
 
 
 def masked_window_loss(out, batch) -> torch.Tensor:
@@ -163,7 +167,7 @@ def masked_window_loss(out, batch) -> torch.Tensor:
     return F.mse_loss(out.h_recon[mask], out.h[mask].detach())
 
 
-def contact_loss(model, out, batch) -> torch.Tensor:
+def contact_loss(model, out, batch, contact_target: str = "bce") -> torch.Tensor:
     """Binary cross-entropy on the edges the encoder never saw.
 
     Known limitation, measured in the smoke test rather than assumed: the
@@ -190,7 +194,29 @@ def contact_loss(model, out, batch) -> torch.Tensor:
     zj = z[bi[tgt_mask], j[tgt_mask]]
     sep = (j - i).abs()[tgt_mask]
     logits = model.contact_head(zi, zj, sep)
-    return F.binary_cross_entropy_with_logits(logits, batch["tgt_strength"][tgt_mask])
+    target = batch["tgt_strength"][tgt_mask]
+    if contact_target == "log_oe":
+        # strength = oe / (1 + oe), so logit(strength) = log(oe) exactly. The
+        # head's output is still a logit and sigmoid() still gives strength,
+        # so evaluation is unchanged.
+        t = target.float().clamp(1e-4, 1 - 1e-4)
+        return F.mse_loss(logits.float(), torch.log(t) - torch.log1p(-t))
+    return F.binary_cross_entropy_with_logits(logits, target)
+
+
+def distill_loss(out, batch) -> torch.Tensor:
+    """Pull the Hi-C-free representation toward the Hi-C-conditioned one.
+
+    The teacher is detached: the structured path must not drift toward the
+    impoverished one to make this term small. Samples whose structure was
+    dropped contribute zero by construction (both passes saw the same graph).
+    """
+    if out.z_free is None:
+        return out.z.sum() * 0.0
+    ok = batch["node_ok"]
+    if not ok.any():
+        return out.z.sum() * 0.0
+    return F.mse_loss(out.z_free[ok].float(), out.z[ok].detach().float())
 
 
 N_NEGATIVES = 16
@@ -269,7 +295,8 @@ def compute_losses(model, out, batch, cfg: Config, rng) -> Losses:
     t = cfg.train
     dna = masked_window_loss(out, batch)
     contrast = contrastive_loss(model, out, batch, cfg, rng)
-    contact = contact_loss(model, out, batch)
+    contact = contact_loss(model, out, batch, t.contact_target)
+    distill = distill_loss(out, batch) if out.z_free is not None else None
 
     # B5 uses Hi-C only as an alignment target: the contrastive term survives,
     # the contact-prediction term does not, and the encoder never sees a graph.
@@ -282,7 +309,9 @@ def compute_losses(model, out, batch, cfg: Config, rng) -> Losses:
         w_contrast = t.lambda_contrast
 
     total = t.lambda_dna * dna + w_contrast * contrast + w_contact * contact
-    return Losses(dna, contrast, contact, total)
+    if distill is not None:
+        total = total + t.lambda_distill * distill
+    return Losses(dna, contrast, contact, total, distill)
 
 
 # --------------------------------------------------------------------------- #
@@ -388,6 +417,8 @@ def train(cfg: Config, run_name: str, device: torch.device,
         opt.zero_grad(set_to_none=True)
         accum = max(1, cfg.train.grad_accum_steps)
         agg = {"dna": 0.0, "contrast": 0.0, "contact": 0.0, "total": 0.0}
+        if cfg.train.lambda_distill > 0:
+            agg["distill"] = 0.0
 
         for _ in range(accum):
             try:
@@ -399,8 +430,10 @@ def train(cfg: Config, run_name: str, device: torch.device,
             batch["late_fusion"] = cfg.train.arm == "b4_late_fusion"
 
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_amp):
+                has_graph = cfg.train.arm not in NO_DISTAL_ARMS
                 out_model = model(batch, mask_frac=cfg.train.mask_frac,
-                                  use_structure=cfg.train.arm not in NO_DISTAL_ARMS)
+                                  use_structure=has_graph,
+                                  free_pass=has_graph and cfg.train.lambda_distill > 0)
                 losses = compute_losses(model, out_model, batch, cfg, rng)
 
             (losses.total / accum).backward()
@@ -418,7 +451,9 @@ def train(cfg: Config, run_name: str, device: torch.device,
             history.append(row)
             print(f"  step {step:>6}  total {agg['total']:.4f}  "
                   f"dna {agg['dna']:.4f}  contrast {agg['contrast']:.4f}  "
-                  f"contact {agg['contact']:.4f}  ({rate:.2f} it/s)")
+                  f"contact {agg['contact']:.4f}"
+                + (f"  distill {agg['distill']:.4f}" if "distill" in agg else "")
+                + f"  ({rate:.2f} it/s)")
             history_path.write_text(json.dumps(history, indent=2),
                                               encoding="utf-8")
 
