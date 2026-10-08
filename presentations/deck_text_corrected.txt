@@ -1,0 +1,364 @@
+# ChromGraphFM: corrected deck text
+
+This text follows the deck's slide order and matches `paper/master_copy.docx` and the code as of 2026-10-08. Every citation comes from `paper/bibliography.json`, where each entry was verified.
+
+Lines in *[italics with brackets]* are notes for the presenter, not slide text.
+
+---
+
+## 1. Title
+
+**ChromGraphFM: Measured 3D Chromatin Contacts as a Training-Time Signal for Hi-C-Free DNA Sequence Representations**
+
+P. Charan Sai · G. Karthik · P. Sanath — guided by Mrs. K. Divya Kothapali
+Department of CSE, VR Siddhartha Engineering College, Vijayawada
+
+> Can a DNA model learn not only the letters of DNA, but also which distant regions physically interact inside the cell, and keep that knowledge when the 3D data is taken away?
+
+---
+
+## 2. The basic problem
+
+DNA is usually written as a one-dimensional sequence: `A C G T A A C G …`
+
+Inside the cell, DNA is folded into three-dimensional chromatin. Two regions far apart in the sequence can become physically close. For example, an enhancer can contact the promoter of a gene tens to hundreds of kilobases away and change its expression.
+
+- **The DNA sequence answers:** *what is written in the genome?*
+- **The 3D folding answers:** *which parts of the genome are physically close?*
+
+Most DNA language models learn only the first question. This project asks whether measured 3D contacts can teach a DNA model the second.
+
+---
+
+## 3. Hi-C: measuring the 3D genome
+
+Hi-C is an experiment that measures physical contacts between genomic regions. Its output is a **contact map**:
+
+- rows and columns are genomic regions (here, 5 kb bins)
+- each cell holds how often the two regions were found in contact
+
+**One correction we always apply:** contact frequency falls steeply with distance. Two bins 10 kb apart touch far more often than two bins 500 kb apart, whatever their biology. We therefore divide every contact by the expected value at its distance (**observed / expected**, O/E). Only contacts that are stronger than distance alone predicts count as structure.
+
+*[Show Figure 2 of the paper: the distance-decay curve and the detrended-strength histogram.]*
+
+---
+
+## 4. The idea, simply
+
+We propose **ChromGraphFM**, a DNA sequence encoder in which measured Hi-C contacts decide which DNA windows exchange information **during training**.
+
+- DNA is cut into **5 kb windows**. 128 consecutive windows (640 kb) form one training sample.
+- Each window is encoded from its DNA alone.
+- Windows become **graph nodes**, and strong Hi-C contacts become **graph edges**.
+- Attention between windows runs **only along those edges**, and each edge's contact strength adjusts how much attention flows along it.
+- After training, the model runs **from DNA alone**. Hi-C is not needed.
+
+---
+
+## 5. Analogy: a city
+
+- The DNA sequence is the city's **street map**.
+- Hi-C shows which distant neighbourhoods are joined by **bridges and tunnels**.
+- A sequence-only model reads street names and local roads.
+- ChromGraphFM lets the bridges decide **which neighbourhoods talk to each other while it learns**.
+- Then it takes the bridge map away and checks whether the model still knows where the bridges are.
+
+The goal is not to give the model two separate maps. The goal is to let the transport network change how the model *reads* the street map.
+
+---
+
+## 6. What "foundation-style pretraining" means here
+
+The model is first pretrained **without task labels**, and its representation is then reused for different tasks.
+
+**Task built and running now**
+- Held-out Hi-C contact prediction, with Hi-C removed at inference, split by distance (short <50 kb, medium 50–150 kb, long ≥150 kb).
+
+**Planned downstream tasks (not yet built)**
+- Chromatin-loop detection
+- Enhancer–promoter interaction prediction
+- Transfer to a held-out cell type (K562)
+
+*[Say "foundation-style": at 7.3 M parameters and one cell line, this is a compact prototype, not a foundation model at the scale of Evo 2 or Nucleotide Transformer.]*
+
+---
+
+## 7. Architecture: overview
+
+*[Show Figure 1 of the paper.]*
+
+Two input streams meet in a contact-conditioned attention stage:
+
+1. **Sequence stream:** DNA → one vector per 5 kb window
+2. **Structure stream (training only):** Hi-C → a sparse contact graph
+3. **Fusion:** contact-conditioned attention over the graph
+4. **Hi-C-free use:** after training, the model runs from DNA alone
+
+---
+
+## 8. Architecture: sequence stream
+
+- The genome is divided into **5 kb windows**; one sample is 128 consecutive windows (640 kb).
+- Each window is encoded **independently**:
+  - a **convolutional tower** (5 residual blocks, each halving the length) detects local motifs and shortens 5,000 positions to 157
+  - a **bidirectional state-space encoder** (6 layers; S4D-style diagonal state-space models, one reading forward and one reading backward) mixes information along the window
+  - mean pooling gives **one 256-dimensional vector per window**
+- At this stage no information crosses between windows.
+
+*[Do not call it Mamba. It belongs to the same state-space family, but Mamba's parameters change with the input and ours don't.]*
+
+---
+
+## 9. Architecture: structure stream (training only)
+
+The same windows become graph nodes. Each window is connected to:
+
+- its **±3 neighbouring windows** (always present: the "backbone")
+- its **16 strongest distal partners** at least 25 kb away, chosen by **distance-corrected** contact strength
+
+**15% of the distal edges are hidden** from the model and used only as prediction targets.
+
+This stream is **not a second encoder** whose output is merged with the DNA. Hi-C acts only by steering attention.
+
+*[Show Figure 3a–b of the paper: a real 640 kb sample from chr20.]*
+
+---
+
+## 10. Architecture: contact-conditioned attention (fusion)
+
+The model decides how much each window should use information from each other window.
+
+- In a standard Transformer, this depends **only on learned sequence features**.
+- In ChromGraphFM:
+  - attention runs **only along graph edges**
+  - each edge's **measured contact strength** and **genomic distance** add a learned bias to its attention score
+
+`attention score = (query · key) / √d + b_HiC(contact strength) + b_dist(distance)`
+
+So Hi-C decides **which** windows exchange information and **how strongly**. There are 4 such attention blocks, each with 8 heads.
+
+---
+
+## 11. Making Hi-C optional at inference
+
+Hi-C exists for few cell types, and for no sequence a user brings. So:
+
+- **Structure dropout:** for 30% of training samples, the whole distal graph is removed, so the model regularly practises working from DNA alone.
+- **Structure distillation** *(v2 recipe; under evaluation)*: the model also runs a Hi-C-free pass, and that pass is trained to match its own Hi-C-informed pass.
+
+At test time, **every model is evaluated with Hi-C removed**. That is the only setting in which a gain must come from what training stored in the weights, rather than from Hi-C supplied at test time.
+
+---
+
+## 12. Training objective 1: masked-window reconstruction
+
+- 15% of the **5 kb windows** are hidden, by replacing each one's vector with a learned mask token.
+- The model must **reconstruct each hidden window's encoding** from its graph neighbours.
+- The only way to the answer is through the other windows, including physically interacting ones.
+
+*[We mask whole windows, not individual nucleotides. A single 256-number vector cannot hold 5,000 bases, but it can be inferred from a window's neighbours.]*
+
+---
+
+## 13. Training objective 2: distance-matched contrastive learning
+
+- **Positive pairs** are the hidden contact edges: windows that really are in contact.
+- **Negative pairs** are up to 16 other pairs **at exactly the same genomic distance** in the same sample.
+- Without distance matching, the model could learn the trivial rule that nearby regions interact.
+
+---
+
+## 14. Training objective 3: contact prediction
+
+- 15% of contact edges are **hidden from the input graph**.
+- The model must predict their strength (log observed/expected) from the two windows' representations.
+- Because the targets are never in the graph the model attends over, it **cannot simply copy** the contacts it was given.
+
+---
+
+## 15. Combined loss
+
+**v1 (current baseline sweep)**
+
+`L = 1.0 · L_mask + 0.5 · L_contrast + 1.0 · L_contact`
+
+**v2 (running now)**
+
+`L = 1.0 · L_mask + 0.5 · L_contrast + 1.0 · L_contact + 1.0 · L_distill`
+
+All objectives update both the DNA encoder and the structure-aware attention layers. The mask and contrastive terms are self-supervised; the contact and distillation terms use Hi-C as a **training-time-only** target. No task labels are used.
+
+---
+
+## 16. Prior work: sequence → structure
+
+**Akita** — Fudenberg, Kelley & Pollard, *Nature Methods* 2020
+- Convolutional network that predicts Hi-C maps from about 1 Mb of DNA sequence.
+- **Strength:** shows that sequence carries much of the folding information.
+- **Limit:** Hi-C is the *output*; it produces no reusable sequence representation.
+- **vs. ours:** Akita predicts structure from sequence; we use structure to shape the sequence representation.
+
+**Caduceus** — Schiff et al., *ICML* 2024 (PMLR 235)
+- Bidirectional, reverse-complement-equivariant Mamba-based DNA language model for long contexts.
+- **Strength:** efficient long-range sequence modelling.
+- **Limit:** sequence only; no 3D information.
+- **vs. ours:** the long-context, sequence-only paradigm we add structural conditioning to.
+
+---
+
+## 17. Prior work: Hi-C-guided prediction
+
+**GraphReg** — Karbalayghareh, Sahin & Leslie, *Genome Research* 2022
+- Graph attention networks over Hi-C / HiChIP graphs to predict gene expression. Its Epi-GraphReg variant uses epigenomic tracks; Seq-GraphReg uses DNA sequence.
+- **Limit:** supervised and task-specific; the graph is required at prediction time.
+- **vs. ours:** shared idea of information flow over contacts; we use it during pretraining and remove it afterwards.
+
+**Chromoformer** — Lee, Yang & Kim, *Nature Communications* 2022
+- Transformer that predicts gene expression from **histone modifications**, adding promoter-capture Hi-C interaction frequencies to its attention scores.
+- **Limit:** supervised, histone-mark input (not DNA), and it needs interaction data at prediction time.
+- **vs. ours:** the closest precedent for contact-biased attention; we apply it while pretraining a DNA encoder.
+
+---
+
+## 18. Prior work: pretraining and Hi-C representations
+
+**EPCOT** — Zhang et al., *Nucleic Acids Research* 2023
+- Pre-train and fine-tune framework: from **DNA sequence plus chromatin accessibility**, it predicts epigenome, chromatin contacts and expression.
+- **vs. ours:** Hi-C is one of its predicted outputs; it does not steer the encoder.
+
+**HiCFoundation** — Wang et al., *Nature Methods* 2026 (bioRxiv 2024)
+- Foundation model pretrained on **Hi-C contact maps** themselves.
+- **vs. ours:** learns a representation of contact maps; we learn a representation of DNA.
+
+**MIX-HIC** — Yang et al., *NeurIPS* 2025
+- Multimodal pretraining on **Hi-C maps plus epigenomic tracks** (no DNA sequence input).
+- **vs. ours:** a different input modality; DNA is not modelled.
+
+---
+
+## 19. Closest work
+
+**Evo2HiC** — Fang et al., bioRxiv 2025
+- Distils the large **Evo 2** DNA model into a compact sequence encoder, using a Hi-C encoder as a contrastive "structure teacher". It also provides a sequence-only encoder.
+- **Shared idea:** Hi-C as a *training-time* signal for a DNA encoder.
+- **Difference:** in Evo2HiC, Hi-C acts **from outside** the encoder, as a contrastive alignment target. In ChromGraphFM, Hi-C contacts act **inside** the encoder: they define which windows attend to which at every graph layer during pretraining.
+
+**CHROME** — Ye et al., *Briefings in Bioinformatics* 2026
+- Graph attention over filtered Hi-C contacts, with sequence (pretrained) embeddings as node features. It is supervised, and the graph is needed at prediction time.
+
+---
+
+## 20. Comparison matrix
+
+| Model | DNA sequence input | Role of Hi-C | Mechanism | Pretrained without labels | Output is a DNA representation | Works without Hi-C at inference | Main task |
+|---|---|---|---|---|---|---|---|
+| Akita | Yes | Prediction target | CNN | No | No | Yes | Hi-C map prediction |
+| Caduceus | Yes | None | Bidirectional Mamba | Yes | Yes | Yes (no Hi-C used) | Sequence tasks |
+| GraphReg | Yes (Seq-) / epigenome (Epi-) | Input graph | Graph attention | No | No | No | Gene expression |
+| Chromoformer | No (histone marks) | Attention bias | Transformer | No | No | No | Gene expression |
+| EPCOT | Yes (+ accessibility) | Prediction target | Pre-train + fine-tune | Partly (supervised pre-training) | Partly | Yes (needs accessibility) | Epigenome / contacts / expression |
+| HiCFoundation | No | The input data | Masked autoencoder on maps | Yes | No (Hi-C representation) | — | Hi-C analysis |
+| MIX-HIC | No | Input (+ epigenome) | Multimodal pretraining | Yes | No | — | 3D genome tasks |
+| Evo2HiC | Yes | Contrastive teacher (training) | Distillation + alignment | Yes | Yes | Yes | Sequence + structure analysis |
+| CHROME | Yes (embeddings as node features) | Input graph | Graph attention | No | No | No | Regulatory prediction |
+| **ChromGraphFM** | **Yes** | **Steers attention (training only)** | **Contact-biased sparse attention** | **Yes** | **Yes** | **Yes, by design (being tested)** | **Contact prediction; more planned** |
+
+---
+
+## 21. What is already established
+
+1. Sequence can predict chromatin structure (Akita, Orca, C.Origami).
+2. Interaction frequencies can bias attention, in supervised models (Chromoformer).
+3. Hi-C contacts can serve as graphs for information propagation (GraphReg, CHROME).
+4. Foundation models can be pretrained on Hi-C maps (HiCFoundation).
+5. Hi-C and epigenomic data can be pretrained jointly (MIX-HIC).
+6. Hi-C can guide a DNA encoder as an external contrastive teacher (Evo2HiC).
+7. Long-context DNA encoders exist without Hi-C (Caduceus, HyenaDNA, Evo).
+
+---
+
+## 22. Research gap
+
+**Central question:** does letting measured Hi-C contacts steer a DNA encoder's attention *during pretraining*, and then removing them, produce a better DNA-only representation than the alternatives?
+
+What remains open:
+- No published model trains a DNA encoder while measured contacts decide which distal windows exchange information at every layer.
+- Conditioning **inside** the encoder has not been compared with late fusion and alignment-only use of Hi-C under **matched** parameters, data and compute.
+- Whether structural knowledge **survives removing Hi-C** is often claimed but rarely tested against a **shuffled-Hi-C** control.
+
+---
+
+## 23. Our contribution
+
+A compact (7.3 M-parameter) DNA encoder, pretrained without task labels, that combines a bidirectional state-space window encoder with sparse Hi-C-conditioned attention, and tests whether structural information is retained after Hi-C is removed.
+
+1. **Architecture:** convolutional tower plus bidirectional state-space encoder per 5 kb window, followed by sparse attention over a contact graph, where Hi-C strength and genomic distance bias the attention scores.
+2. **Pretraining:** masked-window reconstruction, distance-matched contrastive learning, and contact prediction on held-out edges the model never attends over.
+3. **Hi-C-free use:** structure dropout (plus structure distillation in v2), so the model runs from DNA alone.
+4. **Evaluation:** every model is scored with Hi-C removed, against six matched controls (next slide), with chromosome-level splits.
+
+The novelty is the integration and the controlled test, not each component on its own.
+
+---
+
+## 24. The experiment: matched controls
+
+All arms share the architecture, parameter count, data, training steps and hidden targets. **Only the structural signal differs.**
+
+| Arm | What it gets during training | Question it answers |
+|---|---|---|
+| **Full** | Real Hi-C graph steering attention | — |
+| B0 | No distal graph, no structural objective | Does structure help at all? |
+| B1 | Same number of edges, placed at random | Is any graph enough? |
+| B2 | Real edges, all strengths set to one constant | Is it just genomic distance? |
+| B3 | Real edges, strengths shuffled between edges | Does the real strength of each contact matter? |
+| B4 | No graph; Hi-C summaries added after the encoder | Is conditioning inside better than adding Hi-C afterwards? |
+| B5 | No graph; Hi-C used only as a contrastive target | Is alignment alone enough? |
+
+**Data:** GM12878 in situ Hi-C (Rao et al. 2014; 4DN set 4DNES3JX38V5) at 5 kb, on the hg38 genome.
+**Splits by chromosome:** train on 17 autosomes; validate on chr10 and chr11; test on chr3, chr13 and chr17. Test is scored **once**, at the end.
+**Headline metric:** long-range (≥150 kb) contact-prediction correlation with Hi-C removed, plus a frozen-representation probe so that every arm is compared the same way.
+
+---
+
+## 25. Hypothesis and what would falsify it
+
+**Hypothesis:** if measured contacts teach the encoder real structure, then with Hi-C removed at test time:
+- Full beats **B0** (structure helps)
+- Full beats **B1** (it is the measured graph, not any graph)
+- Full beats **B2 / B3** (it is the measured strengths, not just distance or which edges exist)
+- Full beats **B4 / B5** (conditioning inside the encoder beats fusion or alignment)
+
+**What would falsify it:** if Full ≈ B3 on long-range contacts across seeds, the gain comes from which edges exist, not from the measured strengths. If Full ≈ B1, structure adds nothing beyond graph regularisation.
+
+**Variables that may affect the outcome**
+- Number of training seeds: one seed is not enough; we run 3–5.
+- Hi-C depth and cell type: GM12878 is the deepest map; K562 is much shallower.
+- Training budget: 20,000 steps per arm.
+- Training recipe: v1, or v2 with distillation and log(O/E) contact regression.
+
+---
+
+## 26. Status
+
+**Done**
+- Reproducible data pipeline (GM12878, all autosomes, 5 kb)
+- Model, training loop, all seven arms, evaluation and the frozen probe (52 automated checks pass)
+- Seed-0 runs complete for Full and B3; B0 and B2 nearly done; B1, B4 and B5 queued
+- Paper draft: Introduction, Related Work and Methods
+
+**Running**
+- v2 recipe (Full and matched B3), decision due 9 October on the validation chromosomes
+
+**Next**
+- Additional seeds, the final test-set evaluation, and downstream tasks
+
+*[Do not present results or conclusions until they are measured on validation and confirmed on test.]*
+
+---
+
+## 27. Conclusion
+
+*[Hold this slide until the results are in. Until then, use:]*
+
+ChromGraphFM is built and training under a controlled design that can show whether measured 3D contacts improve a DNA-only representation. The decisive comparisons, against shuffled-Hi-C (B3) and random-graph (B1) controls with Hi-C removed, are running now.
