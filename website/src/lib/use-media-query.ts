@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /**
  * Why this exists rather than a CSS breakpoint.
@@ -10,19 +10,20 @@ import { useEffect, useState } from "react";
  * leaves that overlay in place, which dims the entire desktop page the moment a
  * component is selected. So the Sheet has to be unmounted, not hidden.
  *
- * Returns false on the server and on first paint, which is the safe direction:
- * the Sheet mounts closed, renders nothing, and unmounts once the effect runs.
+ * useSyncExternalStore rather than state-in-an-effect: the store subscription
+ * is the whole job, and React handles the server and hydration snapshots —
+ * false until the browser takes over, which is the safe direction. The Sheet
+ * mounts closed, renders nothing, and unmounts when the real value arrives.
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
-
-  useEffect(() => {
-    const mql = window.matchMedia(query);
-    setMatches(mql.matches);
-    const onChange = (e: MediaQueryListEvent) => setMatches(e.matches);
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, [query]);
-
-  return matches;
+  return useSyncExternalStore(
+    (onChange) => {
+      const mql = window.matchMedia(query);
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(query).matches,
+    // Server and first hydration render: assume the narrow layout.
+    () => false,
+  );
 }
