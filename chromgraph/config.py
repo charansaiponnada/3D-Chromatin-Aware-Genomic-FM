@@ -9,7 +9,7 @@ CHROMGRAPH_DATA / CHROMGRAPH_RESULTS, defaulting to ./data and ./results.
 from __future__ import annotations
 
 import os
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import MISSING, asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -93,6 +93,16 @@ class TrainConfig:
     ckpt_every: int
     eval_every: int
     log_every: int
+    # Added after the seed-0 sweep, so they carry defaults that reproduce it:
+    # a run_config.yaml written before they existed still loads unchanged.
+    #   contact_target  "bce": BCE against strength = oe/(1+oe) (original).
+    #                   "log_oe": MSE on the logit, i.e. on log(O/E). Same
+    #                   optimum, but without BCE's ~0.2x gradient scale at
+    #                   these targets, so lambda_contact means what it says.
+    #   lambda_distill  weight on matching the Hi-C-free pass's node
+    #                   representation to the (detached) Hi-C-conditioned one.
+    contact_target: str = "bce"
+    lambda_distill: float = 0.0
 
 
 @dataclass
@@ -126,7 +136,9 @@ def _build(cls, section: dict[str, Any], name: str):
     unknown = set(section) - known
     if unknown:
         raise ValueError(f"unknown key(s) in '{name}': {sorted(unknown)}")
-    missing = known - set(section)
+    required = {f.name for f in fields(cls)
+                if f.default is MISSING and f.default_factory is MISSING}
+    missing = required - set(section)
     if missing:
         raise ValueError(f"missing key(s) in '{name}': {sorted(missing)}")
     return cls(**section)
@@ -160,6 +172,11 @@ def load_config(path: str | Path = REPO_ROOT / "configs" / "base.yaml",
 def _validate(cfg: Config) -> None:
     if cfg.train.arm not in VALID_ARMS:
         raise ValueError(f"train.arm must be one of {VALID_ARMS}, got '{cfg.train.arm}'")
+
+    if cfg.train.contact_target not in ("bce", "log_oe"):
+        raise ValueError("train.contact_target must be 'bce' or 'log_oe'")
+    if cfg.train.lambda_distill < 0:
+        raise ValueError("train.lambda_distill must be >= 0")
 
     d = cfg.data
     splits = {"train": set(d.chroms_train), "val": set(d.chroms_val), "test": set(d.chroms_test)}
