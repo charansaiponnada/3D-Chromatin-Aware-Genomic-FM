@@ -18,7 +18,6 @@ export function Reveal({
   className,
   delay = 0,
   y = 18,
-  as: _as,
 }: {
   children: ReactNode;
   className?: string;

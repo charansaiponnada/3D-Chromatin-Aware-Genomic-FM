@@ -1,0 +1,20 @@
+# Deploy configuration for the site in this folder.
+#
+# Netlify finds this file because the site's base directory is `website/`
+# (set in the UI), and it searches the base directory for a netlify.toml.
+# Paths below are relative to that base directory.
+
+[build]
+  command = "npm run build"
+  publish = "out"
+
+  [build.environment]
+    NODE_VERSION = "22"
+
+  # The default ignore check only looks at this directory, but the build reads
+  # repo-root inputs one level up: `configs/base.yaml` (every number on the
+  # site), `figures/` (copied into public/ by scripts/sync-assets.mjs) and
+  # `results/final_comparison.json` (the results table; the site renders `??`
+  # until it appears). Without this, a commit that updates the data pipeline
+  # cancels as "no content change" and the site ships stale numbers.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ../configs ../figures ../results"
