@@ -81,18 +81,18 @@ export function Architecture({
 export function Objectives3({ config, math }: { config: PublicConfig; math: PageMath }) {
   const losses = [
     {
-      name: "Masked DNA reconstruction",
+      name: "Masked-window reconstruction",
       weight: config.lambdaDna,
       html: math.dna,
       role: "regulariser",
-      body: `A fraction of bases is masked and reconstructed. Kept as a regulariser rather than a headline number: predicting a masked base from a window ${kb(config.contextBp / 2)} away is close to information-free, so this loss is expected to move very little.`,
+      body: `${Math.round(config.maskFrac * 100)}% of the ${kb(config.binSize)} windows have their embedding replaced by a mask token, and each must be rebuilt from its graph neighbours. Masking whole windows rather than bases means the only route to the answer runs through other windows, including the physically interacting ones.`,
     },
     {
       name: "Contact-aware contrastive",
       weight: config.lambdaContrast,
       html: math.contrast,
       role: "distance-matched",
-      body: "Contacting windows are pulled together, non-contacting ones pushed apart — with negatives drawn at the same genomic separation as their positive. Sampled freely, the model could minimise this by learning genomic distance, which it can already read off the input.",
+      body: "Each held-out contact pair is pulled together and contrasted with other window pairs at exactly the same genomic separation. Sampled freely, negatives would sit further apart than positives and the model could minimise this by learning genomic distance, which it can already read off the input.",
     },
     {
       name: "Contact prediction",
@@ -107,7 +107,7 @@ export function Objectives3({ config, math }: { config: PublicConfig; math: Page
     <Section
       id="objective-fn"
       eyebrow="08 — Pretraining"
-      title="Three objectives, one weighted sum"
+      title="One weighted sum, identical for every arm"
       lede="Every control arm optimises this same objective with these same weights. Only the structural signal reaching the encoder differs — otherwise a difference in the result would say nothing about whether measured contacts help."
     >
       <div className="flex flex-col gap-8">
@@ -144,8 +144,11 @@ export function Objectives3({ config, math }: { config: PublicConfig; math: Page
 
         <Reveal>
           <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
-            Weights are tuned on the validation chromosomes only. The test chromosomes are touched
-            once, at the end, and the number that comes out is the number that gets reported.
+            The v2 recipe, now under evaluation, adds a fourth term, structure distillation: a
+            Hi-C-free pass of the model is trained to match its own Hi-C-conditioned output, and
+            the contact head regresses log observed/expected instead. It is applied identically to
+            every arm it is run with. Recipes are compared on the validation chromosomes only; the
+            test chromosomes are touched once, at the end.
           </p>
         </Reveal>
       </div>

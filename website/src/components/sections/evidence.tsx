@@ -99,22 +99,23 @@ export function Results({ results }: { results: ResultsTable }) {
     <Section
       id="results"
       eyebrow="11 — Results"
-      title="Nothing measured yet"
-      lede="This table is generated from files under results/. Until a run produces one, every cell stays ??. No number appears on this site because it sounds plausible."
+      title="Measured, not yet reported"
+      lede="This table is generated from files under results/. A cell stays ?? until its comparison has been decided on the validation chromosomes and confirmed once on the sealed test chromosomes. No number appears on this site because it sounds plausible."
     >
       <div className="flex flex-col gap-6">
-        {empty ? (
-          <Reveal>
-            <Alert className="border-destructive/40">
-              <AlertTitle className="font-medium">No runs have completed</AlertTitle>
-              <AlertDescription className="leading-relaxed">
-                Phases 3–6 need the L40S cluster and have not started. The table below shows the
-                comparison that will be filled in, in the shape it will be filled in, so the
-                claim is committed to before the evidence exists rather than after it.
-              </AlertDescription>
-            </Alert>
-          </Reveal>
-        ) : null}
+        <Reveal>
+          <Alert className="border-destructive/40">
+            <AlertTitle className="font-medium">
+              {empty ? "No runs have completed" : "Training in progress"}
+            </AlertTitle>
+            <AlertDescription className="leading-relaxed">
+              The full model and the control arms are training on two GPUs, one seed at a time,
+              followed by additional seeds. The table below shows the comparison in the shape it
+              will be filled in, so the claim is committed to before the evidence exists rather
+              than after it.
+            </AlertDescription>
+          </Alert>
+        </Reveal>
 
         <Reveal>
           <div className="overflow-x-auto rounded-xl border border-border/60">

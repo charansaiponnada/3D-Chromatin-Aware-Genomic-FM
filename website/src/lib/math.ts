@@ -40,23 +40,24 @@ export function pageMathHtml() {
   return {
     attention: renderMath(
       "a_{ij} = \\operatorname*{softmax}_{j \\in \\mathcal{N}(i)}\\left(" +
-        "\\frac{\\mathbf{q}_i^{\\top}\\mathbf{k}_j}{\\sqrt{d}}" +
+        "\\frac{\\mathbf{q}_i^{\\top}\\mathbf{k}_j}{\\sqrt{d_h}}" +
         " + \\htmlStyle{color:var(--struct)}{b_{\\text{HiC}}(c_{ij})}" +
-        " + \\htmlStyle{color:var(--seq)}{b_{\\text{dist}}(d_{ij})}" +
-        " + \\htmlStyle{color:var(--head)}{b_{\\text{scale}}(r)}\\right)",
+        " + \\htmlStyle{color:var(--seq)}{b_{\\text{dist}}(d_{ij})}\\right)",
     ),
     total: renderMath(
-      "\\mathcal{L} = \\lambda_{\\text{DNA}}\\mathcal{L}_{\\text{DNA}}" +
-        " + \\lambda_{\\text{contrast}}\\mathcal{L}_{\\text{contrast}}" +
+      "\\mathcal{L} = \\lambda_{\\text{mask}}\\mathcal{L}_{\\text{mask}}" +
+        " + \\lambda_{\\text{con}}\\mathcal{L}_{\\text{con}}" +
         " + \\lambda_{\\text{contact}}\\mathcal{L}_{\\text{contact}}",
     ),
     dna: renderMath(
-      "\\mathcal{L}_{\\text{DNA}} = -\\sum_{t \\in \\mathcal{M}} \\log p\\!\\left(x_t \\mid x_{\\setminus \\mathcal{M}}, H\\right)",
+      "\\mathcal{L}_{\\text{mask}} = \\frac{1}{|\\mathcal{M}|}\\sum_{i \\in \\mathcal{M}} \\left\\| g(\\mathbf{z}_i) - \\mathrm{sg}(\\mathbf{h}_i) \\right\\|_2^2",
     ),
     contrast: renderMath(
-      "\\mathcal{L}_{\\text{contrast}} = -\\log \\frac{\\exp(\\mathrm{sim}(\\mathbf{z}_i,\\mathbf{z}_j)/\\tau)}{\\sum_{k \\in \\mathcal{N}_i}\\exp(\\mathrm{sim}(\\mathbf{z}_i,\\mathbf{z}_k)/\\tau)}",
+      "\\mathcal{L}_{\\text{con}} = -\\log \\frac{\\exp(\\tilde{\\mathbf{z}}_i^{\\top}\\tilde{\\mathbf{z}}_j/\\tau)}{\\exp(\\tilde{\\mathbf{z}}_i^{\\top}\\tilde{\\mathbf{z}}_j/\\tau) + \\sum_{(k,l) \\in \\mathcal{D}_{ij}}\\exp(\\tilde{\\mathbf{z}}_k^{\\top}\\tilde{\\mathbf{z}}_l/\\tau)}",
     ),
-    contact: renderMath("\\hat{c}_{ij} = g(\\mathbf{z}_i, \\mathbf{z}_j, d_{ij})"),
+    contact: renderMath(
+      "\\hat{c}_{ij} = \\sigma\\!\\left(\\mathrm{MLP}\\left([\\,\\mathbf{z}_i \\odot \\mathbf{z}_j,\\ |\\mathbf{z}_i - \\mathbf{z}_j|,\\ \\log_2(1+d_{ij})\\,]\\right)\\right)",
+    ),
   };
 }
 

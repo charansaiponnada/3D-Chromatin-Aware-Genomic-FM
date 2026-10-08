@@ -293,14 +293,15 @@ export function ArchitectureDiagram({
         {/* Screen readers get the pipeline as prose; the canvas below is aria-hidden decoration
             around real buttons, so nothing here is only available visually. */}
         <p className="sr-only">
-          The model has two input streams. DNA sequence windows are embedded and encoded by a
-          bidirectional Mamba encoder into one embedding per window. Hi-C contact maps are turned
+          The model has two input streams. Each DNA window is one-hot encoded, passed through a
+          convolutional tower and encoded by a bidirectional state-space model into one embedding
+          per window. Hi-C contact maps are turned
           into a sparse graph over those same windows, a fraction of edges is held out as
           prediction targets, and structure dropout may remove the graph entirely. The remaining
           edges produce a learned bias that is added to attention scores inside the encoder block,
-          which repeats N times. Its output feeds three self-supervised heads: masked DNA
-          reconstruction, contact-aware contrastive learning, and contact prediction on the
-          held-out edges.
+          which repeats N times. Its output feeds three pretraining heads: masked-window
+          reconstruction, distance-matched contrastive learning, and contact prediction on the
+          held-out edges. The contact graph is used only during training.
         </p>
 
         {/* Below lg the canvas would be unreadable, so the same data renders as cards. */}

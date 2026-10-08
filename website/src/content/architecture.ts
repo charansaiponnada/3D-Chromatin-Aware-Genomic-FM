@@ -73,7 +73,7 @@ export const LANE_LABEL: Record<Lane, string> = {
   sequence: "Sequence stream",
   structure: "Structure stream",
   fusion: "Structure-conditioned encoder block",
-  heads: "Self-supervised objectives",
+  heads: "Pretraining objectives",
 };
 
 export const GRID = { w: 1000, h: 640 } as const;
@@ -103,28 +103,31 @@ export const NODES: ArchNode[] = [
   },
   {
     id: "tokenizer",
-    label: "Embedding",
-    sub: "nucleotide + position",
+    label: "Conv tower",
+    sub: "one-hot → motifs, downsampled",
     lane: "sequence",
     kind: "module",
     x: 182,
     y: 44,
     w: 150,
     h: 70,
-    short: "Nucleotides become vectors; position within the window is encoded.",
+    short: "Strided residual convolutions detect motifs and shorten each window before the state-space layers.",
     what:
-      "Each base is mapped to a learned vector and combined with its offset inside the window. " +
-      "N is a real token rather than a dropped position, so assembly gaps stay visible to the model.",
+      "Each base is one-hot encoded over A, C, G, T and N, so assembly gaps stay visible to the model. " +
+      "A convolutional stem and a stack of residual blocks, each followed by a halving max-pool, turn " +
+      "the 5,000 positions of a window into about 160, each a vector of motif features. There is no " +
+      "separate positional encoding: convolution and the state-space scan that follows are themselves order-aware.",
     why:
-      "Positional information has to survive into the encoder because regulatory grammar is " +
-      "positional — a motif's spacing from a neighbouring motif carries meaning that a bag of " +
-      "bases would destroy.",
-    configRefs: ["model.d_model"],
+      "Running a sequence model at single-base resolution over every window of every sample is where " +
+      "the compute goes and very little of the signal is. Convolutions are what detect motifs anyway, " +
+      "so doing the fine-resolution work here cuts the dominant training cost by roughly 30x. Akita, " +
+      "Enformer and C.Origami make the same choice.",
+    configRefs: ["model.conv_depth", "model.d_model"],
   },
   {
     id: "mamba",
-    label: "Bi-Mamba encoder",
-    sub: "local, per window",
+    label: "Bidirectional SSM",
+    sub: "S4D-style, per window",
     lane: "sequence",
     kind: "module",
     x: 348,
@@ -134,15 +137,18 @@ export const NODES: ArchNode[] = [
     short:
       "A bidirectional state-space encoder that reads each window and emits one vector for it.",
     what:
-      "A stack of bidirectional Mamba blocks runs over the bases inside a single window and pools " +
-      "to one embedding per window. It sees the window's own sequence and nothing else — all " +
+      "A stack of bidirectional blocks, each with two independent diagonal (S4D-style) state-space " +
+      "models: one reads the window forward, the other reads it reversed. Their outputs are " +
+      "concatenated, projected and gated inside a residual connection, and the final sequence is " +
+      "mean-pooled to one embedding per window. It sees the window's own DNA and nothing else; all " +
       "cross-window communication is deferred to the graph.",
     why:
-      "A state-space model is linear in sequence length where attention is quadratic, which is what " +
-      "makes per-base modelling affordable inside every one of the windows. Bidirectional because " +
-      "DNA has no reading direction: a motif is a motif on either strand, so a causal scan would " +
-      "throw away half the context for no reason.",
-    configRefs: ["model.encoder_layers", "model.d_state", "model.d_conv", "model.expand"],
+      "A state-space layer is a long convolution, computed here by FFT in O(L log L), so it mixes " +
+      "information across the whole window cheaply and needs no custom CUDA kernel. It belongs to " +
+      "the same family as Mamba but is not Mamba: its parameters do not change with the input. " +
+      "Bidirectional because DNA has no reading direction, so a one-way scan would discard half the context.",
+    math: "K[t]=\\sum_{n=1}^{N} c_n\\,b_n\\,a_n^{\\,t},\\qquad a_n=\\exp(-\\exp(\\rho_n))\\in(0,1)",
+    configRefs: ["model.encoder_layers", "model.d_state"],
   },
   {
     id: "window-emb",
@@ -179,8 +185,8 @@ export const NODES: ArchNode[] = [
     short: "The experimental measurement of which genomic regions are physically close.",
     what:
       "Hi-C sequences pairs of genomic fragments that were in contact in the nucleus, producing a " +
-      "matrix of contact counts between genomic bins. Maps are read at a fixed bin size and used " +
-      "after ICE normalisation.",
+      "matrix of contact counts between genomic bins. We use the GM12878 in situ map (Rao et al. 2014; " +
+      "4DN file 4DNFIXP4QG5B) at 5 kb, after iterative-correction (ICE) balancing.",
     why:
       "This is the whole premise. An enhancer can regulate a gene a megabase away because folding " +
       "brings them together, and Hi-C is the direct readout of that folding. A sequence-only model " +
@@ -200,10 +206,10 @@ export const NODES: ArchNode[] = [
     h: 76,
     short: "Turns the dense contact matrix into a sparse graph over windows.",
     what:
-      "Contacts are first detrended against the expected contact at each genomic separation. For " +
-      "every window the strongest distal partners are kept, together with its immediate sequential " +
-      "neighbours. Each surviving edge carries contact strength, genomic distance, resolution and " +
-      "cell type.",
+      "Each contact is divided by the mean contact at its genomic separation (observed / expected) and " +
+      "mapped to a strength c = O/E / (1 + O/E), so 0.5 means exactly as expected. For every window the " +
+      "strongest distal partners at or beyond the minimum separation are kept, together with its " +
+      "immediate sequential neighbours. Each surviving edge carries its strength and its genomic distance.",
     why:
       "Dense attention over every window pair would be quadratic and would spend most of its budget " +
       "on pairs that never touch. Detrending first matters more than the sparsity: raw Hi-C is " +
@@ -253,8 +259,10 @@ export const NODES: ArchNode[] = [
       "This is what makes the central claim testable rather than hopeful. The project asks whether " +
       "structure gets internalised into the sequence representation, which is only meaningful if the " +
       "encoder still works when Hi-C is taken away. Without dropout, removing the graph at inference " +
-      "is an out-of-distribution input and a poor score would say nothing about what was learned.",
-    math: "p_{\\text{drop}} \\sim \\text{Bernoulli}(p), \\quad E_{\\text{in}} \\to E_{\\text{local}}",
+      "is an out-of-distribution input and a poor score would say nothing about what was learned. " +
+      "The v2 recipe adds structure distillation: a second, Hi-C-free pass is trained to match the " +
+      "model's own Hi-C-conditioned output.",
+    math: "\\mathcal{E}=\\mathcal{E}_{\\text{local}}\\cup\\{e\\in\\mathcal{E}_{\\text{distal}}:\\xi=0\\},\\quad \\xi\\sim\\text{Bernoulli}(p)",
     configRefs: ["model.structure_dropout"],
   },
 
@@ -273,21 +281,21 @@ export const NODES: ArchNode[] = [
     short: "Multi-head attention restricted to graph edges, with measured contacts added to the score.",
     what:
       "For each window, attention is computed only over its graph neighbours. The usual scaled " +
-      "dot-product score is shifted by a learned function of the edge's contact strength, its " +
-      "genomic distance and the contact resolution before the softmax.",
+      "dot-product score is shifted by learned functions of the edge's contact strength and its " +
+      "genomic distance before the softmax. No dense window-by-window matrix is ever formed.",
     why:
       "This is the mechanism the whole project exists to test. The contact map does not get " +
       "concatenated to the output or aligned against it afterwards — it decides which distal windows " +
       "exchange information and how strongly, at every layer, while the representation is still being " +
       "formed. Restricting attention to edges is also what makes the context length affordable on one GPU.",
     math:
-      "a_{ij} = \\operatorname*{softmax}_{j \\in \\mathcal{N}(i)}\\left(\\frac{\\mathbf{q}_i^{\\top}\\mathbf{k}_j}{\\sqrt{d}} + b_{\\text{HiC}}(c_{ij}) + b_{\\text{dist}}(d_{ij}) + b_{\\text{scale}}(r)\\right)",
+      "a_{ij} = \\operatorname*{softmax}_{j \\in \\mathcal{N}(i)}\\left(\\frac{\\mathbf{q}_i^{\\top}\\mathbf{k}_j}{\\sqrt{d_h}} + b_{\\text{HiC}}(c_{ij}) + b_{\\text{dist}}(d_{ij})\\right)",
     configRefs: ["model.n_heads", "model.d_model", "model.block_layers"],
   },
   {
     id: "bias",
     label: "Learned edge bias",
-    sub: "b_HiC + b_dist + b_scale",
+    sub: "b_HiC + b_dist, per head",
     lane: "fusion",
     kind: "novel",
     novel: true,
@@ -295,19 +303,20 @@ export const NODES: ArchNode[] = [
     y: 374,
     w: 290,
     h: 56,
-    short: "Three learned functions turn edge features into an additive attention bias.",
+    short: "Two learned functions turn edge features into an additive attention bias, one value per head.",
     what:
-      "Contact strength, genomic separation and contact-map resolution are each passed through a " +
-      "small learned function, and the three outputs are summed into a scalar added to the attention " +
-      "logit for that edge.",
+      "Contact strength and log genomic separation are each passed through a small learned network " +
+      "with one output per attention head, and the two are summed and added to the attention logit " +
+      "for that edge.",
     why:
       "Learned rather than fixed, because how strongly a given contact should matter is exactly the " +
-      "thing nobody knows. Separating distance from contact strength is deliberate: it lets the " +
-      "distance-only control arm be built by keeping b_dist and deleting b_HiC, which is what " +
-      "distinguishes 'the model learned 3D structure' from 'the model learned that near things touch'.",
+      "thing nobody knows. Separating distance from contact strength is deliberate: the " +
+      "distance-only control keeps every measured edge but sets all strengths to one constant, so " +
+      "b_HiC carries nothing and only b_dist can act. That is what distinguishes 'the model learned " +
+      "3D structure' from 'the model learned that near things touch'.",
     math:
-      "\\text{bias}_{ij} = b_{\\text{HiC}}(c_{ij}) + b_{\\text{dist}}(d_{ij}) + b_{\\text{scale}}(r)",
-    configRefs: ["data.bin_size"],
+      "b_{ij} = \\mathrm{MLP}_{\\text{HiC}}(c_{ij}) + \\mathrm{MLP}_{\\text{dist}}\\left(\\log_2(1+d_{ij})\\right) \\in \\mathbb{R}^{H}",
+    configRefs: ["model.n_heads"],
   },
   {
     id: "an1",
@@ -380,24 +389,24 @@ export const NODES: ArchNode[] = [
   },
   {
     id: "head-dna",
-    label: "Masked DNA reconstruction",
+    label: "Masked-window reconstruction",
     lane: "heads",
     kind: "head",
     x: 690,
     y: 40,
     w: 290,
     h: 50,
-    short: "Predict masked bases from the surrounding sequence and the contact-linked windows.",
+    short: "Hide whole windows and rebuild their encodings from graph neighbours.",
     what:
-      "A fraction of the input bases is masked and reconstructed from the structure-informed " +
-      "representation.",
+      "A fraction of the windows has its embedding replaced by a learned mask token before the " +
+      "graph blocks. A small head must reconstruct each hidden window's encoder output from the " +
+      "structure-informed representation, scored by squared error against a stopped-gradient target.",
     why:
-      "The standard self-supervised objective, kept as a regulariser rather than a headline metric. " +
-      "Predicting a masked base from a window several hundred kilobases away is close to " +
-      "information-free, so this loss is expected to move very little — reporting it as the main " +
-      "result would be measuring the wrong thing.",
+      "Masking whole windows, not bases, makes the only route to the answer run through the other " +
+      "windows, including the physically interacting ones. Base-level masking was tried and dropped: " +
+      "a 256-number window vector cannot hold 5,000 bases, but it can be inferred from its neighbours.",
     math:
-      "\\mathcal{L}_{\\text{DNA}} = -\\sum_{t \\in \\mathcal{M}} \\log p\\!\\left(x_t \\mid x_{\\setminus \\mathcal{M}}, H\\right)",
+      "\\mathcal{L}_{\\text{mask}} = \\frac{1}{|\\mathcal{M}|}\\sum_{i \\in \\mathcal{M}} \\left\\| g(\\mathbf{z}_i) - \\mathrm{sg}(\\mathbf{h}_i) \\right\\|_2^2",
     configRefs: ["train.mask_frac", "train.lambda_dna"],
   },
   {
@@ -412,14 +421,15 @@ export const NODES: ArchNode[] = [
     h: 50,
     short: "Pull contacting windows together, push distance-matched non-contacting pairs apart.",
     what:
-      "Window pairs joined by a high-confidence contact are treated as positives. Negatives are drawn " +
-      "at the same genomic separation as the positive they are compared against.",
+      "Every held-out contact edge is a positive pair. Each is scored against up to 16 other window " +
+      "pairs in the same sample that span exactly the same genomic separation, using cosine " +
+      "similarity of projected representations (InfoNCE).",
     why:
       "Distance matching is not an optimisation, it is the whole validity of this loss. Sampled " +
       "freely, negatives would sit further apart than positives and the model could minimise the " +
       "objective by learning genomic distance alone, which it can already read off the input.",
     math:
-      "\\mathcal{L}_{\\text{contrast}} = -\\log \\frac{\\exp(\\mathrm{sim}(\\mathbf{z}_i,\\mathbf{z}_j)/\\tau)}{\\sum_{k \\in \\mathcal{N}_i}\\exp(\\mathrm{sim}(\\mathbf{z}_i,\\mathbf{z}_k)/\\tau)}",
+      "\\mathcal{L}_{\\text{con}} = -\\log \\frac{\\exp(\\tilde{\\mathbf{z}}_i^{\\top}\\tilde{\\mathbf{z}}_j/\\tau)}{\\exp(\\tilde{\\mathbf{z}}_i^{\\top}\\tilde{\\mathbf{z}}_j/\\tau) + \\sum_{(k,l) \\in \\mathcal{D}_{ij}}\\exp(\\tilde{\\mathbf{z}}_k^{\\top}\\tilde{\\mathbf{z}}_l/\\tau)}",
     configRefs: ["train.temperature", "train.lambda_contrast"],
   },
   {
@@ -434,13 +444,15 @@ export const NODES: ArchNode[] = [
     h: 50,
     short: "Predict contact strength for the edges the encoder was never shown.",
     what:
-      "A small head takes two window representations and their genomic separation and predicts the " +
-      "normalised contact strength, scored only on the withheld edges.",
+      "A small head takes two window representations (as their product and absolute difference, so " +
+      "the pair has no direction) and their genomic separation, and predicts the edge's strength, " +
+      "scored only on the withheld edges. The first recipe uses cross-entropy on the strength; v2 " +
+      "regresses log observed/expected instead.",
     why:
       "The primary training signal, and the one that forces structural information into the " +
       "representation. It is only meaningful because its targets were removed from the conditioning " +
       "graph first — otherwise the head would be copying, and a perfect score would mean nothing.",
-    math: "\\hat{c}_{ij} = g(\\mathbf{z}_i, \\mathbf{z}_j, d_{ij})",
+    math: "\\hat{c}_{ij} = \\sigma\\!\\left(\\mathrm{MLP}\\left([\\,\\mathbf{z}_i \\odot \\mathbf{z}_j,\\ |\\mathbf{z}_i - \\mathbf{z}_j|,\\ \\log_2(1+d_{ij})\\,]\\right)\\right)",
     configRefs: ["train.lambda_contact", "data.held_out_edge_frac"],
   },
   {
@@ -452,16 +464,17 @@ export const NODES: ArchNode[] = [
     y: 520,
     w: 290,
     h: 52,
-    short: "The three losses, weighted, optimised jointly from scratch.",
+    short: "The losses, weighted, optimised jointly from scratch.",
     what:
       "A single weighted sum. Every control arm optimises the same objective with the same weights; " +
-      "only the structural signal reaching the encoder differs.",
+      "only the structural signal reaching the encoder differs. The v2 recipe adds a fourth, " +
+      "structure-distillation term, applied identically to every arm it is run with.",
     why:
       "Matched objectives are what make the comparison a comparison. If the controls trained on a " +
       "different loss, a difference in the result would say nothing about whether measured contacts " +
       "help. Weights are tuned on the validation chromosomes only.",
     math:
-      "\\mathcal{L} = \\lambda_{\\text{DNA}}\\mathcal{L}_{\\text{DNA}} + \\lambda_{\\text{contrast}}\\mathcal{L}_{\\text{contrast}} + \\lambda_{\\text{contact}}\\mathcal{L}_{\\text{contact}}",
+      "\\mathcal{L} = \\lambda_{\\text{mask}}\\mathcal{L}_{\\text{mask}} + \\lambda_{\\text{con}}\\mathcal{L}_{\\text{con}} + \\lambda_{\\text{contact}}\\mathcal{L}_{\\text{contact}}",
     configRefs: ["train.lambda_dna", "train.lambda_contrast", "train.lambda_contact"],
   },
 ];

@@ -74,7 +74,7 @@ export function Aim() {
       id="aim"
       eyebrow="02 — Aim"
       title="Condition the representation, do not decorate it"
-      lede="Develop and evaluate a genomic representation model, trained from scratch, in which Hi-C contact information directly biases how a DNA sequence encoder exchanges information across distant genomic regions during self-supervised pretraining."
+      lede="Develop and evaluate a genomic representation model, trained from scratch, in which Hi-C contact information directly biases how a DNA sequence encoder exchanges information across distant genomic regions during pretraining, and remains usable from DNA alone once Hi-C is removed."
     >
       <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
         <Reveal>
@@ -82,15 +82,17 @@ export function Aim() {
             <CardHeader>
               <CardTitle>What already exists, and why it is not this</CardTitle>
               <CardDescription>
-                Three families of prior work, none of which does the thing being tested here.
+                Four families of prior work, none of which does the thing being tested here.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4 text-sm leading-relaxed">
               <p className="text-muted-foreground">
                 Sequence-to-structure models predict Hi-C from sequence — the contact map is the
                 output. Hi-C foundation models pretrain on contact maps — the sequence is absent.
-                The closest precedent aligns a frozen encoder against Hi-C embeddings after the
-                fact — the contacts never enter the encoder&apos;s own contextualisation.
+                Supervised models such as Chromoformer add contact frequencies to attention — but
+                predict one task and need Hi-C at inference. Evo2HiC aligns a distilled DNA encoder
+                against Hi-C embeddings — the contacts never enter the encoder&apos;s own
+                contextualisation.
               </p>
               <p>
                 In none of them does the measured contact map decide{" "}
