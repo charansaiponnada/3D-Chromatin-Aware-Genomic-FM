@@ -1,0 +1,14 @@
+{
+  "name": "chromgraphfm-paper",
+  "private": true,
+  "description": "Builds master_copy.docx from build_master.js",
+  "scripts": {
+    "build": "node build_master.js"
+  },
+  "dependencies": {
+    "docx": "^9.9.0"
+  },
+  "devDependencies": {
+    "mammoth": "^1.13.0"
+  }
+}
