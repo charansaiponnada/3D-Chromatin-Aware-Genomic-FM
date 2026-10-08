@@ -65,18 +65,37 @@ def average_precision(scores: np.ndarray, labels: np.ndarray) -> float:
     return float((precision * labels).sum() / labels.sum())
 
 
+def window_keys(dataset) -> np.ndarray:
+    """One stable string per sample window: "<cell line>:<chrom>:<start bin>".
+
+    Keys, not positions, are what pair two runs window by window: they do not
+    depend on loader order, batch size or which run produced the file.
+    """
+    return np.array([f"{c}:{ch}:{s}" for c, ch, s in dataset.index])
+
+
+def save_predictions(path: Path, pred, true, sep, window, keys) -> None:
+    """Per-edge predictions, each tagged with its window, for the paired
+    bootstrap in scripts/decide.py. `window` indexes into `keys`."""
+    np.savez_compressed(path, pred=pred.astype(np.float32), true=true.astype(np.float32),
+                        sep=sep.astype(np.int32), window=window.astype(np.int32), keys=keys)
+
+
 @torch.no_grad()
 def collect_predictions(model, cfg: Config, chroms: list[str], cell_lines: list[str],
                         device, use_structure: bool, max_batches: int | None = None,
-                        data_root: Path | None = None):
-    """Run the contact head over held-out edges and return predictions."""
+                        data_root: Path | None = None, with_windows: bool = False):
+    """Run the contact head over held-out edges and return predictions.
+
+    With `with_windows`, also return each edge's window index and the key
+    table it indexes (see window_keys)."""
     dataset = ShardDataset(cfg, chroms, cell_lines, root=data_root,
                            stride=cfg.data.nodes_per_sample)   # no overlap at eval
     loader = DataLoader(dataset, batch_size=cfg.train.batch_size, shuffle=False,
                         collate_fn=collate, num_workers=0)
     model.eval()
 
-    preds, truth, seps = [], [], []
+    preds, truth, seps, wins = [], [], [], []
     for n_batch, batch in enumerate(loader):
         if max_batches is not None and n_batch >= max_batches:
             break
@@ -100,10 +119,16 @@ def collect_predictions(model, cfg: Config, chroms: list[str], cell_lines: list[
         preds.append(torch.sigmoid(logit).float().cpu().numpy())
         truth.append(batch["tgt_strength"][mask].float().cpu().numpy())
         seps.append(sep.cpu().numpy())
+        # shuffle=False, so sample k of batch n is dataset index n*batch_size + k
+        wins.append((n_batch * cfg.train.batch_size + bi[mask]).cpu().numpy())
 
     if not preds:
-        return np.zeros(0), np.zeros(0), np.zeros(0)
-    return np.concatenate(preds), np.concatenate(truth), np.concatenate(seps)
+        empty = (np.zeros(0), np.zeros(0), np.zeros(0))
+        return empty + (np.zeros(0, dtype=np.int64), window_keys(dataset)) if with_windows else empty
+    out = (np.concatenate(preds), np.concatenate(truth), np.concatenate(seps))
+    if with_windows:
+        return out + (np.concatenate(wins), window_keys(dataset))
+    return out
 
 
 def contact_metrics(pred: np.ndarray, true: np.ndarray, sep: np.ndarray) -> dict:
@@ -172,10 +197,12 @@ def evaluate_run(run_dir: Path, cfg: Config, device, splits: dict[str, list[str]
             # would imply a distinction that does not exist.
             if setting == "with_hic" and not arm_has_structure:
                 continue
-            pred, true, sep = collect_predictions(
+            pred, true, sep, window, keys = collect_predictions(
                 model, cfg, chroms, cell_lines, device, use_structure, max_batches,
-                data_root=data_root)
+                data_root=data_root, with_windows=True)
             report["settings"][f"{split_name}/{setting}"] = contact_metrics(pred, true, sep)
+            save_predictions(run_dir / f"predictions_{split_name}_{setting}.npz",
+                             pred, true, sep, window, keys)
 
     report["note"] = (
         "hic_free is the headline setting: every arm runs on sequence alone, so "

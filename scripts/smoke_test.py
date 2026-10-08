@@ -445,6 +445,52 @@ def main() -> int:
               all(torch.equal(before[k], after[k]) for k in before))
         check("probe_metrics.json written", (run / "probe_metrics.json").exists())
 
+        print("\n     window-tagged predictions for the paired bootstrap")
+        pz = np.load(run / "predictions_test_hic_free.npz")
+        check("evaluation saves every scored edge with its window",
+              pz["pred"].size == report["settings"]["test/hic_free"]["n_edges"]
+              and pz["window"].max() < pz["keys"].size,
+              f"{pz['pred'].size} edges over {np.unique(pz['window']).size} windows")
+        qz = np.load(run / "probe_predictions_val.npz")
+        check("the probe saves its predictions with windows too",
+              qz["pred"].size == pm["n_edges"] and qz["window"].max() < qz["keys"].size)
+
+        print("\n     pre-registered decision rule (scripts/decide.py)")
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import decide
+        rng = np.random.default_rng(0)
+        xs = rng.normal(size=500); ys = 0.5 * xs + rng.normal(size=500)
+        st = np.stack([np.ones(500), xs, ys, xs * xs, ys * ys, xs * ys], 1)
+        check("Pearson from window sums equals the direct correlation",
+              abs(float(decide.pearson_from(st.sum(0))) - np.corrcoef(xs, ys)[0, 1]) < 1e-9)
+
+        froot = tmp / "decide_results"
+        n_win, per = 60, 40
+        keys = np.array([f"FAKE:chrV:{k * 128}" for k in range(n_win)])
+        truth = rng.uniform(0.5, 0.95, size=n_win * per).astype(np.float32)
+        win = np.repeat(np.arange(n_win), per)
+        sep = np.full(truth.size, 40)          # all long-range
+
+        def fake(run_dir, quality):
+            run_dir.mkdir(parents=True, exist_ok=True)
+            pred = quality * truth + rng.normal(0, 0.05, truth.size)
+            # stored in a shuffled window order, as a different loader might
+            perm = rng.permutation(n_win)
+            for name in ("predictions_val_hic_free.npz", "probe_predictions_val.npz"):
+                np.savez(run_dir / name, pred=pred, true=truth, sep=sep,
+                         window=np.argsort(perm)[win], keys=keys[perm])
+
+        for seed in decide.CONFIRM_SEEDS:
+            for arm, q in (("full", 1.0), ("b3", 1.0), ("b0", 0.0), ("b1", 0.0)):
+                fake(froot / decide.run_name(arm, "v2", seed), q)
+        out = decide.decide_claims("v2", decide.CONFIRM_SEEDS, "val", froot)
+        check("informative arms beat uninformative ones: Claim B passes",
+              out["claim_B"], f"{out['comparisons'][1]['diff']:+.3f}")
+        check("two arms of equal quality do not separate: Claim A fails",
+              not out["claim_A"], f"CI {out['comparisons'][0]['ci95']}")
+        check("that outcome maps to the topology headline",
+              out["headline"] == decide.HEADLINES[False, True])
+
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

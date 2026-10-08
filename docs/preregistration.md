@@ -98,4 +98,11 @@ These are reported whatever the outcome, are never used to choose the headline, 
 
 ## Amendments
 
-*(none)*
+**1. 2026-10-08, implementation fixed before any confirmatory or v2 evaluation exists.** No rule changes; this pins details Section 3 left open.
+- The rule is implemented in `scripts/decide.py`; it reads the `predictions_<split>_hic_free.npz` and `probe_predictions_<split>.npz` files that evaluation and the probe now write.
+- Within a resample, r is the pooled Pearson correlation over every long-range edge of the resampled windows (each window counted as many times as it was drawn).
+- Windows are paired across runs by key (`cell line:chromosome:start`); a window with no long-range edge in a run contributes nothing to that run.
+- Seeds pair by number (seed s of X against seed s of Y) for the 2-of-3 test.
+- Bootstrap generator seed: 20261008. 10,000 resamples. One shared set of resamples for every comparison.
+- Section 2's single-seed recipe test uses the same statistic with one seed, so only its CI and thresholds apply.
+- Smoke tests (`scripts/smoke_test.py`) check that two equally good arms do not separate and that informative arms do.

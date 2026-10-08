@@ -22,7 +22,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Subset
 
 from chromgraph.config import Config
-from chromgraph.evaluate import contact_metrics
+from chromgraph.evaluate import contact_metrics, save_predictions, window_keys
 from chromgraph.model import ContactHead, build_model
 from chromgraph.train import ShardDataset, collate, to_device
 
@@ -32,16 +32,22 @@ PROBE_SEED = 1234
 @torch.no_grad()
 def frozen_pairs(model, cfg: Config, chroms, cell_lines, device, max_samples=None,
                  data_root=None, seed=PROBE_SEED):
-    """Hi-C-free representations of every held-out target pair, gathered once."""
+    """Hi-C-free representations of every held-out target pair, gathered once.
+
+    Returns (zi, zj, sep, strength, window, keys); `window` indexes `keys`,
+    which name the windows of the full (unsubsampled) dataset."""
     ds = ShardDataset(cfg, chroms, cell_lines, root=data_root, stride=cfg.data.nodes_per_sample)
+    keys = window_keys(ds)
+    order = np.arange(len(ds))
     if max_samples is not None and len(ds) > max_samples:
-        idx = np.random.default_rng(seed).choice(len(ds), size=max_samples, replace=False)
-        ds = Subset(ds, sorted(idx.tolist()))
+        order = np.sort(np.random.default_rng(seed).choice(len(ds), size=max_samples,
+                                                           replace=False))
+        ds = Subset(ds, order.tolist())
     loader = DataLoader(ds, batch_size=cfg.train.batch_size, shuffle=False,
                         collate_fn=collate, num_workers=0)
     model.eval()
-    zi_all, zj_all, sep_all, y_all = [], [], [], []
-    for batch in loader:
+    zi_all, zj_all, sep_all, y_all, w_all = [], [], [], [], []
+    for n_batch, batch in enumerate(loader):
         batch = to_device(batch, device)
         batch["late_fusion"] = cfg.train.arm == "b4_late_fusion"
         batch["fusion_hic"] = False
@@ -56,7 +62,9 @@ def frozen_pairs(model, cfg: Config, chroms, cell_lines, device, max_samples=Non
         zj_all.append(z[bi[m], j[m]].half().cpu())
         sep_all.append((j - i).abs()[m].cpu())
         y_all.append(batch["tgt_strength"][m].float().cpu())
-    return (torch.cat(zi_all), torch.cat(zj_all), torch.cat(sep_all), torch.cat(y_all))
+        w_all.append(order[(n_batch * cfg.train.batch_size + bi[m]).cpu().numpy()])
+    return (torch.cat(zi_all), torch.cat(zj_all), torch.cat(sep_all), torch.cat(y_all),
+            np.concatenate(w_all), keys)
 
 
 def fit_head(cfg: Config, train_pairs, device, epochs=20, lr=1e-3, batch=4096,
@@ -65,7 +73,7 @@ def fit_head(cfg: Config, train_pairs, device, epochs=20, lr=1e-3, batch=4096,
     torch.manual_seed(seed)
     head = ContactHead(cfg.model.d_model).to(device)
     opt = torch.optim.AdamW(head.parameters(), lr=lr, weight_decay=0.01)
-    zi, zj, sep, y = train_pairs
+    zi, zj, sep, y = train_pairs[:4]
     target = torch.log(y.clamp(1e-4, 1 - 1e-4)) - torch.log1p(-y.clamp(1e-4, 1 - 1e-4))
     g = torch.Generator().manual_seed(seed)
     n = y.numel()
@@ -82,13 +90,13 @@ def fit_head(cfg: Config, train_pairs, device, epochs=20, lr=1e-3, batch=4096,
 
 
 @torch.no_grad()
-def score(head, pairs, device, batch=8192) -> dict:
-    zi, zj, sep, y = pairs
+def predict(head, pairs, device, batch=8192) -> np.ndarray:
+    zi, zj, sep, y = pairs[:4]
     preds = []
     for k in torch.arange(y.numel()).split(batch):
         preds.append(torch.sigmoid(head(zi[k].to(device).float(), zj[k].to(device).float(),
                                         sep[k].to(device))).cpu())
-    return contact_metrics(torch.cat(preds).numpy(), y.numpy(), sep.numpy())
+    return torch.cat(preds).numpy()
 
 
 def probe_run(run_dir: Path, cfg: Config, device, splits: dict, cell_lines,
@@ -112,6 +120,9 @@ def probe_run(run_dir: Path, cfg: Config, device, splits: dict, cell_lines,
               "settings": {}}
     for split, chroms in splits.items():
         pairs = frozen_pairs(model, cfg, chroms, cell_lines, device, data_root=data_root)
-        report["settings"][f"{split}/probe_hic_free"] = score(head, pairs, device)
+        pred = predict(head, pairs, device)
+        sep, y, window, keys = pairs[2].numpy(), pairs[3].numpy(), pairs[4], pairs[5]
+        report["settings"][f"{split}/probe_hic_free"] = contact_metrics(pred, y, sep)
+        save_predictions(run_dir / f"probe_predictions_{split}.npz", pred, y, sep, window, keys)
     (run_dir / "probe_metrics.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
