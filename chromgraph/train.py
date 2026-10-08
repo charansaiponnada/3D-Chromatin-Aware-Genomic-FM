@@ -336,6 +336,15 @@ def git_dirty() -> bool | None:
         return None
 
 
+def _atomic_write(path: Path, write) -> None:
+    """Write via a temporary file and rename, so a crash or a full disk
+    mid-write leaves the previous file intact instead of a truncated one.
+    (A full disk once emptied history.json and killed a run on its save.)"""
+    tmp = path.with_name(path.name + ".tmp")
+    write(tmp)
+    tmp.replace(path)
+
+
 def lr_at(step: int, cfg: Config) -> float:
     t = cfg.train
     if step < t.warmup_steps:
@@ -454,12 +463,13 @@ def train(cfg: Config, run_name: str, device: torch.device,
                   f"contact {agg['contact']:.4f}"
                 + (f"  distill {agg['distill']:.4f}" if "distill" in agg else "")
                 + f"  ({rate:.2f} it/s)")
-            history_path.write_text(json.dumps(history, indent=2),
-                                              encoding="utf-8")
+            _atomic_write(history_path, lambda f: f.write_text(
+                json.dumps(history, indent=2), encoding="utf-8"))
 
         if (step + 1) % cfg.train.ckpt_every == 0 or step == steps - 1:
-            torch.save({"model": model.state_dict(), "optimizer": opt.state_dict(),
-                        "step": step + 1, "arm": cfg.train.arm}, ckpt_path)
+            state = {"model": model.state_dict(), "optimizer": opt.state_dict(),
+                     "step": step + 1, "arm": cfg.train.arm}
+            _atomic_write(ckpt_path, lambda f: torch.save(state, f))
 
     print(f"  done in {(time.time() - t0) / 60:.1f} min -> {out}")
     return out
