@@ -3,8 +3,9 @@ import Link from "next/link";
 
 import { ArchitectureDiagram } from "@/components/architecture/architecture-diagram";
 import { ContactGraph } from "@/components/architecture/contact-graph";
+import { RealGraph } from "@/components/architecture/real-graph";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { publicConfig, kb } from "@/lib/config";
 import { nodeMathHtml, pageMathHtml } from "@/lib/math";
 
@@ -46,6 +47,19 @@ export default function ArchitecturePage() {
         </CardHeader>
         <CardContent>
           <ContactGraph config={config} formulaHtml={math.attention} />
+        </CardContent>
+      </Card>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>The same graph on real data, arm by arm</CardTitle>
+          <CardDescription>
+            One measured GM12878 sample, exactly as each experimental arm&apos;s encoder receives
+            it. Switch arms to see what each control keeps and what it destroys.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RealGraph />
         </CardContent>
       </Card>
 

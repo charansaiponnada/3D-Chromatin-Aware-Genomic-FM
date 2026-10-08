@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion, useScroll, useSpring } from "motion/react";
 import { useEffect, useState } from "react";
 
@@ -18,6 +19,9 @@ export function SiteNav() {
   const { scrollYProgress } = useScroll();
   const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 30, mass: 0.4 });
   const [current, setCurrent] = useState<string>(SECTIONS[0].id);
+  // The scroll-spy rail indexes the home page's sections. Elsewhere its links
+  // point at nothing, and on the full-width explorer it sat over the content.
+  const onHome = usePathname() === "/";
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -78,7 +82,10 @@ export function SiteNav() {
 
       <nav
         aria-label="Section navigation"
-        className="fixed left-6 top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-1.5 xl:flex"
+        className={cn(
+          "fixed left-6 top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-1.5",
+          onHome && "xl:flex",
+        )}
       >
         {SECTIONS.map((s) => (
           <a
