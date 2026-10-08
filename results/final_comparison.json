@@ -1,0 +1,18 @@
+{
+  "b3_shuffled_hic": {
+    "n_seeds": 1,
+    "contact_r_long_hic_free_mean": 0.16966111958026886,
+    "contact_r_long_hic_free_std": null,
+    "runs": [
+      "b3_shuffled_hic_seed0"
+    ]
+  },
+  "full": {
+    "n_seeds": 1,
+    "contact_r_long_hic_free_mean": 0.15993650257587433,
+    "contact_r_long_hic_free_std": null,
+    "runs": [
+      "full_seed0"
+    ]
+  }
+}

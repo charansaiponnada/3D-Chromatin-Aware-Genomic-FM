@@ -430,6 +430,21 @@ def main() -> int:
               "test/with_hic" in report["settings"])
         check("metrics.json written", (run / "metrics.json").exists())
 
+        print("\n     frozen-representation probe")
+        from chromgraph.probe import probe_run
+        before = {k: v.clone() for k, v in torch.load(run / "checkpoint.pt", map_location="cpu",
+                                                       weights_only=False)["model"].items()}
+        probe = probe_run(run, cfg, device, {"val": ["chrB"]}, ["FAKE"],
+                          max_train_samples=6, epochs=3, data_root=tmp)
+        pm = probe["settings"]["val/probe_hic_free"]
+        check("the probe fits on frozen pairs and scores val",
+              probe["probe"]["train_pairs"] > 0 and pm.get("n_edges", 0) > 0,
+              f"{probe['probe']['train_pairs']} train pairs, {pm.get('n_edges')} val edges")
+        after = torch.load(run / "checkpoint.pt", map_location="cpu", weights_only=False)["model"]
+        check("probing leaves the pretrained weights untouched",
+              all(torch.equal(before[k], after[k]) for k in before))
+        check("probe_metrics.json written", (run / "probe_metrics.json").exists())
+
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
