@@ -220,6 +220,17 @@ def main() -> int:
               not (~by_arm["b0_dna_only"].edge_is_local).any())
         check("targets exist to predict", full.tgt_index.shape[1] > 0,
               f"{full.tgt_index.shape[1]} held-out edges")
+        # B4's fused features must be built from conditioning edges only: a
+        # held-out target's strength summed into its endpoints is the answer.
+        fused = by_arm["b4_late_fusion"]
+        distal = ~full.edge_is_local
+        from chromgraph.graph import _node_hic_features
+        expect = _node_hic_features(full.n_nodes, full.edge_index[0, distal],
+                                    full.edge_index[1, distal], full.edge_strength[distal])
+        check("b4 fused features exclude the held-out targets",
+              np.allclose(fused.node_hic_feat, expect),
+              f"edge count {fused.node_hic_feat[:, 2].sum():.0f} = "
+              f"2 x {int(distal.sum())} conditioning edges")
 
         # Determinism: the control seed is what makes seeds comparable.
         again = build_sample(cfg, chrom_data, "FAKE", "chrA", starts[0], arm="b3_shuffled_hic")
@@ -353,6 +364,12 @@ def main() -> int:
         state = torch.load(run2 / "checkpoint.pt", map_location="cpu", weights_only=False)
         check("resumed and advanced past the old step", state["step"] == 44,
               f"step {state['step']}")
+        resumed = json.loads((run2 / "history.json").read_text(encoding="utf-8"))
+        steps_logged = [row["step"] for row in resumed]
+        check("resume keeps the history written before it",
+              steps_logged[0] == 0 and steps_logged == sorted(set(steps_logged))
+              and steps_logged[-1] == 43,
+              f"{len(resumed)} rows, steps {steps_logged[0]}..{steps_logged[-1]}")
 
         print("\nPHASE 5  metrics")
         pred = np.array([0.9, 0.8, 0.2, 0.1, 0.6])

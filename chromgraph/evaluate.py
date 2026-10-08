@@ -81,6 +81,7 @@ def collect_predictions(model, cfg: Config, chroms: list[str], cell_lines: list[
             break
         batch = to_device(batch, device)
         batch["late_fusion"] = cfg.train.arm == "b4_late_fusion"
+        batch["fusion_hic"] = use_structure
         out = model(batch, mask_frac=0.0, use_structure=use_structure)
 
         mask = batch["tgt_mask"]
@@ -151,7 +152,10 @@ def evaluate_run(run_dir: Path, cfg: Config, device, splits: dict[str, list[str]
     state = torch.load(ckpt, map_location=device, weights_only=False)
     model.load_state_dict(state["model"])
 
-    arm_has_structure = cfg.train.arm not in NO_DISTAL_ARMS
+    # B4 has no graph but does take Hi-C, through late fusion, so it gets a
+    # with_hic setting too (its hic_free pass zeroes the fused features).
+    arm_has_structure = (cfg.train.arm not in NO_DISTAL_ARMS
+                         or cfg.train.arm == "b4_late_fusion")
     report: dict = {
         "run": run_dir.name,
         "arm": cfg.train.arm,
@@ -182,8 +186,12 @@ def evaluate_run(run_dir: Path, cfg: Config, device, splits: dict[str, list[str]
     return report
 
 
-def collect_comparison(root: Path | None = None) -> dict:
+def collect_comparison(root: Path | None = None, split: str = "val") -> dict:
     """Gather every run's metrics.json into the table the write-up reads.
+
+    Defaults to VAL. Test stays sealed until the final multi-seed table, and
+    is read only when asked for explicitly (`--split test`); the output file
+    is named after the split so a val table can never be mistaken for test.
 
     Only runs that actually produced a metrics.json appear. A missing arm stays
     missing rather than becoming a zero -- the decks and the website render `??`
@@ -198,17 +206,18 @@ def collect_comparison(root: Path | None = None) -> dict:
 
     summary: dict = {}
     for arm, reports in table.items():
-        key = "test/hic_free"
+        key = f"{split}/hic_free"
         values = [r["settings"].get(key, {}).get("long", {}).get("pearson")
                   for r in reports]
         values = [v for v in values if v is not None and not np.isnan(v)]
         summary[arm] = {
+            "split": split,
             "n_seeds": len(reports),
             "contact_r_long_hic_free_mean": float(np.mean(values)) if values else None,
             "contact_r_long_hic_free_std": float(np.std(values)) if len(values) > 1 else None,
             "runs": [r["run"] for r in reports],
         }
 
-    out = root / "final_comparison.json"
+    out = root / f"comparison_{split}.json"
     out.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary

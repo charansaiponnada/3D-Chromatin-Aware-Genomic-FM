@@ -360,7 +360,17 @@ class ChromGraphFM(nn.Module):
             z = block(z, src, dst, bias)
 
         if batch.get("late_fusion", False):
-            z = self.late_fusion(torch.cat([z, batch["node_hic_feat"].reshape(total, 3)], -1))
+            # The fused Hi-C features get the same treatment as the graph:
+            # dropped per sample with p in training, and zeroed when the
+            # caller asks for a Hi-C-free pass. Otherwise B4's "hic_free"
+            # number would be measured with Hi-C in its input.
+            feat = batch["node_hic_feat"]                        # (B, N, 3)
+            if not batch.get("fusion_hic", True):
+                feat = torch.zeros_like(feat)
+            elif self.training and self.cfg.model.structure_dropout > 0:
+                drop = torch.rand(b, device=feat.device) < self.cfg.model.structure_dropout
+                feat = feat * (~drop).view(b, 1, 1).to(feat.dtype)
+            z = self.late_fusion(torch.cat([z, feat.reshape(total, 3).to(z.dtype)], -1))
 
         return ModelOutput(z=z.view(b, n, -1), h=h_true.view(b, n, -1),
                            masked_nodes=masked.view(b, n),

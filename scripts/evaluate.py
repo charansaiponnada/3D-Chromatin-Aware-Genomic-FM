@@ -1,8 +1,10 @@
 """Phase 5 CLI --- evaluate a trained run, or collect every run into one table.
 
-    python scripts/evaluate.py --run full_seed0
+    python scripts/evaluate.py --run full_seed0              # val only
+    python scripts/evaluate.py --run full_seed0 --with-test  # final table only
     python scripts/evaluate.py --run full_seed0 --held-out-cell-line K562
-    python scripts/evaluate.py --collect
+    python scripts/evaluate.py --collect                 # val table
+    python scripts/evaluate.py --collect --split test    # final table only
 
 The headline setting is `hic_free`: every arm is evaluated on sequence alone,
 so the only thing separating them is what shaped their weights during
@@ -30,22 +32,26 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--run", default=None, help="directory name under results/")
     ap.add_argument("--collect", action="store_true",
-                    help="gather every metrics.json into final_comparison.json")
+                    help="gather every metrics.json into comparison_<split>.json")
+    ap.add_argument("--split", default="val", choices=("val", "test"),
+                    help="split for --collect; test stays sealed until the final table")
     ap.add_argument("--held-out-cell-line", default=None,
                     help="evaluate on a cell line the model never trained on")
+    ap.add_argument("--with-test", action="store_true",
+                    help="also score the sealed test split (final table only)")
     ap.add_argument("--device", default="auto")
     ap.add_argument("--max-batches", type=int, default=None)
     args = ap.parse_args()
 
     if args.collect:
-        summary = collect_comparison()
+        summary = collect_comparison(split=args.split)
         if not summary:
             print("No metrics.json found under results/. Nothing to collect.")
             print("Every table in the decks and on the website stays ?? until "
                   "this file exists -- which is the intended behaviour.")
             return 0
         print(json.dumps(summary, indent=2))
-        print(f"\nwrote {results_dir() / 'final_comparison.json'}")
+        print(f"\nwrote {results_dir() / f'comparison_{args.split}.json'}")
         return 0
 
     if not args.run:
@@ -65,7 +71,11 @@ def main() -> int:
 
     cell_lines = ([args.held_out_cell_line] if args.held_out_cell_line
                   else cfg.data.cell_lines)
-    splits = {"val": cfg.data.chroms_val, "test": cfg.data.chroms_test}
+    # Test is sealed: decisions are made on val, and test is scored once, for
+    # the final multi-seed table, by asking for it explicitly.
+    splits = {"val": cfg.data.chroms_val}
+    if args.with_test:
+        splits["test"] = cfg.data.chroms_test
 
     print(f"evaluating {args.run}  arm={cfg.train.arm}  cell_lines={cell_lines}")
     report = evaluate_run(run_dir, cfg, device, splits, cell_lines,

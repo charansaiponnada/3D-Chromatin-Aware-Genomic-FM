@@ -51,8 +51,9 @@ class Sample:
     tgt_strength: np.ndarray   # (T,) float32
 
     # Per-node Hi-C summary (sum, max, count of distal strengths), computed
-    # from the UNCORRUPTED graph. Used only by the late-fusion arm, where Hi-C
-    # must reach the model without ever touching the encoder.
+    # from the UNCORRUPTED conditioning edges -- never the held-out targets.
+    # Used only by the late-fusion arm, where Hi-C must reach the model
+    # without ever touching the encoder.
     node_hic_feat: np.ndarray = field(default_factory=lambda: np.zeros((0, 3), np.float32))
 
     def assert_disjoint(self) -> None:
@@ -104,10 +105,13 @@ def build_sample(cfg: Config, chrom_data: dict, cell_line: str, chrom: str,
     # Hold out targets from the DISTAL edges only. Local edges are structural
     # scaffolding rather than measurements, and holding them out would just
     # punch holes in the chain.
-    node_feat = _node_hic_features(n, distal_i, distal_j, distal_s)
-
     tgt_i, tgt_j, tgt_s, distal_i, distal_j, distal_s = _split_targets(
         cfg, distal_i, distal_j, distal_s, control_rng)
+
+    # Late-fusion features come from the CONDITIONING edges only, after the
+    # targets are withheld. Built before the split, they summed each target's
+    # own strength into its endpoints' features and handed B4 the answer.
+    node_feat = _node_hic_features(n, distal_i, distal_j, distal_s)
 
     # B1 invents edges, so it must be told which pairs are spoken for. Without
     # this it can place a random edge exactly on a held-out target and hand the

@@ -297,6 +297,16 @@ def git_commit() -> str:
         return "unknown"
 
 
+def git_dirty() -> bool | None:
+    """True if the code a run executes differs from the recorded commit."""
+    try:
+        return bool(subprocess.check_output(
+            ["git", "status", "--porcelain", "--", "chromgraph", "scripts", "configs"],
+            stderr=subprocess.DEVNULL).decode().strip())
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
 def lr_at(step: int, cfg: Config) -> float:
     t = cfg.train
     if step < t.warmup_steps:
@@ -322,6 +332,7 @@ def train(cfg: Config, run_name: str, device: torch.device,
     cfg.save(out / "run_config.yaml")
     (out / "provenance.json").write_text(json.dumps({
         "commit": git_commit(),
+        "code_dirty": git_dirty(),
         "arm": cfg.train.arm,
         "seed": cfg.seed,
         "control_seed": cfg.control_seed,
@@ -354,7 +365,18 @@ def train(cfg: Config, run_name: str, device: torch.device,
         start_step = state["step"]
         print(f"  resumed from step {start_step}")
 
+    # On resume, keep the curve written before the interruption. Rows at or
+    # past the checkpoint step were logged after it was saved and are about to
+    # be retrained, so they go. Starting from [] here overwrote the file and
+    # lost everything before the last resume.
     history: list[dict] = []
+    history_path = out / "history.json"
+    if start_step > 0 and history_path.exists():
+        try:
+            history = [row for row in json.loads(history_path.read_text(encoding="utf-8"))
+                       if row["step"] < start_step]
+        except (ValueError, KeyError):
+            history = []
     model.train()
     iterator = iter(loader)
     t0 = time.time()
@@ -397,7 +419,7 @@ def train(cfg: Config, run_name: str, device: torch.device,
             print(f"  step {step:>6}  total {agg['total']:.4f}  "
                   f"dna {agg['dna']:.4f}  contrast {agg['contrast']:.4f}  "
                   f"contact {agg['contact']:.4f}  ({rate:.2f} it/s)")
-            (out / "history.json").write_text(json.dumps(history, indent=2),
+            history_path.write_text(json.dumps(history, indent=2),
                                               encoding="utf-8")
 
         if (step + 1) % cfg.train.ckpt_every == 0 or step == steps - 1:
