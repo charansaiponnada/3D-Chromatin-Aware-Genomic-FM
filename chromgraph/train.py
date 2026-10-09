@@ -336,6 +336,9 @@ def git_dirty() -> bool | None:
         return None
 
 
+MAX_SKIPPED_STEPS = 20
+
+
 def _atomic_write(path: Path, write) -> None:
     """Write via a temporary file and rename, so a crash or a full disk
     mid-write leaves the previous file intact instead of a truncated one.
@@ -418,6 +421,7 @@ def train(cfg: Config, run_name: str, device: torch.device,
     model.train()
     iterator = iter(loader)
     t0 = time.time()
+    skipped_in_a_row = 0
 
     for step in range(start_step, steps):
         for group in opt.param_groups:
@@ -449,8 +453,20 @@ def train(cfg: Config, run_name: str, device: torch.device,
             for key, value in losses.items().items():
                 agg[key] += value / accum
 
-        torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.train.grad_clip)
-        opt.step()
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.train.grad_clip)
+        # A non-finite loss gives non-finite gradients, and one optimizer step
+        # with them turns every weight into NaN (b2 seed 0 at step 18000).
+        # Skip that update instead; a step with finite gradients is untouched.
+        if torch.isfinite(grad_norm):
+            opt.step()
+            skipped_in_a_row = 0
+        else:
+            skipped_in_a_row += 1
+            print(f"  step {step:>6}  non-finite gradients -- update skipped "
+                  f"({skipped_in_a_row} in a row)")
+            if skipped_in_a_row > MAX_SKIPPED_STEPS:
+                raise RuntimeError(f"{skipped_in_a_row} consecutive non-finite steps; "
+                                   "stopping without saving a checkpoint")
 
         if step % cfg.train.log_every == 0 or step == steps - 1:
             rate = (step - start_step + 1) / max(1e-9, time.time() - t0)
@@ -467,6 +483,10 @@ def train(cfg: Config, run_name: str, device: torch.device,
                 json.dumps(history, indent=2), encoding="utf-8"))
 
         if (step + 1) % cfg.train.ckpt_every == 0 or step == steps - 1:
+            # Never overwrite a good checkpoint with a broken model.
+            if not all(torch.isfinite(p).all() for p in model.parameters()):
+                raise RuntimeError(f"non-finite weights at step {step + 1}; "
+                                   "checkpoint not saved, previous one kept")
             state = {"model": model.state_dict(), "optimizer": opt.state_dict(),
                      "step": step + 1, "arm": cfg.train.arm}
             _atomic_write(ckpt_path, lambda f: torch.save(state, f))

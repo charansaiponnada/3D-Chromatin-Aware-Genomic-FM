@@ -106,3 +106,5 @@ These are reported whatever the outcome, are never used to choose the headline, 
 - Bootstrap generator seed: 20261008. 10,000 resamples. One shared set of resamples for every comparison.
 - Section 2's single-seed recipe test uses the same statistic with one seed, so only its CI and thresholds apply.
 - Smoke tests (`scripts/smoke_test.py`) check that two equally good arms do not separate and that informative arms do.
+
+**2. 2026-10-09, NaN guard in training (no rule change).** b2_distance_only seed 0 reached a non-finite loss at step 18,000. One optimizer step made every weight NaN, and that state overwrote its only checkpoint. b2 restarts from scratch at the end of the queue; it is a secondary arm (Section 6). From commit 0b?? onward, `chromgraph/train.py` skips any update whose gradient norm is non-finite (it stops after 20 in a row) and refuses to save a checkpoint with non-finite weights. Training without a non-finite step is bit-for-bit unchanged. The guard applies to every arm and every confirmatory run. Skipped updates are printed in each run's log and must be reported per run.
