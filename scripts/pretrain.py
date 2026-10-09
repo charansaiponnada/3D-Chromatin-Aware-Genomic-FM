@@ -37,6 +37,8 @@ def main() -> int:
     ap.add_argument("--batch-size", type=int, default=None)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--run-name", default=None)
+    ap.add_argument("--ckpt-every", type=int, default=None,
+                    help="override train.ckpt_every (I/O only; training is unchanged)")
     ap.add_argument("--smoke", action="store_true",
                     help="tiny model and batch, for proving the loop runs at all")
     args = ap.parse_args()
@@ -44,6 +46,8 @@ def main() -> int:
     overrides = {"train.arm": args.arm, "seed": args.seed}
     if args.batch_size is not None:
         overrides["train.batch_size"] = args.batch_size
+    if args.ckpt_every is not None:
+        overrides["train.ckpt_every"] = args.ckpt_every
     if args.smoke:
         overrides.update({
             "train.batch_size": 1,
