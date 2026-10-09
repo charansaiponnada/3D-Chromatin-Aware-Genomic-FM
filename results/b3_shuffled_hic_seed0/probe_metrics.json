@@ -1,0 +1,49 @@
+{
+  "run": "b3_shuffled_hic_seed0",
+  "arm": "b3_shuffled_hic",
+  "seed": 0,
+  "step": 20000,
+  "probe": {
+    "train_pairs": 311135,
+    "max_train_samples": 1500,
+    "epochs": 20,
+    "seed": 1234,
+    "target": "log_oe",
+    "setting": "hic_free"
+  },
+  "settings": {
+    "val/probe_hic_free": {
+      "n_edges": 84261,
+      "short": {
+        "n": 4009,
+        "pearson": 0.33404049277305603,
+        "spearman": 0.3359996083073541,
+        "mse": 0.0019449684768915176,
+        "auprc": 0.9637614082335999,
+        "positive_rate": 0.9366425542529309
+      },
+      "medium": {
+        "n": 20764,
+        "pearson": 0.3171186149120331,
+        "spearman": 0.3178171195757749,
+        "mse": 0.002761103445664048,
+        "auprc": 0.9853346503121934,
+        "positive_rate": 0.9783760354459642
+      },
+      "long": {
+        "n": 59488,
+        "pearson": 0.19254396855831146,
+        "spearman": 0.19972427146238073,
+        "mse": 0.004172947257757187,
+        "auprc": 0.9892235389989842,
+        "positive_rate": 0.9890398063474987
+      },
+      "overall": {
+        "pearson": 0.3359661400318146,
+        "spearman": 0.3344346580181608,
+        "mse": 0.0037190306466072798,
+        "auprc": 0.9888548352004777
+      }
+    }
+  }
+}

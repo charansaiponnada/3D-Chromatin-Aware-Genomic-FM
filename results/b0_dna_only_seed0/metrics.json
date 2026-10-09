@@ -1,0 +1,45 @@
+{
+  "run": "b0_dna_only_seed0",
+  "arm": "b0_dna_only",
+  "seed": 0,
+  "step": 20000,
+  "cell_lines": [
+    "GM12878"
+  ],
+  "settings": {
+    "val/hic_free": {
+      "n_edges": 84261,
+      "short": {
+        "n": 4009,
+        "pearson": -0.05478224903345108,
+        "spearman": -0.04541127491292784,
+        "mse": 0.00624493882060051,
+        "auprc": 0.9262137537918385,
+        "positive_rate": 0.9366425542529309
+      },
+      "medium": {
+        "n": 20764,
+        "pearson": 0.030761873349547386,
+        "spearman": 0.02781346097652834,
+        "mse": 0.012281494215130806,
+        "auprc": 0.9765766467572011,
+        "positive_rate": 0.9783760354459642
+      },
+      "long": {
+        "n": 59488,
+        "pearson": -0.018780136480927467,
+        "spearman": -0.0197706174379993,
+        "mse": 0.02077857032418251,
+        "auprc": 0.9874912909977243,
+        "positive_rate": 0.9890398063474987
+      },
+      "overall": {
+        "pearson": -0.09241964668035507,
+        "spearman": -0.09835166382038747,
+        "mse": 0.017993193119764328,
+        "auprc": 0.978459522993006
+      }
+    }
+  },
+  "note": "hic_free is the headline setting: every arm runs on sequence alone, so the only difference between them is what shaped their weights during pretraining. with_hic is an upper bound measured with privileged input and must not be compared against a sequence-only baseline."
+}

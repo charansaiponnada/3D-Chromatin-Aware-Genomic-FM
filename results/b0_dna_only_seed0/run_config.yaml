@@ -70,3 +70,5 @@ train:
   ckpt_every: 500
   eval_every: 500
   log_every: 50
+  contact_target: bce
+  lambda_distill: 0.0

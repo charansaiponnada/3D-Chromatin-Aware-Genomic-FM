@@ -1,0 +1,49 @@
+{
+  "run": "b0_dna_only_seed0",
+  "arm": "b0_dna_only",
+  "seed": 0,
+  "step": 20000,
+  "probe": {
+    "train_pairs": 311135,
+    "max_train_samples": 1500,
+    "epochs": 20,
+    "seed": 1234,
+    "target": "log_oe",
+    "setting": "hic_free"
+  },
+  "settings": {
+    "val/probe_hic_free": {
+      "n_edges": 84261,
+      "short": {
+        "n": 4009,
+        "pearson": 0.3202957510948181,
+        "spearman": 0.3198268639390422,
+        "mse": 0.0019107224652543664,
+        "auprc": 0.9525668277750661,
+        "positive_rate": 0.9366425542529309
+      },
+      "medium": {
+        "n": 20764,
+        "pearson": 0.3100177049636841,
+        "spearman": 0.31887764245782074,
+        "mse": 0.002738726092502475,
+        "auprc": 0.983264291945489,
+        "positive_rate": 0.9783760354459642
+      },
+      "long": {
+        "n": 59488,
+        "pearson": 0.18747662007808685,
+        "spearman": 0.19471210723275464,
+        "mse": 0.004114808514714241,
+        "auprc": 0.9886226582285769,
+        "positive_rate": 0.9890398063474987
+      },
+      "overall": {
+        "pearson": 0.337736040353775,
+        "spearman": 0.33309835666993276,
+        "mse": 0.0036708407569676638,
+        "auprc": 0.9881571097361779
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "commit": "3c472012193a0b0d1be434e81e1a085f31604831",
+  "code_dirty": true,
+  "arm": "b4_late_fusion",
+  "seed": 0,
+  "control_seed": 20260815,
+  "device": "cuda",
+  "started": "2026-10-09T14:40:09"
+}
