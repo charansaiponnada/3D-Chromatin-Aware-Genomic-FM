@@ -1,0 +1,78 @@
+{
+  "run": "b3_shuffled_hic_v2_seed0",
+  "arm": "b3_shuffled_hic",
+  "seed": 0,
+  "step": 20000,
+  "cell_lines": [
+    "GM12878"
+  ],
+  "settings": {
+    "val/hic_free": {
+      "n_edges": 84261,
+      "short": {
+        "n": 4009,
+        "pearson": 0.1825128048658371,
+        "spearman": 0.17556790563475375,
+        "mse": 0.0021104360930621624,
+        "auprc": 0.9522278270795582,
+        "positive_rate": 0.9366425542529309
+      },
+      "medium": {
+        "n": 20764,
+        "pearson": 0.24364016950130463,
+        "spearman": 0.24380236284908194,
+        "mse": 0.002890718402341008,
+        "auprc": 0.9858572112290542,
+        "positive_rate": 0.9783760354459642
+      },
+      "long": {
+        "n": 59488,
+        "pearson": 0.18388472497463226,
+        "spearman": 0.20476720842314833,
+        "mse": 0.00422858539968729,
+        "auprc": 0.9895786308388439,
+        "positive_rate": 0.9890398063474987
+      },
+      "overall": {
+        "pearson": 0.3204464912414551,
+        "spearman": 0.32924931867131385,
+        "mse": 0.0037981239147484303,
+        "auprc": 0.9891825873083792
+      }
+    },
+    "val/with_hic": {
+      "n_edges": 84261,
+      "short": {
+        "n": 4009,
+        "pearson": 0.47707244753837585,
+        "spearman": 0.4847630845589882,
+        "mse": 0.0017234005499631166,
+        "auprc": 0.9751713537664319,
+        "positive_rate": 0.9366425542529309
+      },
+      "medium": {
+        "n": 20764,
+        "pearson": 0.6269955039024353,
+        "spearman": 0.6156414713499037,
+        "mse": 0.001987984636798501,
+        "auprc": 0.9964551948171186,
+        "positive_rate": 0.9783760354459642
+      },
+      "long": {
+        "n": 59488,
+        "pearson": 0.7076027393341064,
+        "spearman": 0.6760110276920792,
+        "mse": 0.002250345190986991,
+        "auprc": 0.9983903323837964,
+        "positive_rate": 0.9890398063474987
+      },
+      "overall": {
+        "pearson": 0.7139069437980652,
+        "spearman": 0.6862301816826883,
+        "mse": 0.002160622039809823,
+        "auprc": 0.9976813094085688
+      }
+    }
+  },
+  "note": "hic_free is the headline setting: every arm runs on sequence alone, so the only difference between them is what shaped their weights during pretraining. with_hic is an upper bound measured with privileged input and must not be compared against a sequence-only baseline."
+}

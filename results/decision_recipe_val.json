@@ -1,0 +1,49 @@
+{
+  "full_v2_r": 0.16529331622903762,
+  "threshold_full_v1": 0.2066,
+  "gap_v2": {
+    "comparison": "full_v2 > b3_v2 (head)",
+    "diff": -0.018591390879400843,
+    "ci95": [
+      -0.043130734936223915,
+      0.004737128937272473
+    ],
+    "per_seed_diff": [
+      -0.018591390879400843
+    ],
+    "seeds_ahead": "0/1",
+    "pass": false,
+    "x_r": [
+      0.16529331622903762
+    ],
+    "y_r": [
+      0.18388470710843846
+    ]
+  },
+  "threshold_gap_v1": 0.022,
+  "gap_v1_recomputed": {
+    "comparison": "full > b3, v1 (head)",
+    "diff": 0.021713512500096815,
+    "ci95": [
+      -0.0027235222600840653,
+      0.04684749325295805
+    ],
+    "per_seed_diff": [
+      0.021713512500096815
+    ],
+    "seeds_ahead": "1/1",
+    "pass": false,
+    "x_r": [
+      0.20655077134879168
+    ],
+    "y_r": [
+      0.18483725884869487
+    ]
+  },
+  "chosen_recipe": "v1",
+  "n_windows": 406,
+  "split": "val",
+  "n_boot": 10000,
+  "boot_seed": 20261008,
+  "rule": "docs/preregistration.md"
+}
