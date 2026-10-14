@@ -37,15 +37,12 @@ EQUATIONS = {
     "l_con": r"$\mathcal{L}_{\mathrm{con}}=-\frac{1}{|\mathcal{T}|}\sum_{(i,j)\in\mathcal{T}}\log"
              r"\frac{\exp(\tilde z_i^\top\tilde z_j/\tau)}{\exp(\tilde z_i^\top\tilde z_j/\tau)"
              r"+\sum_{(k,l)\in\mathcal{D}_{ij}}\exp(\tilde z_k^\top\tilde z_l/\tau)}$",
-    "l_contact": r"$\mathcal{L}_{\mathrm{contact}}=\frac{1}{|\mathcal{T}|}\sum_{(i,j)\in\mathcal{T}}"
-                 r"\left(f\left(z_i,z_j,d_{ij}\right)-\log\mathrm{O/E}_{ij}\right)^2,\qquad"
-                 r"f=\mathrm{MLP}\left([\,z_i\odot z_j,\ |z_i-z_j|,\ \log_2(1+d_{ij})\,]\right)$",
-    "l_distill": r"$\mathcal{L}_{\mathrm{distill}}=\frac{1}{|V|}\sum_{i\in V}"
-                 r"\left\|z^{\mathrm{free}}_i-\mathrm{sg}(z_i)\right\|_2^2$",
+    "l_contact": r"$\mathcal{L}_{\mathrm{contact}}=-\frac{1}{|\mathcal{T}|}\sum_{(i,j)\in\mathcal{T}}"
+                 r"\left[c_{ij}\log\sigma(f_{ij})+(1-c_{ij})\log\left(1-\sigma(f_{ij})\right)\right],\qquad"
+                 r"f_{ij}=\mathrm{MLP}\left([\,z_i\odot z_j,\ |z_i-z_j|,\ \log_2(1+d_{ij})\,]\right)$",
     "l_total": r"$\mathcal{L}=\lambda_{\mathrm{mask}}\mathcal{L}_{\mathrm{mask}}"
                r"+\lambda_{\mathrm{con}}\mathcal{L}_{\mathrm{con}}"
-               r"+\lambda_{\mathrm{contact}}\mathcal{L}_{\mathrm{contact}}"
-               r"+\lambda_{\mathrm{distill}}\mathcal{L}_{\mathrm{distill}}$",
+               r"+\lambda_{\mathrm{contact}}\mathcal{L}_{\mathrm{contact}}$",
 }
 
 

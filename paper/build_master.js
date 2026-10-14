@@ -340,11 +340,14 @@ C.method.forEach((sec, k) => {
 
 // Sections still to be written
 body.push(H1("4  Results"));
-body.push(P("[PENDING RESULTS — written from the final multi-seed validation results and the single sealed test evaluation.]"));
+C.results.forEach((sec, k) => {
+  body.push(H2(`4.${k + 1}  ${sec.heading}`));
+  for (const p of sec.paras) body.push(P(p));
+});
 body.push(H1("5  Discussion"));
-body.push(P("[PENDING]"));
+for (const p of C.discussion) body.push(P(p));
 body.push(H1("6  Conclusion"));
-body.push(P("[PENDING]"));
+for (const p of C.conclusion) body.push(P(p));
 
 // References
 body.push(H1("References"));

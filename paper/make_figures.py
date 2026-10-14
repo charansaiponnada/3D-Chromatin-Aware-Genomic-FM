@@ -136,22 +136,17 @@ def fig1_overview(cfg) -> None:
 
     # outputs
     box(81, 45.5, 18, 9, r"$z_i$", "structure-conditioned\nrepresentation", STRUCT, fill=0.9)
-    box(81, 30.5, 18, 9, r"$z_i^{\mathrm{free}}$", "Hi-C-free pass\n(local edges only)", SEQ, fill=0.9,
+    box(81, 30.5, 18, 9, r"$z_i^{\mathrm{free}}$", "Hi-C-free mode\n(local edges; inference)", SEQ, fill=0.9,
         dashed=True)
     arrow((76.3, 34.5), (80.7, 49.5), STRUCT, rad=-0.2)
     arrow((76.3, 31.5), (80.7, 34.5), SEQ, dashed=True)
-    ax.annotate("", xy=(90, 39.8), xytext=(90, 45.2),
-                arrowprops=dict(arrowstyle="-|>", color=NEUTRAL, lw=0.9, ls=(0, (3, 2)),
-                                mutation_scale=7))
-    ax.text(91.2, 42.5, "distill\n(stop-grad)", fontsize=5.9, color=NEUTRAL, va="center")
 
     # objectives
     ox, ow = 80.2, 19.6
     objs = [
         ("Masked-window recon.", rf"$\lambda={t.lambda_dna:g}$"),
         ("Distance-matched InfoNCE", rf"$\lambda={t.lambda_contrast:g}$"),
-        ("Contact regression", rf"$\log\,\mathrm{{O/E}}$, held-out edges, $\lambda={t.lambda_contact:g}$"),
-        ("Structure distillation", rf"$\|z^{{\mathrm{{free}}}}-\mathrm{{sg}}(z)\|^2$, $\lambda={t.lambda_distill:g}$"),
+        ("Contact prediction", rf"BCE on held-out $c_{{ij}}$, $\lambda={t.lambda_contact:g}$"),
     ]
     for k, (name, sub) in enumerate(objs):
         y = 20.6 - k * 5.6
@@ -338,7 +333,7 @@ def fig3_graph_sample() -> None:
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
-    cfg = load_config(REPO / "configs" / "v2.yaml")
+    cfg = load_config(REPO / "configs" / "base.yaml")
     fig1_overview(cfg)
     fig2_detrending(cfg)
     fig3_graph_sample()
