@@ -98,12 +98,14 @@ The model has 7.29 million parameters.
 
 ## 5. Pretraining: how the model learns
 
-The model learns with four tasks at the same time. No person labels the data.
+The model learns with three tasks at the same time. No person labels the data.
 
 1. **Fill the gap.** The model hides 15% of the windows. It must rebuild them from their neighbours.
 2. **Find the partner.** For each hidden contact, the model must find the true partner window. It must not choose other windows at the same distance.
 3. **Predict the strength.** The model must predict the strength of each hidden contact.
-4. **Learn without Hi-C.** Sometimes the model trains with all Hi-C removed. It must then copy what it knows when Hi-C is present.
+In addition, the model sometimes trains with all distant contacts removed (30% of samples). This is **structure dropout**. It teaches the model to work without Hi-C.
+
+Note: a fourth task, **structure distillation**, was tested in the v2 recipe. The model had to copy what it knows when Hi-C is present. Seed 0 chose the v1 recipe. The v1 recipe does not use distillation (`lambda_distill: 0.0`).
 
 Each training run has 20,000 steps. One run takes about 7.4 hours on one GPU (NVIDIA L40S).
 
@@ -112,7 +114,7 @@ Each training run has 20,000 steps. One run takes about 7.4 hours on one GPU (NV
 ## 6. What is new (novelty)
 
 1. **Hi-C controls the attention.** Hi-C decides which distant windows share information, and how much.
-2. **Hi-C is needed only for training.** After training, the model needs only DNA. This is important, because most cell types have no Hi-C map.
+2. **Hi-C is needed only for training.** Structure dropout teaches the model to work without Hi-C. After training, the model needs only DNA. This is important, because most cell types have no Hi-C map.
 3. **The test is fair and fixed in advance.** We compare the model with six control versions. We wrote the decision rule before we saw the results.
 
 ---

@@ -42,13 +42,14 @@ Hi-C measures that folding: for every pair of genomic bins, how often they touch
   1. masked-window reconstruction;
   2. distance-matched contrastive alignment on held-out contacts;
   3. contact-strength prediction on held-out edges;
-  4. structure distillation (see Novelty).
+  - plus structure dropout: the whole distal graph is removed for 30% of samples.
+  - Structure distillation (Hi-C-free pass matches the Hi-C pass) was the v2 recipe. Seed 0 chose v1, which does not use it (`lambda_distill: 0.0`).
 - **Budget:** 7.29M parameters, 20,000 steps per run, about 7.4 hours per run on one NVIDIA L40S.
 
 ## 4. Novelty
 
 1. **Contact-biased sparse attention.** Measured Hi-C decides *which* distant windows exchange information and *how strongly*. Held-out target edges mean the model can't just copy contact values from its input.
-2. **Hi-C as training-time-only information.** Structure dropout (training sometimes runs with the distal graph removed) plus structure distillation (the Hi-C-free pass learns to match the Hi-C-conditioned pass) give a model that needs **only DNA at inference**.
+2. **Hi-C as training-time-only information.** Structure dropout (30% of samples train with the distal graph removed) gives a model that needs **only DNA at inference**. Structure distillation was tested in v2 but is not in the chosen v1 recipe.
 3. **A controlled, preregistered evaluation.** Six matched control arms isolate what measured contacts contribute, separately from graph regularisation, genomic distance, strength marginals and post-hoc fusion. The decision rule was fixed before any confirmatory result was seen.
 
 ## 5. How it is tested
