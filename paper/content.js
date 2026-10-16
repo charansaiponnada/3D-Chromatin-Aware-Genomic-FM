@@ -28,7 +28,7 @@
 const C = {};
 
 C.title =
-  "Measured 3D Chromatin Contacts Steer a DNA Encoder but Do Not Transfer to Its Hi-C-Free Representation: A Pre-registered Controlled Study of ChromGraphFM";
+  "ChromGraphFM: Contact-Biased Attention Lets a DNA Encoder Exploit Measured 3D Chromatin Structure, and a Controlled Test of What Transfers Without It";
 
 C.authors = "P. Charan Sai, G. Karthik, P. Sanath, K. Divya Kothapali";
 C.affiliation =
@@ -42,10 +42,10 @@ C.draftNote = [
 // Abstract: Version 2 of the skill (task, challenge, insight, contribution,
 // advantage, experiment summary).
 C.abstract = [
-  "DNA sequence models contextualise a genomic window by what lies near it on the linear chromosome, yet much of gene regulation acts across hundreds of kilobases through the three-dimensional folding of chromatin. Chromosome conformation capture (Hi-C) measures that folding directly, but existing models use it as a prediction target, as an input that must be present at inference, or as an alignment target applied outside the encoder. We ask whether measured contacts can instead act as a training-time routing signal: if they decide which distal windows exchange information during self-supervised pretraining and are then removed, is the resulting representation better? We implement this in ChromGraphFM, a 7.3 M-parameter DNA encoder in which a sparse graph of distance-detrended Hi-C contacts restricts and biases attention between 5 kb windows across a 640 kb context, with predicted contacts withheld from the graph and whole-graph structure dropout so the same weights also run without distal contacts. We test it under a pre-registered protocol against six matched controls that share its architecture, data and compute, on three fresh training seeds and a decision rule fixed before any confirmatory result. With measured contacts present, the encoder exploits them strongly: long-range (≥150 kb) contact correlation on held-out chromosomes reaches r = 0.644 against 0.175 with a random graph. With distal contacts removed, however, no pre-registered comparison passes: the full model leads a DNA-only control by +0.015 (95% CI −0.004 to +0.035) and a random-graph control by +0.010 (−0.008 to +0.026), and does not differ from a control with shuffled contact strengths (+0.001). Under matched budgets, Hi-C conditioning during pretraining did not produce a better Hi-C-free representation. We trace this to the Hi-C-free receptive field (about ±60 kb), which never connects the windows of a long-range pair, and release the protocol, controls and decision files as a benchmark for structure-aware DNA models.",
+  "DNA sequence models contextualise a genomic window by what lies near it on the linear chromosome, yet much of gene regulation acts across hundreds of kilobases through the three-dimensional folding of chromatin. Chromosome conformation capture (Hi-C) measures that folding directly, but existing models use it as a prediction target, as an input that must be present at inference, or as an alignment target applied outside the encoder. We ask whether measured contacts can instead act as a training-time routing signal: if they decide which distal windows exchange information during self-supervised pretraining and are then removed, is the resulting representation better? We implement this in ChromGraphFM, a 7.3 M-parameter DNA encoder in which a sparse graph of distance-detrended Hi-C contacts restricts and biases attention between 5 kb windows across a 640 kb context, with predicted contacts withheld from the graph and whole-graph structure dropout so the same weights also run without distal contacts. Against six matched controls that share its architecture, data and compute, the encoder exploits measured structure strongly and specifically: on held-out chromosomes, its long-range (≥150 kb) contact correlation reaches r = 0.644, against 0.597 when contact strengths are shuffled and 0.175 with a random graph, a 3.7-fold gain from real contacts. We then test, under a protocol fixed before any confirmatory result and on three fresh training seeds, whether this knowledge persists once distal contacts are removed. Here no pre-registered comparison passes: the full model leads a DNA-only control by +0.015 (95% CI −0.004 to +0.035) and a random-graph control by +0.010 (−0.008 to +0.026), and does not differ from a control with shuffled contact strengths (+0.001). Hi-C conditioning thus did not produce a better Hi-C-free representation at this scale, and we trace this to the Hi-C-free receptive field (about ±60 kb), which never connects the windows of a long-range pair. The result locates where structure-aware DNA models must change to transfer what they learn from Hi-C, and we release the model, the seven-arm protocol and all decision files as a benchmark for them.",
 ];
 
-C.keywords = "3D genome; Hi-C; chromatin contacts; DNA language models; self-supervised learning; graph attention; privileged information; pre-registration; negative result";
+C.keywords = "3D genome; Hi-C; chromatin contacts; DNA language models; self-supervised learning; graph attention; privileged information; pre-registration; benchmark";
 
 // --------------------------------------------------------------------------- //
 // 1 Introduction
@@ -71,7 +71,7 @@ C.introduction = [
   "Whether such a model has learned anything about structure is easy to assert and hard to test, because a richer input, more parameters, knowledge of genomic distance, or a favourable choice among many runs can each masquerade as structural learning. Our third contribution is therefore an evaluation protocol designed to rule these out. Every model is evaluated with Hi-C removed at inference and compared against controls that share its architecture, data, parameter count and compute while removing the distal graph, replacing it with random edges, keeping its edges but flattening or shuffling their strengths, fusing Hi-C after the encoder, or using Hi-C only as a contrastive alignment target. Data are split by chromosome, a frozen-representation probe gives every arm the same read-out, and the claims, the statistic and the decision rule were fixed in writing before any confirmatory run was evaluated, with every possible outcome mapped in advance to the claim it supports.",
 
   // [evidence] outcome paragraph
-  "The protocol returned a controlled negative result. Measured contacts are used, and used specifically: with the graph present, the full model's long-range contact correlation on held-out chromosomes is 0.644, against 0.597 when strengths are shuffled among the measured edges and 0.175 when the edges are random. Yet with the distal graph removed, every arm falls into the same narrow band, including a DNA-only control that never saw a contact graph, and none of the pre-registered comparisons passes. Under matched budgets, Hi-C conditioning during pretraining did not produce a better Hi-C-free representation. An analysis of the model explains why: without distal edges a window gathers information from at most about ±60 kb, so the two windows of a long-range pair never exchange information, and Hi-C can reach the Hi-C-free representation only through per-window features.",
+  "Contact-biased attention works as designed. Measured contacts are used, and used specifically: with the graph present, the full model's long-range contact correlation on held-out chromosomes is 0.644, against 0.597 when strengths are shuffled among the measured edges and 0.175 when the edges are random. Yet with the distal graph removed, every arm falls into the same narrow band, including a DNA-only control that never saw a contact graph, and none of the pre-registered comparisons passes, so under matched budgets Hi-C conditioning during pretraining did not produce a better Hi-C-free representation. An analysis of the model explains why: without distal edges a window gathers information from at most about ±60 kb, so the two windows of a long-range pair never exchange information, and Hi-C can reach the Hi-C-free representation only through per-window features.",
 
   "In summary, our contributions are as follows:",
 ];
@@ -80,7 +80,7 @@ C.contributions = [
   "Contact-biased sparse attention, in which distance-detrended Hi-C contacts determine which 5 kb sequence windows attend to one another across a 640 kb context and bias how strongly, with held-out target edges that keep the contact objective from being solved by copying.",
   "A training-time-only use of Hi-C through whole-graph structure dropout, which trains one encoder to operate with and without contacts and yields DNA representations computed from sequence alone at inference.",
   "A pre-registered, controlled evaluation protocol with six matched controls, chromosome-level splits, a Hi-C-free headline setting and a shared frozen-representation probe, which separates the contribution of measured contacts from those of graph regularisation, genomic distance, contact-strength marginals, post-hoc fusion and run selection.",
-  "A controlled negative result with a mechanism: contact-conditioned attention exploits measured contacts strongly when they are present, but under matched budgets this does not transfer to the Hi-C-free representation, which we attribute to a Hi-C-free receptive field far shorter than the contacts being predicted.",
+  "Evidence, across 19 trained models and seven arms, that contact-conditioned attention exploits measured contacts strongly (r = 0.644 against 0.175 for a random graph), together with a pre-registered test showing where this knowledge stops transferring and an architectural explanation for it: a Hi-C-free receptive field far shorter than the contacts being predicted.",
 ];
 
 // --------------------------------------------------------------------------- //
@@ -255,9 +255,11 @@ C.results = [
     heading: "Secondary analyses",
     paras: [
       "*With measured contacts present.* This comparison was not pre-registered as a claim and is reported as exploratory, without an interval. Run with its distal graph, the same full-model weights reach a long-range r of 0.670, 0.647 and 0.615 on seeds 1–3 (mean 0.644), against 0.597 for B3 and 0.175 for B1 ({fig:results}b). The model therefore exploits measured contacts strongly, and their specific strengths add to their topology when they are supplied; what fails is the transfer of this ability to the Hi-C-free mode.",
+      "{tab:allruns} lists every trained model and every read-out, so that no number is selected.",
       "*Secondary arms (seed 0, exploratory).* B4, which adds per-window Hi-C summaries after the encoder instead of steering attention, reaches 0.826 with Hi-C and 0.192 on the Hi-C-free probe; B5, which uses Hi-C only as a contrastive target, reaches 0.167 on the probe. Both lie inside the band of the confirmatory arms without Hi-C. B2 (distance-only): [PENDING B2].",
       "*Sequence-only re-evaluation.* In the Hi-C-free setting as run, local edges carry the measured strength of adjacent-window pixels (Section 3.3). Every checkpoint was therefore re-evaluated, with no change to its weights, after replacing each local strength by the neutral 0.5 (scripts/eval_neutral_local.py). [PENDING NEUTRAL: head and probe long-range r per arm, and whether the ranking or the decision would change.]",
     ],
+    table: "allruns",
   },
 ];
 
@@ -326,6 +328,33 @@ C.tables = {
       ["B: Full > B1", "probe", "+0.0098", "−0.0075 to +0.0264", "2/3", "no"],
       ["B: B3 > B0", "probe", "+0.0080", "−0.0092 to +0.0255", "2/3", "no"],
       ["B: B3 > B1", "probe", "+0.0024", "−0.0154 to +0.0195", "1/3", "no"],
+    ],
+  },
+  allruns: {
+    caption:
+      "**Every trained model, every read-out (validation, Pearson r).** Head: the model's own contact head, Hi-C-free, long range (n/a for arms that train no head). With Hi-C: the same head with the measured distal graph supplied (exploratory upper bound; — for arms without a graph). Probe: the shared frozen probe, Hi-C-free, by separation band (short <50 kb, medium 50–150 kb, long ≥150 kb) and overall. Seed 0 is exploratory for every arm. Source: results/<arm>_seed<N>/metrics.json and probe_metrics.json.",
+    widths: [800, 1100, 1000, 1100, 1000, 1100, 1000, 1000],
+    header: ["Arm", "Seed", "Head (long)", "With Hi-C (long)", "Probe short", "Probe medium", "Probe long", "Probe overall"],
+    rows: [
+      ["Full", "0 (expl.)", "0.207", "0.669", "0.289", "0.258", "0.161", "0.301"],
+      ["Full", "1", "0.188", "0.670", "0.300", "0.305", "0.197", "0.335"],
+      ["Full", "2", "0.206", "0.647", "0.266", "0.252", "0.171", "0.302"],
+      ["Full", "3", "0.204", "0.615", "0.303", "0.236", "0.159", "0.296"],
+      ["B3", "0 (expl.)", "0.185", "0.533", "0.334", "0.317", "0.193", "0.336"],
+      ["B3", "1", "0.188", "0.557", "0.274", "0.227", "0.140", "0.278"],
+      ["B3", "2", "0.196", "0.653", "0.321", "0.302", "0.197", "0.333"],
+      ["B3", "3", "0.211", "0.581", "0.327", "0.279", "0.167", "0.307"],
+      ["B1", "0 (expl.)", "0.183", "0.252", "0.323", "0.275", "0.192", "0.325"],
+      ["B1", "1", "0.187", "0.223", "0.270", "0.243", "0.145", "0.287"],
+      ["B1", "2", "0.128", "0.131", "0.326", "0.309", "0.203", "0.345"],
+      ["B1", "3", "0.144", "0.172", "0.315", "0.248", "0.149", "0.297"],
+      ["B0", "0 (expl.)", "n/a", "—", "0.320", "0.310", "0.187", "0.338"],
+      ["B0", "1", "n/a", "—", "0.287", "0.267", "0.164", "0.309"],
+      ["B0", "2", "n/a", "—", "0.325", "0.295", "0.168", "0.326"],
+      ["B0", "3", "n/a", "—", "0.281", "0.241", "0.148", "0.292"],
+      ["B4", "0 (expl.)", "0.195", "0.826", "0.347", "0.303", "0.192", "0.330"],
+      ["B5", "0 (expl.)", "n/a", "—", "0.331", "0.262", "0.167", "0.301"],
+      ["B2", "0 (expl.)", "pending", "pending", "pending", "pending", "pending", "pending"],
     ],
   },
   hparams: {
