@@ -1,0 +1,55 @@
+// ChromGraphFM architecture (v1 recipe, configs/base.yaml)
+// Eraser flowchart diagram-as-code. Paste into an Eraser "Flow chart" diagram.
+// Academic style: monochrome boxes, one accent per stream, no icons.
+
+title ChromGraphFM: contact-biased pretraining of a Hi-C-free DNA encoder
+direction right
+colorMode outline
+styleMode plain
+typeface clean
+
+Input [label: "DNA sample\n128 windows x 5 kb = 640 kb\none-hot A/C/G/T/N", shape: rectangle]
+
+Sequence stream (per window, no cross-window mixing) [color: blue] {
+  Conv tower [label: "Convolutional tower\nstem + 5 residual blocks\nmax-pool x2 each (/32)"]
+  SSM [label: "Bidirectional SSM x 6\ndiagonal, FFT long convolution\nd = 256"]
+  Pool [label: "Mean pool + LayerNorm\nwindow embedding h_i"]
+  Mask [label: "Masking\n15% of windows -> [MASK] token"]
+}
+
+Structure stream (training only) [color: purple] {
+  HiC [label: "GM12878 Hi-C, 5 kb\nICE-balanced"]
+  Detrend [label: "Distance detrending\nO/E = M_ij / E(s) (all valid pairs)\nc_ij = O/E / (1 + O/E)"]
+  Graph [label: "Sparse contact graph\nlocal: +/-3 windows\ndistal: top-16, >= 25 kb"]
+  Holdout [label: "Held-out target edges\n15% of distal edges\n(never attended over)", color: orange]
+  Dropout [label: "Structure dropout\nremove all distal edges\np = 0.3 per sample"]
+  Bias [label: "Edge bias (per head)\nb_ij = MLP_HiC(c_ij) + MLP_dist(log2(1+d_ij))"]
+}
+
+Contact-biased attention [color: gray] {
+  Attn [label: "Contact-biased sparse attention x 4\n8 heads, attention over graph edges only\nsoftmax(q_i k_j / sqrt(d_h) + b_ij)\nadd & norm, FFN 1024"]
+}
+
+Outputs [color: gray] {
+  Z [label: "z_i: structure-conditioned representation"]
+  Zfree [label: "z_i (Hi-C-free mode)\nlocal edges only\nused at inference and evaluation"]
+}
+
+Pretraining objectives (no labels) [color: green] {
+  Lmask [label: "Masked-window reconstruction\n|| g(z_i) - sg(h_i) ||^2, lambda = 1"]
+  Lcon [label: "Distance-matched InfoNCE\n1 positive vs <= 16 same-distance negatives\ntau = 0.1, lambda = 0.5"]
+  Lcontact [label: "Contact prediction\nBCE vs soft strength c_ij, lambda = 1"]
+}
+
+Input > Conv tower > SSM > Pool > Mask
+Mask > Attn: h_i
+HiC > Detrend > Graph
+Graph > Holdout: split (fixed control seed)
+Graph > Dropout > Bias > Attn: edges + bias
+Attn > Z
+Attn --> Zfree: dropout mode / inference
+Z > Lmask
+Z > Lcon
+Z > Lcontact
+Holdout --> Lcon: positives
+Holdout --> Lcontact: targets
