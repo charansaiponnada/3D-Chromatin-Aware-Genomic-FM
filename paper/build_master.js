@@ -64,6 +64,10 @@ let nFig = 0, nTab = 0, nEq = 0;
     for (const item of sec.flow || []) if (item.eq) eqNum[item.eq] = ++nEq;
     if (sec.table && !tabNum[sec.table]) tabNum[sec.table] = ++nTab;
   }
+  for (const sec of C.results) {
+    if (sec.figure && !figNum[sec.figure]) figNum[sec.figure] = ++nFig;
+    if (sec.table && !tabNum[sec.table]) tabNum[sec.table] = ++nTab;
+  }
 })();
 
 function compressRange(nums) {
@@ -338,11 +342,12 @@ C.method.forEach((sec, k) => {
   if (sec.table) body.push(...table(sec.table));
 });
 
-// Sections still to be written
 body.push(H1("4  Results"));
 C.results.forEach((sec, k) => {
   body.push(H2(`4.${k + 1}  ${sec.heading}`));
   for (const p of sec.paras) body.push(P(p));
+  if (sec.table) body.push(...table(sec.table));
+  if (sec.figure) body.push(...figure(sec.figure));
 });
 body.push(H1("5  Discussion"));
 for (const p of C.discussion) body.push(P(p));

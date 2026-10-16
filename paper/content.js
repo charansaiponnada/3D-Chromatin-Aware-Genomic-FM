@@ -7,9 +7,17 @@
 //   $...$          inline maths: _x / _{xy} subscript, ^x / ^{xy} superscript
 //   {fig:name}     "Figure n"    {tab:name} "Table n"    {eq:name} "Eq. (n)"
 //
-// Claim discipline (paper-writing skill, claim-evidence alignment): nothing in
-// these sections states an experimental outcome. Results enter only from
-// measured, val-decided, test-confirmed numbers.
+// Claim discipline (paper-writing skill, claim-evidence alignment): every
+// number in Sections 4-6 is copied from a file on disk, named in the comment
+// beside it. The pre-registered decision is results/decision_claims_val.json
+// (scripts/decide.py claims --recipe v1); its outcome is "no positive claim",
+// and the wording below is the one docs/preregistration.md fixes for it.
+//
+// Rewritten 2026-10-16 against the code. In the Hi-C-free setting the local
+// edges still carry measured strength (chromgraph/graph.py:_local_edges,
+// chromgraph/model.py:_edges); the text now says so, and the sequence-only
+// re-evaluation (scripts/eval_neutral_local.py) fills the slots marked
+// [PENDING NEUTRAL].
 //
 // The method described is the recipe the pre-registered rule selected (v1,
 // configs/base.yaml, commit 660d20f): three objectives, a soft-strength
@@ -20,24 +28,24 @@
 const C = {};
 
 C.title =
-  "ChromGraphFM: Measured 3D Chromatin Contacts as a Training-Time Signal for Hi-C-Free DNA Sequence Representations";
+  "Measured 3D Chromatin Contacts Steer a DNA Encoder but Do Not Transfer to Its Hi-C-Free Representation: A Pre-registered Controlled Study of ChromGraphFM";
 
 C.authors = "P. Charan Sai, G. Karthik, P. Sanath, K. Divya Kothapali";
 C.affiliation =
   "Department of Computer Science and Engineering, VR Siddhartha Engineering College, Vijayawada, India";
 
 C.draftNote = [
-  "Working master copy. Sections 1–3 are drafted. Sections 4–6 hold the agreed structure only; their content is written once the pre-registered decision has been made on the validation chromosomes and the sealed test split has been scored once.",
-  "Every [PENDING RESULTS] slot must be filled from measured numbers only, with the wording fixed by the pre-registered outcome table (docs/preregistration.md, Section 5).",
+  "Working master copy, rewritten against the code on 2026-10-16. The pre-registered decision has been made on the validation chromosomes (results/decision_claims_val.json): no positive claim. Sections 4–6 report it in the wording the pre-registration fixes.",
+  "Still open: (i) the single test-split evaluation (Section 4.4); (ii) the sequence-only re-evaluation with neutral local-edge strengths ([PENDING NEUTRAL], Section 4.5); (iii) the B2 secondary arm. No other slot is open.",
 ];
 
 // Abstract: Version 2 of the skill (task, challenge, insight, contribution,
 // advantage, experiment summary).
 C.abstract = [
-  "DNA sequence models contextualise a genomic window by what lies near it on the linear chromosome, yet much of gene regulation acts across hundreds of kilobases through the three-dimensional folding of chromatin. Chromosome conformation capture (Hi-C) measures that folding directly, but existing models use it as a prediction target, as an input that must be present at inference, or as an alignment target applied outside the encoder; in none of them do measured contacts decide how a self-supervised DNA encoder contextualises its input while it learns. Our insight is that contacts can serve as a training-time routing signal: if they decide which distal windows exchange information during pretraining and are then removed, anything they contribute must reside in weights that operate on sequence alone. We implement this idea in ChromGraphFM, a 7.3 M-parameter DNA encoder in which a sparse graph of distance-detrended Hi-C contacts restricts and biases attention between 5 kb windows across a 640 kb context. Contacts that the model is asked to predict are withheld from the graph it attends over, so the contact objective cannot be met by copying the input, and structure dropout removes the entire distal graph for a fraction of training samples, so the same weights also learn to operate without Hi-C. We test the idea under a pre-registered protocol: every model is evaluated with Hi-C removed, against matched controls that share its architecture, data and compute while removing the graph, randomising it, shuffling or flattening its contact strengths, fusing Hi-C after the encoder, or using Hi-C only as an alignment target, on fresh training seeds and under a decision rule fixed before any confirmatory result was seen. [PENDING RESULTS: one sentence stating the pre-registered outcome, in the wording fixed for it.]",
+  "DNA sequence models contextualise a genomic window by what lies near it on the linear chromosome, yet much of gene regulation acts across hundreds of kilobases through the three-dimensional folding of chromatin. Chromosome conformation capture (Hi-C) measures that folding directly, but existing models use it as a prediction target, as an input that must be present at inference, or as an alignment target applied outside the encoder. We ask whether measured contacts can instead act as a training-time routing signal: if they decide which distal windows exchange information during self-supervised pretraining and are then removed, is the resulting representation better? We implement this in ChromGraphFM, a 7.3 M-parameter DNA encoder in which a sparse graph of distance-detrended Hi-C contacts restricts and biases attention between 5 kb windows across a 640 kb context, with predicted contacts withheld from the graph and whole-graph structure dropout so the same weights also run without distal contacts. We test it under a pre-registered protocol against six matched controls that share its architecture, data and compute, on three fresh training seeds and a decision rule fixed before any confirmatory result. With measured contacts present, the encoder exploits them strongly: long-range (≥150 kb) contact correlation on held-out chromosomes reaches r = 0.644 against 0.175 with a random graph. With distal contacts removed, however, no pre-registered comparison passes: the full model leads a DNA-only control by +0.015 (95% CI −0.004 to +0.035) and a random-graph control by +0.010 (−0.008 to +0.026), and does not differ from a control with shuffled contact strengths (+0.001). Under matched budgets, Hi-C conditioning during pretraining did not produce a better Hi-C-free representation. We trace this to the Hi-C-free receptive field (about ±60 kb), which never connects the windows of a long-range pair, and release the protocol, controls and decision files as a benchmark for structure-aware DNA models.",
 ];
 
-C.keywords = "3D genome; Hi-C; chromatin contacts; DNA language models; self-supervised learning; graph attention; privileged information; pre-registration";
+C.keywords = "3D genome; Hi-C; chromatin contacts; DNA language models; self-supervised learning; graph attention; privileged information; pre-registration; negative result";
 
 // --------------------------------------------------------------------------- //
 // 1 Introduction
@@ -63,7 +71,7 @@ C.introduction = [
   "Whether such a model has learned anything about structure is easy to assert and hard to test, because a richer input, more parameters, knowledge of genomic distance, or a favourable choice among many runs can each masquerade as structural learning. Our third contribution is therefore an evaluation protocol designed to rule these out. Every model is evaluated with Hi-C removed at inference and compared against controls that share its architecture, data, parameter count and compute while removing the distal graph, replacing it with random edges, keeping its edges but flattening or shuffling their strengths, fusing Hi-C after the encoder, or using Hi-C only as a contrastive alignment target. Data are split by chromosome, a frozen-representation probe gives every arm the same read-out, and the claims, the statistic and the decision rule were fixed in writing before any confirmatory run was evaluated, with every possible outcome mapped in advance to the claim it supports.",
 
   // [evidence] outcome paragraph
-  "[PENDING RESULTS: the experiments paragraph, stating what the pre-registered comparison shows on the validation chromosomes and on the single test evaluation, in the wording fixed for that outcome.]",
+  "The protocol returned a controlled negative result. Measured contacts are used, and used specifically: with the graph present, the full model's long-range contact correlation on held-out chromosomes is 0.644, against 0.597 when strengths are shuffled among the measured edges and 0.175 when the edges are random. Yet with the distal graph removed, every arm falls into the same narrow band, including a DNA-only control that never saw a contact graph, and none of the pre-registered comparisons passes. Under matched budgets, Hi-C conditioning during pretraining did not produce a better Hi-C-free representation. An analysis of the model explains why: without distal edges a window gathers information from at most about ±60 kb, so the two windows of a long-range pair never exchange information, and Hi-C can reach the Hi-C-free representation only through per-window features.",
 
   "In summary, our contributions are as follows:",
 ];
@@ -72,6 +80,7 @@ C.contributions = [
   "Contact-biased sparse attention, in which distance-detrended Hi-C contacts determine which 5 kb sequence windows attend to one another across a 640 kb context and bias how strongly, with held-out target edges that keep the contact objective from being solved by copying.",
   "A training-time-only use of Hi-C through whole-graph structure dropout, which trains one encoder to operate with and without contacts and yields DNA representations computed from sequence alone at inference.",
   "A pre-registered, controlled evaluation protocol with six matched controls, chromosome-level splits, a Hi-C-free headline setting and a shared frozen-representation probe, which separates the contribution of measured contacts from those of graph regularisation, genomic distance, contact-strength marginals, post-hoc fusion and run selection.",
+  "A controlled negative result with a mechanism: contact-conditioned attention exploits measured contacts strongly when they are present, but under matched budgets this does not transfer to the Hi-C-free representation, which we attribute to a Hi-C-free receptive field far shorter than the contacts being predicted.",
 ];
 
 // --------------------------------------------------------------------------- //
@@ -117,7 +126,7 @@ C.method = [
       "*Sequence stream.* Each 5 kb window is encoded independently, by a convolutional tower followed by a bidirectional state-space encoder, into one vector $h_i$ (Section 3.4). No information crosses windows at this stage.",
       "*Structure stream (training only).* The same windows become the nodes of a graph. Each window is connected to its neighbours within ±3 windows and to its 16 strongest distal contact partners at least 25 kb away, where contact strength is first corrected for genomic distance (Sections 3.2 and 3.3). Of the distal edges, 15% are withheld from the graph and used only as prediction targets. This stream is not a second encoder whose output is merged with the sequence stream; Hi-C acts only by steering attention.",
       "*Contact-conditioned attention.* The model then decides how much each window should use information from each other window. In a standard Transformer this depends only on learned sequence features. Here, attention runs only along graph edges, and each edge's measured contact strength and genomic separation add a learned bias to its attention logit, so Hi-C decides both which windows exchange information and how strongly (Section 3.5).",
-      "*Hi-C-free use.* Structure dropout trains the same weights to operate with the distal graph removed (Section 3.6), so Hi-C is needed only during training. This matters for two reasons: contact maps exist for few cell types and for no user-supplied sequence, and comparing models with Hi-C removed is the only setting in which a gain can be attributed to what training stored in the weights rather than to information supplied at inference. Three objectives train the model end to end (Section 3.7); Section 3.8 defines the controls, the recipe selection and the pre-registered evaluation protocol, and Section 3.9 gives implementation details.",
+      "*Hi-C-free use.* Structure dropout trains the same weights to operate with the distal graph removed (Section 3.6), so distal contacts are needed only during training. As implemented, the local edges of this Hi-C-free mode still carry the measured strength of the adjacent-window pixels (Section 3.3); Section 4.5 reports a re-evaluation in which these are replaced by the neutral 0.5, so that the model sees DNA alone. This setting matters for two reasons: contact maps exist for few cell types and for no user-supplied sequence, and comparing models with Hi-C removed is the only setting in which a gain can be attributed to what training stored in the weights rather than to information supplied at inference. Three objectives train the model end to end (Section 3.7); Section 3.8 defines the controls, the recipe selection and the pre-registered evaluation protocol, and Section 3.9 gives implementation details.",
     ],
     figure: "overview",
   },
@@ -168,7 +177,7 @@ C.method = [
     ],
     eqs: ["dropout"],
     parasAfter: [
-      "Removing the whole graph rather than individual edges [@dropedge] reproduces the inference condition exactly, where every distal edge is absent at once [@moddrop]; edge-level dropout would only ever show the model a thinned graph and leave the fully Hi-C-free mode out of distribution. Local edges are never dropped, so the sequential backbone, and with it the model's knowledge of linear neighbourhood, is identical in both modes. Because one set of encoder weights, attention blocks and heads serves both modes, nothing is added at inference: the model is simply run in the mode that dropout trains, from DNA sequence alone.",
+      "Removing the whole graph rather than individual edges [@dropedge] reproduces the inference condition exactly, where every distal edge is absent at once [@moddrop]; edge-level dropout would only ever show the model a thinned graph and leave the fully Hi-C-free mode out of distribution. Local edges are never dropped, so the sequential backbone, and with it the model's knowledge of linear neighbourhood, is identical in both modes. Because one set of encoder weights, attention blocks and heads serves both modes, nothing is added at inference: the model is simply run in the mode that dropout trains. In that mode the local edges keep the measured strength of adjacent windows (up to 15 kb apart), so it is free of distal Hi-C but not of all Hi-C; Section 4.5 removes this remaining input at evaluation time.",
     ],
   },
   {
@@ -191,7 +200,7 @@ C.method = [
     paras: [
       "The claim that measured contacts improve a sequence representation is only meaningful against controls that remove everything else a graph-conditioned model has. We therefore train six control arms ({tab:arms}) through the same code path as the full model, with the same architecture and parameter count, the same training windows, the same number of optimisation steps, the same pretraining recipe and the same held-out targets; only the structural signal differs. Each corruption is drawn from the fixed control seed, so every training seed sees the identical corrupted graph and seed variance cannot be confused with corruption variance. The arms are designed to be read in pairs: B0 against the full model asks whether structure helps at all; B1 asks whether any graph regularisation would do; B2 isolates genomic distance; B3, which keeps the measured topology but permutes strengths among edges, isolates the pairing of strength to edge; B4 asks whether conditioning inside the encoder is better than adding Hi-C features after it; and B5 asks whether Hi-C as a contrastive alignment target alone suffices.",
       "*Splits.* Hi-C is autocorrelated over megabases, so random window splits would leak. We split by chromosome: chr3, chr13 and chr17 form the test set, chr10 and chr11 the validation set, and the remaining 17 autosomes the training set (6,284 training samples at a stride of half a sample). All model and recipe decisions are made on the validation chromosomes; the test chromosomes are scored once, for the final table. One exception is disclosed: an evaluation bug, since fixed, read the test split for the full model and B3 at exploratory seed 0, so those two seed-0 test numbers are reported only as exploratory.",
-      "*Headline setting and metric.* Every arm is evaluated with Hi-C removed at inference, so that the only difference between arms is what shaped their weights during pretraining. Results with the graph present are reported separately as an upper bound with privileged input and are never compared with a sequence-only baseline. The headline metric is the Pearson correlation between predicted and measured strength on held-out target edges, stratified by separation into short (<50 kb), medium (50–150 kb) and long (≥150 kb) bands, because a single correlation is dominated by short-range contacts; the long-range band is the primary endpoint.",
+      "*Headline setting and metric.* Every arm is evaluated with the distal graph removed at inference (the Hi-C-free setting; local edges as in Section 3.3), so that the only difference between arms is what shaped their weights during pretraining. Results with the graph present are reported separately as an upper bound with privileged input and are never compared with a sequence-only baseline. The headline metric is the Pearson correlation between predicted and measured strength on held-out target edges, stratified by separation into short (<50 kb), medium (50–150 kb) and long (≥150 kb) bands, because a single correlation is dominated by short-range contacts; the long-range band is the primary endpoint.",
       "*Two read-outs.* The *head* read-out uses each model's own contact head, and is valid only for arms that train one. The *probe* read-out fits a fresh contact head of the same architecture on frozen Hi-C-free representations, with the same training pairs, epochs and probe seed for every arm. The probe is the only valid read-out for B0 and B5, whose pretraining trains no contact head, and it compares all arms on representation quality alone, independently of how well each trained its own head.",
       "*Recipe selection (exploratory).* Two pretraining recipes were screened on training seed 0 before confirmation: the recipe described above, and a variant that regressed log(O/E) with a squared error instead of the soft-target cross-entropy and added a structure-distillation term pulling the Hi-C-free pass toward the Hi-C-conditioned one [@hinton2015distill]. A rule fixed in advance selected the variant only if, on the validation chromosomes, it raised the full model's score and gave a margin over B3 whose 95% interval excluded zero and exceeded the original recipe's margin; otherwise the recipe above was kept. The rule selected the recipe above, which was then frozen for every arm. Seed 0 is therefore exploratory for every arm and is never used as confirmatory evidence.",
       "*Pre-registered decision rule.* The claims, the statistic and the decision rule were fixed in writing before any confirmatory run was evaluated. Confirmation uses fresh seeds 1–3 for the full model, B3, B0 and B1, at 20,000 steps each, on the validation chromosomes. For a comparison X − Y, 10,000 paired bootstrap resamples of validation samples give a 95% interval for the seed-averaged difference, and X is said to beat Y only if the interval lies above zero and X − Y > 0 in at least two of the three seeds. Claim A, that measured strengths matter, requires the full model to beat B3 on the head read-out. Claim B, that measured topology matters, requires both the full model and B3 to beat both B0 and B1 on the probe read-out; because all four comparisons must pass, no multiple-comparison correction is needed. Every combination of outcomes maps to a pre-specified statement, including a controlled negative result. B2, B4 and B5 and the distance strata other than long range are reported as secondary comparisons, whatever the outcome.",
@@ -208,49 +217,59 @@ C.method = [
 ];
 
 // --------------------------------------------------------------------------- //
-// 4-6 Results, Discussion, Conclusion: agreed structure, no outcomes yet
+// 4-6 Results, Discussion, Conclusion
 // --------------------------------------------------------------------------- //
 
+// Numbers: results/decision_claims_val.json (decision, per-seed r, CIs);
+// results/<arm>_seed<N>/metrics.json (head, with_hic) and probe_metrics.json
+// (probe). Means over seeds 1-3 are arithmetic means of those per-seed values.
 C.results = [
   {
     heading: "Experimental setup",
     paras: [
-      "[PENDING RESULTS: arms and seeds actually completed, with any skipped updates per run (Section 3.9); compute used; the two read-outs.]",
+      "All confirmatory runs completed: the full model, B3, B0 and B1, each at training seeds 1, 2 and 3, for 20,000 steps from the frozen recipe of Section 3.8. Every confirmatory run used the same model, loss and configuration code. No run logged a skipped update. Runs interrupted by server restarts were resumed from their last checkpoint and never replaced by a new seed. The secondary arms B4 and B5 were trained at seed 0. All numbers below are on the validation chromosomes (chr10, chr11; 406 samples), in the Hi-C-free setting unless stated otherwise, and use the long-range band (≥150 kb) as the primary endpoint.",
     ],
   },
   {
     heading: "Claim A: do measured contact strengths matter?",
     paras: [
-      "[PENDING RESULTS: full model vs B3, head read-out, long range, validation. Per-seed values, seed-averaged difference, 95% bootstrap interval, number of seeds favouring the full model, and the pre-registered verdict.]",
+      "On its own contact head, the full model scored r = 0.188, 0.206 and 0.204 on seeds 1–3, against 0.188, 0.196 and 0.211 for B3, which keeps the measured topology but shuffles strengths among edges. The seed-averaged difference is +0.0008 (95% CI −0.0060 to +0.0078), and the full model was ahead on one seed of three. Claim A is not supported ({tab:decision}).",
     ],
   },
   {
     heading: "Claim B: does measured contact topology matter?",
     paras: [
-      "[PENDING RESULTS: the four comparisons (full vs B0, full vs B1, B3 vs B0, B3 vs B1), probe read-out, long range, validation, each with its interval and seed count, and the pre-registered verdict.]",
+      "On the frozen probe, which gives every arm the same read-out, the four comparisons all point in the predicted direction but none passes the rule ({tab:decision}, {fig:results}a). The full model leads the DNA-only control B0 on all three seeds, by +0.0154 on average, but the interval includes zero (−0.0040 to +0.0348). Its lead over the random-graph control B1 is +0.0098 (−0.0075 to +0.0264; two seeds of three). B3 leads B0 by +0.0080 (−0.0092 to +0.0255; two of three) and B1 by +0.0024 (−0.0154 to +0.0195; one of three). Claim B is not supported.",
+      "The seed-averaged long-range probe correlations are 0.175 (full), 0.168 (B3), 0.166 (B1) and 0.160 (B0). The spread of one arm across seeds is larger than the gaps between arms: B1 ranges from 0.145 to 0.203, and B3 from 0.140 to 0.197. Across all separations the four arms are indistinguishable (seed-averaged overall probe r of 0.311, 0.306, 0.310 and 0.309), and at short range (<50 kb) the full model ranks last (0.290 against 0.298–0.307). With both claims failing, the pre-registered outcome is: no positive claim. Under matched budgets, Hi-C conditioning during pretraining did not produce a better Hi-C-free representation.",
     ],
+    table: "decision",
+    figure: "results",
   },
   {
     heading: "Test-split confirmation",
     paras: [
-      "[PENDING RESULTS: the single test evaluation for seeds 1–3 of the arms in the decided claim, with the same statistic; any disagreement with validation reported as measured. Seed-0 test numbers reported separately as exploratory.]",
+      "[PENDING TEST: the single evaluation of seeds 1–3 on chr3, chr13 and chr17, with the same statistic, reported as measured. The seed-0 test numbers read by the earlier evaluation bug (Section 3.8) remain exploratory.]",
     ],
   },
   {
-    heading: "Secondary comparisons",
+    heading: "Secondary analyses",
     paras: [
-      "[PENDING RESULTS: full model vs B2, B4 and B5; short- and medium-range strata; every arm with Hi-C present at inference as an upper bound. Labelled secondary; not used to choose the headline.]",
+      "*With measured contacts present.* This comparison was not pre-registered as a claim and is reported as exploratory, without an interval. Run with its distal graph, the same full-model weights reach a long-range r of 0.670, 0.647 and 0.615 on seeds 1–3 (mean 0.644), against 0.597 for B3 and 0.175 for B1 ({fig:results}b). The model therefore exploits measured contacts strongly, and their specific strengths add to their topology when they are supplied; what fails is the transfer of this ability to the Hi-C-free mode.",
+      "*Secondary arms (seed 0, exploratory).* B4, which adds per-window Hi-C summaries after the encoder instead of steering attention, reaches 0.826 with Hi-C and 0.192 on the Hi-C-free probe; B5, which uses Hi-C only as a contrastive target, reaches 0.167 on the probe. Both lie inside the band of the confirmatory arms without Hi-C. B2 (distance-only): [PENDING B2].",
+      "*Sequence-only re-evaluation.* In the Hi-C-free setting as run, local edges carry the measured strength of adjacent-window pixels (Section 3.3). Every checkpoint was therefore re-evaluated, with no change to its weights, after replacing each local strength by the neutral 0.5 (scripts/eval_neutral_local.py). [PENDING NEUTRAL: head and probe long-range r per arm, and whether the ranking or the decision would change.]",
     ],
   },
 ];
 
 C.discussion = [
-  "[PENDING: interpretation of the decided outcome, in the wording fixed by the pre-registration, and what it implies about how measured contacts can inform sequence representations.]",
-  "*Scope and limitations.* The study is confined to one cell line (GM12878), one Hi-C resolution (5 kb), one context length (640 kb) and one model scale (7.3 M parameters), and its read-outs are contact-prediction tasks on held-out chromosomes. It compares the model with matched controls of itself, not with independently trained sequence or structure models, and it does not evaluate downstream regulatory tasks. Each of these bounds what the result can show, whichever way it falls.",
+  "The study set out to test whether measured 3D contacts, used to route information inside a DNA encoder during pretraining and then removed, leave a better sequence representation behind. Under the pre-registered rule they did not: no comparison between the full model and its controls passed, and the full model did not differ from a control whose contact strengths were shuffled. The estimated gains over the DNA-only and random-graph controls, about +0.01 to +0.015 in long-range correlation, are smaller than the variation of a single arm across training seeds, so three seeds cannot separate them from zero. If an effect of that size is real, it is small.",
+  "The negative result is not a failure of the mechanism. With its distal graph present, the same network predicts held-out long-range contacts at r = 0.644, far above a random graph (0.175), and above shuffled strengths (0.597). Contact-conditioned attention therefore learns to use measured structure, and to use its strengths. What does not happen is the transfer that structure dropout was meant to produce. The architecture suggests why. Without distal edges, each window reaches only ±3 neighbours per block, about ±60 kb over four blocks, while the primary endpoint concerns pairs at least 150 kb apart. In the Hi-C-free mode the two windows of such a pair never exchange information, and the contact head can only compare two independently computed window summaries. Hi-C can then affect the Hi-C-free representation only by changing what each window encodes about itself, and the DNA-only control, which reaches nearly the same score, shows how little that adds at this scale. The late-fusion arm points the same way: adding Hi-C after the encoder gives the best result with Hi-C (0.826) and no advantage without it.",
+  "Two practical lessons follow. First, \"train with Hi-C, infer without it\" is not obtained for free by structure dropout: a model that routes information along measured contacts learns to rely on them. Transfer probably needs a Hi-C-free pathway that can itself connect distal windows, for example a sequence-predicted contact graph or a longer-range sequence model, so that what the conditioned pass learns has somewhere to go. Second, small gains in this setting are easily mistaken for structural learning. Matched controls, a shared probe and a rule fixed in advance were what separated a consistent +0.015 trend from a supported claim.",
+  "*Scope and limitations.* The study is confined to one cell line (GM12878), one Hi-C resolution (5 kb), one context length (640 kb), one model scale (7.3 M parameters) and three confirmatory seeds, and its read-outs are contact-prediction tasks on held-out chromosomes. The negative result holds for this configuration; a larger model, base-pair resolution or more seeds could detect an effect too small to resolve here. The model is compared with matched controls of itself, not with independently trained sequence or structure models, and downstream regulatory tasks are not evaluated. As implemented, the Hi-C-free setting retained measured local-edge strengths; Section 4.5 reports the fully sequence-only re-evaluation.",
 ];
 
 C.conclusion = [
-  "[PENDING: restate the problem and the core idea, the decided result with its strongest evidence, and one concrete next step.]",
+  "We asked whether measured chromatin contacts, used to steer a self-supervised DNA encoder's attention during pretraining and then removed, improve its sequence-only representation. ChromGraphFM uses measured contacts strongly when they are present, but under a pre-registered protocol with matched controls, the Hi-C-free representation was not measurably better than that of a DNA-only or a random-graph control. The likely reason is architectural: without the contact graph, the encoder cannot connect the distal windows whose contacts it is asked to predict. A Hi-C-free pathway with its own long-range reach, such as a contact graph predicted from sequence, is the natural next test. The code, the controls and the pre-registered decision files are released so that future structure-aware DNA models can be held to the same protocol.",
 ];
 
 C.figures = {
@@ -272,6 +291,12 @@ C.figures = {
     caption:
       "**The contact graph of one real training sample** (GM12878 chr20, 128 windows, 640 kb), produced by the same code used in training. (a) Above the diagonal, the measured detrended strength; below it, what the encoder conditions on: local edges (blue band), distal edges coloured by strength, and held-out target edges (orange), which are never attended over. (b) The same distal edges (top) and targets (bottom) drawn as arcs. (c) The distal edges each arm conditions on, with the fraction of edges shared with the full model's topology and the correlation between the strengths the arm receives and the measured strengths. B3 retains the measured topology and destroys the pairing of strengths to edges; B2 retains the topology with constant strength; B1 replaces the topology itself.",
   },
+  results: {
+    file: "figures/fig4_results.png",
+    width: 6.3,
+    caption:
+      "**Confirmatory results on the validation chromosomes (long range, ≥150 kb; seeds 1–3).** (a) Hi-C-free frozen-probe correlation for each arm; dots are seeds, bars are seed means. The arms differ by less than one arm varies across seeds, and no pre-registered comparison passes. (b) The same weights evaluated with their own contact head without (open) and with (filled) the measured distal graph at inference. Measured contacts are exploited strongly when present (full model, mean 0.644) but the gain does not carry into the Hi-C-free mode. Values from results/<arm>_seed<N>/metrics.json and probe_metrics.json.",
+  },
 };
 
 C.tables = {
@@ -288,6 +313,19 @@ C.tables = {
       ["B3", "Measured topology, strengths permuted among edges", "Does the pairing of measured strength to edge matter?"],
       ["B4", "No distal graph; per-window Hi-C summaries concatenated after the encoder", "Is conditioning inside the encoder better than late fusion?"],
       ["B5", "No distal graph; Hi-C used only as the contrastive alignment target", "Is Hi-C as an alignment target alone sufficient?"],
+    ],
+  },
+  decision: {
+    caption:
+      "**Pre-registered decision (validation, long range, seeds 1–3).** Difference of seed-averaged Pearson r, 95% paired-bootstrap interval over 406 validation samples (10,000 resamples), and the number of seeds in which X > Y. A comparison passes only if the interval lies above zero and at least two seeds favour X. Source: results/decision_claims_val.json.",
+    widths: [2600, 1100, 1300, 2226, 900, 900],
+    header: ["Comparison (X > Y)", "Read-out", "Difference", "95% CI", "Seeds", "Pass"],
+    rows: [
+      ["A: Full > B3", "head", "+0.0008", "−0.0060 to +0.0078", "1/3", "no"],
+      ["B: Full > B0", "probe", "+0.0154", "−0.0040 to +0.0348", "3/3", "no"],
+      ["B: Full > B1", "probe", "+0.0098", "−0.0075 to +0.0264", "2/3", "no"],
+      ["B: B3 > B0", "probe", "+0.0080", "−0.0092 to +0.0255", "2/3", "no"],
+      ["B: B3 > B1", "probe", "+0.0024", "−0.0154 to +0.0195", "1/3", "no"],
     ],
   },
   hparams: {

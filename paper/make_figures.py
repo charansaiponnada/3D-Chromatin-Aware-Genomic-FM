@@ -331,12 +331,73 @@ def fig3_graph_sample() -> None:
     plt.close(fig)
 
 
+# --------------------------------------------------------------------------- #
+# Figure 4 -- confirmatory results, read from results/<run>/*.json
+# --------------------------------------------------------------------------- #
+
+def _long_r(run: str, file: str, key: str):
+    p = REPO / "results" / run / file
+    if not p.exists():
+        return None
+    s = json.loads(p.read_text())["settings"].get(key)
+    return None if s is None else s["long"]["pearson"]
+
+
+def fig4_results() -> None:
+    seeds = [1, 2, 3]
+    arms = [("full", "Full"), ("b3_shuffled_hic", "B3"), ("b1_random_graph", "B1"),
+            ("b0_dna_only", "B0")]
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(6.3, 2.6),
+                                     gridspec_kw={"width_ratios": [1, 1.15], "wspace": 0.35})
+
+    # (a) Hi-C-free probe, long range: every arm, every confirmatory seed
+    for x, (arm, label) in enumerate(arms):
+        ys = [_long_r(f"{arm}_seed{s}", "probe_metrics.json", "val/probe_hic_free") for s in seeds]
+        ys = [y for y in ys if y is not None]
+        color = STRUCT if arm == "full" else NEUTRAL
+        ax_a.scatter([x] * len(ys), ys, s=22, color=tint(color, 0.35), edgecolor=SURFACE,
+                     linewidth=0.8, zorder=3)
+        ax_a.hlines(np.mean(ys), x - 0.25, x + 0.25, color=color, linewidth=2, zorder=4)
+    ax_a.set_xticks(range(len(arms)), [l for _, l in arms])
+    ax_a.set_xlim(-0.6, len(arms) - 0.4)
+    ax_a.set_ylim(0, 0.25)
+    ax_a.set_ylabel("Long-range Pearson r (≥150 kb)")
+    ax_a.set_title("(a) Hi-C-free, frozen probe", loc="left", fontsize=8, color=INK)
+    ax_a.yaxis.grid(True, color=GRID, linewidth=0.5)
+    ax_a.set_axisbelow(True)
+
+    # (b) the same weights with and without measured Hi-C at inference (own head)
+    pairs = arms[:3]
+    for x, (arm, label) in enumerate(pairs):
+        free = [_long_r(f"{arm}_seed{s}", "metrics.json", "val/hic_free") for s in seeds]
+        withh = [_long_r(f"{arm}_seed{s}", "metrics.json", "val/with_hic") for s in seeds]
+        color = STRUCT if arm == "full" else NEUTRAL
+        for f, w in zip(free, withh):
+            ax_b.plot([x - 0.15, x + 0.15], [f, w], color=tint(color, 0.55), linewidth=0.8, zorder=2)
+        ax_b.scatter([x - 0.15] * 3, free, s=22, facecolor=SURFACE, edgecolor=color,
+                     linewidth=1.0, zorder=3)
+        ax_b.scatter([x + 0.15] * 3, withh, s=22, color=color, edgecolor=SURFACE,
+                     linewidth=0.8, zorder=3)
+    ax_b.set_xticks(range(len(pairs)), [l for _, l in pairs])
+    ax_b.set_xlim(-0.6, len(pairs) - 0.4)
+    ax_b.set_ylim(0, 0.75)
+    ax_b.set_title("(b) Own head: Hi-C-free (open) vs with Hi-C (filled)",
+                   loc="left", fontsize=8, color=INK)
+    ax_b.yaxis.grid(True, color=GRID, linewidth=0.5)
+    ax_b.set_axisbelow(True)
+
+    fig.savefig(OUT / "fig4_results.png", bbox_inches="tight", pad_inches=0.03)
+    plt.close(fig)
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     cfg = load_config(REPO / "configs" / "base.yaml")
-    fig1_overview(cfg)
-    fig2_detrending(cfg)
-    fig3_graph_sample()
+    if "--results-only" not in sys.argv:
+        fig1_overview(cfg)
+        fig2_detrending(cfg)
+        fig3_graph_sample()
+    fig4_results()
     for p in sorted(OUT.glob("*.png")):
         print(f"wrote {p.relative_to(REPO)}")
     return 0
